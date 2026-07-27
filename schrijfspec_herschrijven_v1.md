@@ -5,7 +5,7 @@ beoordelingsspec (`beoordelingsspec_herschrijven_v1.md`) is afgeleid: schrijver 
 delen bewust dezelfde definitie van "goed". Gedistilleerd uit
 `Format_Specificatie_Herschrijven.md` tot imperatieve, checkbare regels per kopje.
 
-> Je herschrijft een bestaande training naar de nieuwe stijl in **negen kopjes**. Je krijgt:
+> Je herschrijft een bestaande training naar de nieuwe stijl in **tien kopjes**. Je krijgt:
 > de brontekst, de kern, het aantal dagen, de gekozen persona, de feiten
 > (`bruikbaar` / `strippen` / `gaten`), de goedgekeurde actualiteit-acties en
 > `rewrite_guidance`. Je schrijft **alleen de generatieve kopjes**; vaste sjabloonteksten en
@@ -27,8 +27,9 @@ Checkbaar, hard tenzij anders vermeld:
    - kennis is direct toepasbaar in de praktijk.
 6. **Persona-toon aanhouden** (zie §1). Eén persona per training.
 7. **Feitgetrouw.** Elke inhoudelijke claim is herleidbaar tot `bruikbaar` of de brontekst. Verzin **geen** feiten over versies, vendors, features of cijfers. Zie §12.
-8. **Output = alleen de gevraagde tekst** per kopje. Geen toelichting, geen meta-uitleg, geen koppen mee-genereren die de code al plaatst.
-9. **Volg de NL-humaniseerregels** in `humanisering_nl.md` (verboden LLM-frasen).
+8. **Kopstructuur** (zie `Template trainingen nieuwe opbouw.md`): de trainingstitel is kop 1, elk kopje is kop 2, en het bedrijfstrainingblok onder Inleiding is kop 3. De code plaatst die koppen; jij levert alleen de tekst eronder.
+9. **Output = alleen de gevraagde tekst** per kopje. Geen toelichting, geen meta-uitleg, geen koppen mee-genereren die de code al plaatst.
+10. **Volg de NL-humaniseerregels** in `humanisering_nl.md` (verboden LLM-frasen).
 
 ---
 
@@ -37,12 +38,12 @@ Checkbaar, hard tenzij anders vermeld:
 De persona is meegegeven (default van de scorer, kan door een mens overschreven zijn). Schrijf consistent in die toon:
 
 - **Persona A — Diepgaande IT-professional.** Zakelijk, technisch, to-the-point. Technische diepgang, best practices, realistische use cases. **Vermijd** algemene introducties en drempel-wegnemende uitleg.
-- **Persona B — Praktische IT-gebruiker (niet-technisch).** Toegankelijk, helder, geruststellend. Leg begrippen kort uit, neem drempels weg. Nadruk op *toepassen*, niet op *bouwen*.
+- **Persona B — Praktische IT-gebruiker (niet-technisch).** Toegankelijk, helder, geruststellend. Leg begrippen eventueel kort uit, neem drempels weg. Nadruk op *toepassen*, niet op *bouwen*.
 - **Persona C — Business professional / veranderaar.** Strategisch, reflectief, verbindend. Vertaal inzichten naar keuzes, impact en organisatiecontext.
 
 ---
 
-## 2. Kopje 1 — Korte omschrijving *(voorheen: Summary)*
+## 2. Kopje 1 — Overzicht  `overzicht`  *(CMS: summary)*
 
 **Doel:** overtuigende intro die direct duidelijk maakt waarom de training relevant is en wat de deelnemer eraan heeft.
 
@@ -60,25 +61,28 @@ De persona is meegegeven (default van de scorer, kan door een mens overschreven 
 
 ---
 
-## 3. Kopje 2 — Algemene omschrijving *(voorheen: Intro)*
+## 3. Kopje 2 — Inleiding  `inleiding`  *(CMS: intro)*
 
 **Doel:** verdieping op kopje 1: wat je leert, hoe je leert, hoe het aansluit op de praktijk.
 
 **Regels (checkbaar):**
 - **Lengte: 180–210 woorden in totaal** (mag één of meerdere vloeiende alinea's zijn — meerdere alleen als het overzicht dat vraagt). [hard]
-- Verdiepend t.o.v. de Korte omschrijving; geen herhaling ervan.
+- Verdiepend t.o.v. het Overzicht; geen herhaling ervan.
+- Schrijf **niet** het blok "Deze training bieden we ook als bedrijfstraining …"; dat plaatst de code als kop 3 onder dit kopje. [hard]
 - Dek in de tekst: (a) wat je leert/ontwikkelt vertaald naar concrete voordelen; (b) hoe de training is opgebouwd (praktijkgericht, voorbeelden, trainers uit de praktijk); (c) mogelijkheid tot afstemming op organisatie/team (zonder het woord "maatwerk").
 - Tools alleen noemen waar relevant en **ondergeschikt** aan wat de deelnemer leert.
 - USP's als impliciet fundament.
 
 ---
 
-## 4. Kopje 3 — Programma  ⚠️ zwaarst gewogen bij scoren
+## 4. Kopje 3 — Modules  `modules`  *(CMS: modules)*  ⚠️ zwaarst gewogen bij scoren
 
 **Doel:** snel, scanbaar overzicht van de inhoud, passend bij het aantal dagen en het niveau.
 
 **Vaste openingszin (plaatst de code — jij schrijft 'm niet, maar hij staat vóór jouw modules):**
 > "Tijdens de Training [naam training] komen in basis onderstaande onderwerpen aan bod. Afhankelijk van ontwikkelingen op het vakgebied, kan de feitelijke trainingsinhoud hier echter van afwijken. Bel ons gerust voor meer informatie over de actuele inhoud."
+
+(Begint de titel al met een soortwoord — "Opleiding …", "Cursus …", "Masterclass …" — dan zet de code "Tijdens de {titel}", zodat er geen "de Training Opleiding …" ontstaat.)
 
 **Regels (checkbaar) voor de modules die jij schrijft:**
 - **4–6 modules.** [hard]
@@ -91,13 +95,13 @@ De persona is meegegeven (default van de scorer, kan door een mens overschreven 
 
 ---
 
-## 5. Kopje 4 — Opzet  (vaste tekst — code plaatst dit)
+## 5. Kopje 6 — Aanpak  `aanpak_invulling`  *(CMS: setup)*  (vaste tekst — code plaatst dit)
 
 **Doel:** laten zien dat de training doordacht en praktijkgericht is.
 
 De code voegt onderstaande **twee vaste alinea's** in. Het enige wat jij levert is de invulling van `[….]` (één woord of enkele woorden passend bij het onderwerp):
 
-> De training is interactief en praktijkgericht opgezet. Je werkt actief aan herkenbare situaties, met veel ruimte voor vragen en eigen voorbeelden. Door te oefenen en bespreken leer je hoe **[….]**.
+> De training is interactief en praktijkgericht opgezet. Je werkt actief aan herkenbare situaties, met veel ruimte voor vragen en eigen voorbeelden. Door te oefenen, bespreken en reflecteren ervaar je hoe **[…..]**.
 >
 > De training wordt verzorgd door trainers uit de praktijk, die ervaring hebben in verschillende organisatiecontexten. We houden altijd rekening met jouw verwachtingen, zodat de training aansluit bij wat voor jou relevant is.
 
@@ -105,7 +109,7 @@ De code voegt onderstaande **twee vaste alinea's** in. Het enige wat jij levert 
 
 ---
 
-## 6. Kopje 5 — Doelgroep
+## 6. Kopje 4 — Doelgroep  `doelgroep`  *(CMS: target_audience)*
 
 **Doel:** in één oogopslag duidelijk maken voor wie de training is.
 
@@ -121,7 +125,7 @@ De code voegt onderstaande **twee vaste alinea's** in. Het enige wat jij levert 
 
 ---
 
-## 7. Kopje 6 — Voorkennis
+## 7. Kopje 5 — Voorkennis  `voorkennis`  *(CMS: prior_knowledge)*
 
 **Doel:** in één zin duidelijk maken of voorkennis vereist is.
 
@@ -133,7 +137,7 @@ De code voegt onderstaande **twee vaste alinea's** in. Het enige wat jij levert 
 
 ---
 
-## 8. Kopje 7 — Doelen
+## 8. Kopje 7 — Doelen  `doelen`  *(CMS: objectives)*
 
 **Doel:** in één oogopslag wat deelnemers na afloop kennen en kunnen.
 
@@ -149,7 +153,7 @@ De code voegt onderstaande **twee vaste alinea's** in. Het enige wat jij levert 
 
 ---
 
-## 9. Kopje 8 — Vervolgtraining  (catalogus-retrieval — code levert de titels)
+## 9. Kopje 8 — Vervolgstappen  *(CMS: follow_up)*  (catalogus-retrieval — code levert de titels)
 
 **Doel:** de deelnemer helpen een logische vervolgstap te kiezen.
 
@@ -161,19 +165,21 @@ De code voegt onderstaande **twee vaste alinea's** in. Het enige wat jij levert 
 Vaste boilerplate (code plaatst dit; titels ingevuld vanuit retrieval):
 > Binnen dit vakgebied beschikken wij over ruime praktijkervaring en specialistische kennis. Zoek je meer diepgang of een andere insteek? Neem gerust contact met ons op voor een vrijblijvende verkenning. We denken graag met je mee.
 >
-> Er zijn verschillende vervolgtrainingen die aansluiten op specifieke onderwerpen, toepassingen en werkcontexten. Zo bieden we onder andere:
+> Er zijn verschillende vervolgtrainingen die aansluiten op specifieke onderwerpen, toepassingen en werkcontexten.
+>
+> Zo bieden we onder andere:
 > • {titel} • {titel} • {titel}
 >
 > Zo kies je een vervolgstap die past bij jouw rol, interesses en werksituatie. … Neem gerust contact met ons op om te verkennen welke vorm van training het beste aansluit bij jouw praktijk.
 
 ---
 
-## 10. Kopje 9 — Kortste omschrijving
+## 10. Kopje 9 — Kortste omschrijving  `kortste_omschrijving`  *(CMS: summary_edudex)*
 
 **Doel:** verkorte versie van kopje 1.
 
 **Regels (checkbaar):**
-- **Wordt afgeleid ván kopje 1** (dezelfde kern/belofte, ingedikt). Genereer dit kopje **ná** de Korte omschrijving.
+- **Wordt afgeleid ván kopje 1 (Overzicht)** (dezelfde kern/belofte, ingedikt). Genereer dit kopje **ná** het Overzicht.
 - **Maximaal 200 tekens inclusief spaties — langer mag écht niet.** [hard]
 - **Begint met een vraag die start met "Wil je …".** [hard]
 - Persona-toon; actief; geen marketingtaal.
@@ -183,11 +189,11 @@ Vaste boilerplate (code plaatst dit; titels ingevuld vanuit retrieval):
 ## 11. Genereer-volgorde (afhankelijkheden)
 
 1. **Kern** vaststaan (meegegeven).
-2. **Korte omschrijving** (1) → daarna **Kortste omschrijving** (9), afgeleid van (1).
-3. **Programma** (3) → daarna **Doelen** (7), afgeleid van programma + omschrijving.
-4. **Doelgroep** (5) en **Voorkennis** (6): afleiden uit onderwerp/niveau/programma.
-5. **Algemene omschrijving** (2): verdiept op (1).
-6. Vaste secties (Opzet, Vervolgtraining) door de code.
+2. **Overzicht** (1) → daarna **Kortste omschrijving** (9), afgeleid van (1).
+3. **Modules** (3) → daarna **Doelen** (7), afgeleid van modules + Overzicht.
+4. **Doelgroep** (4) en **Voorkennis** (5): afleiden uit onderwerp/niveau/programma.
+5. **Inleiding** (2): verdiept op (1).
+6. Vaste secties (Aanpak, Vervolgstappen, bedrijfstrainingblok, Certificatie) door de code.
 
 ---
 
@@ -196,7 +202,9 @@ Vaste boilerplate (code plaatst dit; titels ingevuld vanuit retrieval):
 - **`bruikbaar`**: verwerk deze feiten/module-inhoud/voorbeelden/cijfers waar ze passen.
 - **`strippen`**: neem deze brontekst **niet** over (verouderde marketing, oude contactgegevens, losse testimonials, irrelevante achtergrond).
 - **`gaten`**: informatie die het format vereist maar de bron mist — vul plausibel aan wáár het format een afleiding toelaat; markeer twijfel in je output.
-- **Goedgekeurde actualiteit-acties** (alleen de door de reviewer goedgekeurde nummers, met eventuele voorwaarden): voer "refresh: …"-acties uit. Kom je een "BESLISSING NODIG: …" (structureel) tegen, dan hoort deze training **niet** in de auto-herschrijving — signaleer dat.
+- **Goedgekeurde actualiseringen**: je krijgt ze onder het kopje ACTUALISERINGEN. Voer ze uit. Staat er een **VOORWAARDE (reviewer)** bij, dan is die bindend en gaat hij vóór de actietekst — de reviewer heeft de actie daarmee ingeperkt, bijgestuurd of vervangen.
+- **Afgewezen actualiseringen** staan onder **NIET DOEN**. Voer die **niet** uit, ook niet als de brontekst er aanleiding toe geeft en ook niet in afgezwakte vorm. [hard] Wat niet in de goedgekeurde lijst staat, is niet goedgekeurd; verzin geen aanvullende actualiseringen.
+- Kom je een "BESLISSING NODIG: …" (structureel) tegen zonder reviewer-voorwaarde, dan hoort deze training **niet** in de auto-herschrijving — signaleer dat. Staat er wél een voorwaarde bij, dan heeft de reviewer de beslissing genomen: volg die.
 - **Feitgetrouwheid (hard):** verzin geen versienummers, vendors, features, jaartallen of cijfers. Bij een dunne bron mag je *pedagogische structuur* construeren (modules/doelen plausibel invullen), maar markeer de output dan als "thin / kandidaat tweede ronde". Verzonnen *feiten* zijn nooit toegestaan.
 
 ---
@@ -204,7 +212,9 @@ Vaste boilerplate (code plaatst dit; titels ingevuld vanuit retrieval):
 ## 13. Wat de code doet (niet jij)
 
 Deterministisch ingevoegd, zodat jij je op de generatieve tekst richt:
-- Programma-openingszin (§4), de twee Opzet-alinea's (§5), de Voorkennis-fallbackzin (§7),
-  het Vervolgtraining-boilerplate + afsluiter en de catalogus-titels (§9).
+- De Modules-openingszin (§4), de twee Aanpak-alinea's (§5), de Voorkennis-fallbackzin (§7),
+  het bedrijfstrainingblok onder Inleiding, het Vervolgstappen-boilerplate + afsluiter met de
+  catalogus-titels (§9), en de Certificatie-tekst. Alle vaste teksten staan in `sjabloon.py`,
+  afgeleid van `Template trainingen nieuwe opbouw.md`.
 - Lengte-, openings- en placeholder-controles (`rewrite_checks.py`). Faal je een harde check,
   dan krijg je de concrete fout terug en herschrijf je dat kopje.

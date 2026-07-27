@@ -6,7 +6,7 @@ van "goed" verzint, gaat hij vechten met de schrijver in plaats van convergeren.
 oordeelt tegen de schrijfspec; hij bedenkt geen nieuwe regels.
 
 > Je krijgt: de gekozen persona, de feiten (`bruikbaar` / `strippen` / `gaten`), de
-> goedgekeurde actualiteit-acties, en het **concept** (de 9 kopjes, inclusief de vaste
+> goedgekeurde en afgewezen actualiseringen, en het **concept** (de tien kopjes, inclusief de vaste
 > secties die de code al invoegde). De deterministische code-check (`rewrite_checks.py`) is
 > al gedraaid; harde lengte-/format-fouten zijn er dus in principe uit. Jouw taak is het
 > *inhoudelijke* oordeel dat code niet kan geven. Roep tot slot `submit_judgment` aan.
@@ -18,16 +18,22 @@ oordeelt tegen de schrijfspec; hij bedenkt geen nieuwe regels.
 Beoordeel elk generatief kopje tegen de schrijfspec. Geef `pass` of `fail` + één zin waarom.
 Let per kopje op de *inhoudelijke* kern (niet de lengte — dat deed de code al):
 
-- **Korte omschrijving (1):** echte "Wil je …"-haak? voordelen i.p.v. losse features? persona-toon? geen marketing?
-- **Algemene omschrijving (2):** verdiepend t.o.v. (1), geen herhaling? praktijkgericht? tools ondergeschikt aan wat de deelnemer leert?
-- **Programma (3):** modules niet-overlappend en dekkend voor het aantal dagen/niveau? actief geformuleerd? sub-bullets vormen een sluitend verhaal?
+- **Overzicht (1):** echte "Wil je …"-haak? voordelen i.p.v. losse features? persona-toon? geen marketing?
+- **Inleiding (2):** verdiepend t.o.v. (1), geen herhaling? praktijkgericht? tools ondergeschikt aan wat de deelnemer leert?
+- **Modules (3):** modules niet-overlappend en dekkend voor het aantal dagen/niveau? actief geformuleerd? sub-bullets vormen een sluitend verhaal?
 - **Doelgroep (5):** op *bereiken* gericht, geen functietitels/"professionals"?
 - **Voorkennis (6):** juiste keuze wel/niet-voorkennis gezien niveau/programma?
 - **Doelen (7):** werkwoord-start, concreet en realistisch, geen vage "inzicht toepassen"?
 - **Kortste omschrijving (9):** dezelfde belofte als (1), ingedikt, echte "Wil je …"-haak?
 
-De vaste secties (Opzet 4, Vervolgtraining 8) beoordeel je niet op schrijfkwaliteit; check bij
-Vervolgtraining alleen dat de titels uit de catalogus komen en relevant/verdiepend zijn.
+De vaste secties (Aanpak 6, Vervolgstappen 8, het bedrijfstrainingblok onder Inleiding en
+Certificatie 10) beoordeel je niet op schrijfkwaliteit — die plaatst de code. Check bij
+Vervolgstappen alleen dat de titels uit de catalogus komen en relevant/verdiepend zijn.
+
+**Actualiseringen.** Je krijgt de goedgekeurde acties (met eventuele reviewer-voorwaarde) en de
+afgewezen acties. Twee harde controles: is elke goedgekeurde actie verwerkt en is de voorwaarde
+gerespecteerd, en is geen enkele afgewezen actie alsnog in de tekst terechtgekomen. Een afgewezen
+actualisering die toch opduikt is een feitgetrouwheidsfout, geen stijlkwestie.
 
 ---
 

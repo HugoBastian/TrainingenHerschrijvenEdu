@@ -12,6 +12,12 @@ venv/
 # Output van de herschrijf-pipeline
 herschreven/
 
+# Notebook-uitvoer
+.ipynb_checkpoints/
+
+# Data: de sheets, incl. besluiten.xlsx met de handmatige correcties
+*.xlsx
+
 # De echte catalogus (data) — commit bewust wanneer je 'm hebt gevuld
 vervolgtraining_catalog.json
 

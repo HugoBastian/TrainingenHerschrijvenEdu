@@ -9,14 +9,14 @@ de code beslist deterministisch, het model schrijft alleen.
 
 Verwachte input `rewrite` (de gestructureerde schrijver-output, `submit_rewrite`):
     {
-      "korte_omschrijving":    "Wil je ... (55-65 woorden, 1 alinea)",
-      "algemene_omschrijving":  "... (180-210 woorden)",
-      "programma": { "modules": [ {"titel": "...", "bullets": ["...", "..."]}, ... ] },
-      "opzet_invulling":        "... (alleen de [....]-invulling)",
+      "overzicht":  "Wil je ... (55-65 woorden, 1 alinea)",
+      "inleiding":  "... (180-210 woorden)",
+      "modules":   { "modules": [ {"titel": "...", "bullets": ["...", "..."]}, ... ] },
+      "aanpak_invulling":        "... (alleen de [....]-invulling)",
       "doelgroep":              "Deze training is voor ...",
       "voorkennis":             "... (1 zin) of de vaste fallbackzin",
       "doelen":                 ["Werkwoord ...", "Werkwoord ...", ...],   # 4-5 bullets
-      "vervolgtraining_titels": ["Titel A", "Titel B", ...],              # uit de catalogus
+      "vervolgstappen_titels": ["Titel A", "Titel B", ...],              # uit de catalogus
       "kortste_omschrijving":   "Wil je ... (<=200 tekens)",
     }
 
@@ -137,15 +137,15 @@ def _startswith_ci(text: str, prefix: str) -> bool:
 # ---------------------------------------------------------------------------
 
 def _all_text_fields(rw: dict) -> list[tuple[str, str]]:
-    """(sectie, tekst) voor elk tekstueel veld, incl. programma- en doelen-onderdelen."""
+    """(sectie, tekst) voor elk tekstueel veld, incl. modules- en doelen-onderdelen."""
     out: list[tuple[str, str]] = []
-    for key in ("korte_omschrijving", "algemene_omschrijving", "opzet_invulling",
+    for key in ("overzicht", "inleiding", "aanpak_invulling",
                 "doelgroep", "voorkennis", "kortste_omschrijving"):
         out.append((key, _norm(rw.get(key))))
     for mod in _modules(rw):
-        out.append(("programma", _norm(mod.get("titel"))))
+        out.append(("modules", _norm(mod.get("titel"))))
         for b in mod.get("bullets", []) or []:
-            out.append(("programma", _norm(b)))
+            out.append(("modules", _norm(b)))
     for b in _doelen(rw):
         out.append(("doelen", _norm(b)))
     return [(s, t) for s, t in out if t]
@@ -179,7 +179,7 @@ def check_generic(rw: dict) -> list[Issue]:
 # ---------------------------------------------------------------------------
 
 def _modules(rw: dict) -> list[dict]:
-    prog = rw.get("programma")
+    prog = rw.get("modules")
     if isinstance(prog, dict):
         mods = prog.get("modules")
     elif isinstance(prog, list):
@@ -199,7 +199,7 @@ def _doelen(rw: dict) -> list[str]:
 
 
 def _titels(rw: dict) -> list[str]:
-    t = rw.get("vervolgtraining_titels")
+    t = rw.get("vervolgstappen_titels")
     if isinstance(t, list):
         return [x for x in t if isinstance(x, str) and x.strip()]
     return []
@@ -210,8 +210,8 @@ def _titels(rw: dict) -> list[str]:
 # ---------------------------------------------------------------------------
 
 # voorkennis staat hier bewust NIET in: een lege voorkennis is geldig -> de code
-# voegt dan de vaste fallbackzin in (zie assemble_document / VOORKENNIS_FALLBACK).
-REQUIRED_SECTIONS = ["korte_omschrijving", "algemene_omschrijving", "programma",
+# voegt dan de vaste fallbackzin in (zie assemble_document / sjabloon.VOORKENNIS_FALLBACK).
+REQUIRED_SECTIONS = ["overzicht", "inleiding", "modules",
                      "doelgroep", "doelen", "kortste_omschrijving"]
 
 
@@ -226,40 +226,40 @@ def check_presence(rw: dict) -> list[Issue]:
     return issues
 
 
-def check_korte_omschrijving(rw: dict) -> list[Issue]:
-    t = _norm(rw.get("korte_omschrijving"))
+def check_overzicht(rw: dict) -> list[Issue]:
+    t = _norm(rw.get("overzicht"))
     if not t:
         return []
     issues = []
     wc = word_count(t)
     if not (55 <= wc <= 65):
-        issues.append(Issue("korte_omschrijving", HARD, "lengte_woorden",
+        issues.append(Issue("overzicht", HARD, "lengte_woorden",
                             f"{wc} woorden; moet 55-65 zijn."))
     if not _startswith_ci(t, "wil je"):
-        issues.append(Issue("korte_omschrijving", HARD, "opening",
+        issues.append(Issue("overzicht", HARD, "opening",
                             'moet beginnen met een vraag die start met "Wil je …".'))
     if _BULLET_PREFIX_RE.search(t):
-        issues.append(Issue("korte_omschrijving", HARD, "opsomming",
+        issues.append(Issue("overzicht", HARD, "opsomming",
                             "mag geen opsomming/bullets bevatten."))
     return issues
 
 
-def check_algemene_omschrijving(rw: dict) -> list[Issue]:
-    t = _norm(rw.get("algemene_omschrijving"))
+def check_inleiding(rw: dict) -> list[Issue]:
+    t = _norm(rw.get("inleiding"))
     if not t:
         return []
     wc = word_count(t)
     if not (180 <= wc <= 210):
-        return [Issue("algemene_omschrijving", HARD, "lengte_woorden",
+        return [Issue("inleiding", HARD, "lengte_woorden",
                       f"{wc} woorden; moet 180-210 zijn.")]
     return []
 
 
-def check_programma(rw: dict) -> list[Issue]:
+def check_modules(rw: dict) -> list[Issue]:
     mods = _modules(rw)
     issues = []
     if not (4 <= len(mods) <= 6):
-        issues.append(Issue("programma", HARD, "modules_aantal",
+        issues.append(Issue("modules", HARD, "modules_aantal",
                             f"{len(mods)} modules; moet 4-6 zijn."))
     bullet_counts = []
     for idx, m in enumerate(mods, start=1):
@@ -267,10 +267,10 @@ def check_programma(rw: dict) -> list[Issue]:
         n = len(bullets)
         bullet_counts.append(n)
         if not (3 <= n <= 6):
-            issues.append(Issue("programma", HARD, "bullets_aantal",
+            issues.append(Issue("modules", HARD, "bullets_aantal",
                                 f"module {idx} heeft {n} sub-bullets; moet 3-6 zijn."))
     if len(bullet_counts) >= 2 and len(set(bullet_counts)) == 1:
-        issues.append(Issue("programma", HARD, "bullets_variatie",
+        issues.append(Issue("modules", HARD, "bullets_variatie",
                             "aantal sub-bullets moet variëren tussen modules; nu overal gelijk."))
     return issues
 
@@ -333,19 +333,19 @@ def check_kortste_omschrijving(rw: dict) -> list[Issue]:
     return issues
 
 
-def check_vervolgtraining(rw: dict, ctx: dict | None) -> list[Issue]:
+def check_vervolgstappen(rw: dict, ctx: dict | None) -> list[Issue]:
     titels = _titels(rw)
     catalog = (ctx or {}).get("catalog_titles")
     if catalog is None:
         if titels:
-            return [Issue("vervolgtraining", FLAG, "catalogus_ontbreekt",
+            return [Issue("vervolgstappen", FLAG, "catalogus_ontbreekt",
                           "geen catalogus geladen; titels niet te valideren.")]
         return []
     catalog_norm = {c.strip().lower() for c in catalog}
     issues = []
     for titel in titels:
         if titel.strip().lower() not in catalog_norm:
-            issues.append(Issue("vervolgtraining", HARD, "titel_onbekend",
+            issues.append(Issue("vervolgstappen", HARD, "titel_onbekend",
                                 f"'{titel}' staat niet in de catalogus; verzin geen titels."))
     return issues
 
@@ -359,14 +359,14 @@ def check_rewrite(rewrite: dict, ctx: dict | None = None) -> list[Issue]:
     rw = rewrite or {}
     issues: list[Issue] = []
     issues += check_presence(rw)
-    issues += check_korte_omschrijving(rw)
-    issues += check_algemene_omschrijving(rw)
-    issues += check_programma(rw)
+    issues += check_overzicht(rw)
+    issues += check_inleiding(rw)
+    issues += check_modules(rw)
     issues += check_doelgroep(rw)
     issues += check_voorkennis(rw)
     issues += check_doelen(rw)
     issues += check_kortste_omschrijving(rw)
-    issues += check_vervolgtraining(rw, ctx)
+    issues += check_vervolgstappen(rw, ctx)
     issues += check_generic(rw)
     return issues
 
@@ -374,9 +374,9 @@ def check_rewrite(rewrite: dict, ctx: dict | None = None) -> list[Issue]:
 if __name__ == "__main__":
     # Mini-demo (zonder API-key). Voer test_rewrite.py uit voor de echte tests.
     demo = {
-        "korte_omschrijving": "Wil je " + "woord " * 58 + "?",
-        "algemene_omschrijving": "zin " * 195,
-        "programma": {"modules": [
+        "overzicht": "Wil je " + "woord " * 58 + "?",
+        "inleiding": "zin " * 195,
+        "modules": {"modules": [
             {"titel": "M1", "bullets": ["a", "b", "c"]},
             {"titel": "M2", "bullets": ["a", "b", "c", "d"]},
             {"titel": "M3", "bullets": ["a", "b", "c"]},
@@ -386,7 +386,7 @@ if __name__ == "__main__":
         "voorkennis": "Specifieke voorkennis voor het volgen van deze training is niet noodzakelijk.",
         "doelen": ["Bouwen van dashboards", "Opschonen van data",
                    "Analyseren van trends", "Presenteren van resultaten"],
-        "vervolgtraining_titels": ["Power BI"],
+        "vervolgstappen_titels": ["Power BI"],
         "kortste_omschrijving": "Wil je slimmer met data werken en betere keuzes maken?",
     }
     for issue in check_rewrite(demo, {"catalog_titles": {"Power BI"}, "naam": "Data"}):

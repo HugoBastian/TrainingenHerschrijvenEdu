@@ -1,14 +1,22 @@
 """
 test_rewrite.py
 ===============
-Offline tests voor de deterministische code-check (rewrite_checks.py).
+Offline tests voor de deterministische lagen: de code-check (rewrite_checks.py), de
+besluiten-parser (besluiten.py) en de CMS-output (rewrite_output.py).
 Geen API-key nodig. Draai met `python test_rewrite.py` of `pytest test_rewrite.py`.
+
+De LLM-classificatie in besluiten.py wordt hier bewust NIET getest — die vraagt een
+API-call. Wat hier wél gegarandeerd moet kloppen is de laag eronder: de structurele
+splitsing van `actie_besluit` en de uitlijning met `actualiteit_actie`.
 """
 
 from __future__ import annotations
 
 import copy
 
+import besluiten as bes
+import rewrite_output as uit
+import sjabloon
 from rewrite_checks import HARD, FLAG, check_rewrite, hard_fails, flags
 
 
@@ -19,20 +27,20 @@ from rewrite_checks import HARD, FLAG, check_rewrite, hard_fails, flags
 def _good_rewrite() -> dict:
     """Een concept dat ALLE harde checks haalt (0 hard-fails)."""
     return {
-        "korte_omschrijving": "Wil je " + " ".join(["data"] * 57) + "?",   # 2 + 57 = 59 woorden
-        "algemene_omschrijving": " ".join(["onderwerp"] * 195),             # 195 woorden
-        "programma": {"modules": [
+        "overzicht": "Wil je " + " ".join(["data"] * 57) + "?",   # 2 + 57 = 59 woorden
+        "inleiding": " ".join(["onderwerp"] * 195),             # 195 woorden
+        "modules": {"modules": [
             {"titel": "Module een", "bullets": ["Onderdeel a", "Onderdeel b", "Onderdeel c"]},
             {"titel": "Module twee", "bullets": ["Onderdeel a", "Onderdeel b", "Onderdeel c", "Onderdeel d"]},
             {"titel": "Module drie", "bullets": ["Onderdeel a", "Onderdeel b", "Onderdeel c"]},
             {"titel": "Module vier", "bullets": ["Onderdeel a", "Onderdeel b", "Onderdeel c", "Onderdeel d", "Onderdeel e"]},
         ]},
-        "opzet_invulling": "je datagedreven keuzes maakt",
+        "aanpak_invulling": "je datagedreven keuzes maakt",
         "doelgroep": "Deze training is voor iedereen die met data betere keuzes wil maken.",
         "voorkennis": "Specifieke voorkennis voor het volgen van deze training is niet noodzakelijk.",
         "doelen": ["Bouwen van heldere dashboards", "Opschonen van ruwe data",
                    "Analyseren van terugkerende trends", "Presenteren van resultaten aan het team"],
-        "vervolgtraining_titels": ["Power BI"],
+        "vervolgstappen_titels": ["Power BI"],
         "kortste_omschrijving": "Wil je slimmer met data werken en betere keuzes maken?",
     }
 
@@ -60,37 +68,37 @@ def test_good_rewrite_has_no_hard_fails():
 
 def test_korte_te_kort():
     rw = _good_rewrite()
-    rw["korte_omschrijving"] = "Wil je " + " ".join(["data"] * 10) + "?"
+    rw["overzicht"] = "Wil je " + " ".join(["data"] * 10) + "?"
     assert "lengte_woorden" in _codes(check_rewrite(rw, _CTX), HARD)
 
 
 def test_korte_verkeerde_opening():
     rw = _good_rewrite()
-    rw["korte_omschrijving"] = "Deze training " + " ".join(["data"] * 57) + "."
+    rw["overzicht"] = "Deze training " + " ".join(["data"] * 57) + "."
     assert "opening" in _codes(check_rewrite(rw, _CTX), HARD)
 
 
 def test_algemene_te_lang():
     rw = _good_rewrite()
-    rw["algemene_omschrijving"] = " ".join(["onderwerp"] * 260)
+    rw["inleiding"] = " ".join(["onderwerp"] * 260)
     assert "lengte_woorden" in _codes(check_rewrite(rw, _CTX), HARD)
 
 
 def test_programma_te_weinig_modules():
     rw = _good_rewrite()
-    rw["programma"]["modules"] = rw["programma"]["modules"][:3]
+    rw["modules"]["modules"] = rw["modules"]["modules"][:3]
     assert "modules_aantal" in _codes(check_rewrite(rw, _CTX), HARD)
 
 
 def test_programma_bullets_buiten_bereik():
     rw = _good_rewrite()
-    rw["programma"]["modules"][0]["bullets"] = ["een", "twee"]  # 2 < 3
+    rw["modules"]["modules"][0]["bullets"] = ["een", "twee"]  # 2 < 3
     assert "bullets_aantal" in _codes(check_rewrite(rw, _CTX), HARD)
 
 
 def test_programma_bullets_geen_variatie():
     rw = _good_rewrite()
-    for m in rw["programma"]["modules"]:
+    for m in rw["modules"]["modules"]:
         m["bullets"] = ["a", "b", "c"]  # overal 3
     assert "bullets_variatie" in _codes(check_rewrite(rw, _CTX), HARD)
 
@@ -137,19 +145,19 @@ def test_kortste_verkeerde_opening():
 
 def test_placeholder_blijft_staan():
     rw = _good_rewrite()
-    rw["opzet_invulling"] = "je werkt met [....] in de praktijk"
+    rw["aanpak_invulling"] = "je werkt met [....] in de praktijk"
     assert "placeholder" in _codes(check_rewrite(rw, _CTX), HARD)
 
 
 def test_html_in_tekst():
     rw = _good_rewrite()
-    rw["programma"]["modules"][0]["bullets"][0] = "<p>Onderdeel</p>"
+    rw["modules"]["modules"][0]["bullets"][0] = "<p>Onderdeel</p>"
     assert "html" in _codes(check_rewrite(rw, _CTX), HARD)
 
 
 def test_onbekende_vervolgtraining_titel():
     rw = _good_rewrite()
-    rw["vervolgtraining_titels"] = ["Niet Bestaande Cursus"]
+    rw["vervolgstappen_titels"] = ["Niet Bestaande Cursus"]
     assert "titel_onbekend" in _codes(check_rewrite(rw, _CTX), HARD)
 
 
@@ -173,13 +181,13 @@ def test_u_vorm_is_flag_geen_hardfail():
 
 def test_llm_frase_is_flag():
     rw = _good_rewrite()
-    rw["algemene_omschrijving"] = "In deze training duiken we in " + " ".join(["onderwerp"] * 186)
+    rw["inleiding"] = "In deze training duiken we in " + " ".join(["onderwerp"] * 186)
     assert "llm_taal" in _codes(check_rewrite(rw, _CTX), FLAG)
 
 
 def test_marketing_is_flag():
     rw = _good_rewrite()
-    rw["korte_omschrijving"] = "Wil je deze uniek " + " ".join(["data"] * 55) + "?"
+    rw["overzicht"] = "Wil je deze uniek " + " ".join(["data"] * 55) + "?"
     assert "marketing" in _codes(check_rewrite(rw, _CTX), FLAG)
 
 
@@ -187,6 +195,195 @@ def test_catalogus_niet_geladen_is_flag():
     rw = _good_rewrite()
     issues = check_rewrite(rw, {"naam": "x"})  # geen catalog_titles
     assert "catalogus_ontbreekt" in _codes(issues, FLAG)
+
+
+# ---------------------------------------------------------------------------
+# Besluiten: structurele splitsing van actie_besluit
+#
+# De strings hieronder komen letterlijk uit `Nieuwe lijst herschreven en dagen.xlsx`.
+# Ze dekken de gevallen waarop de oude regex stukliep: een komma binnen de vrije tekst,
+# en een cijfer binnen de vrije tekst ("PHP 8").
+# ---------------------------------------------------------------------------
+
+ECHTE_BESLUITEN = [
+    ("1,2,3,4", 4),
+    ("1,2", 2),
+    ("1 niet,2 wel,3 wel,4 wel,5 wel", 5),
+    ("1 prima,2 nuanceer,3 niet,4 prima", 4),
+    ("1 nee dat is advanced,2 nee,3 in inleiding is dat prima", 3),
+    ("1 PHP versie niet benoemen, wel relavante taalfeatures toevoegen,2 prima,3 prima,"
+     "4 geen speciefieke frameworks benoemen,5 prima", 5),
+    ("1 beide voor zover browser variant nog relevant,2 geen versienummers gebruiken,"
+     "3 prima,4 prima", 4),
+    ("1 stuk over certificatie vervalt helemaal,2 wel,3 examenstructuur vervalt volledig", 3),
+]
+
+
+def test_besluit_splitst_op_nummer_niet_op_elke_komma():
+    for ruw, verwacht in ECHTE_BESLUITEN:
+        items = bes.split_besluit(ruw)
+        assert len(items) == verwacht, f"{ruw!r} -> {len(items)} i.p.v. {verwacht}"
+        assert [nr for nr, _ in items] == list(range(1, verwacht + 1)), ruw
+
+
+def test_komma_binnen_vrije_tekst_splitst_niet():
+    items = bes.split_besluit(
+        "1 PHP versie niet benoemen, wel relavante taalfeatures toevoegen,2 prima")
+    assert items[0] == (1, "PHP versie niet benoemen, wel relavante taalfeatures toevoegen")
+    assert items[1] == (2, "prima")
+
+
+def test_cijfer_in_vrije_tekst_wordt_geen_actienummer():
+    # de oude regex vond hier "8" van "PHP 8" als actienummer
+    items = bes.split_besluit("1 gebruik PHP 8 niet als voorbeeld,2 prima")
+    assert [nr for nr, _ in items] == [1, 2]
+
+
+def test_parse_acties_nummert_de_scorerlijst():
+    acties = bes.parse_acties("1. refresh: eerste\n2. refresh: tweede\n3. refresh: derde")
+    assert acties == {1: "refresh: eerste", 2: "refresh: tweede", 3: "refresh: derde"}
+
+
+def test_align_koppelt_annotatie_aan_actie():
+    acties = {1: "eerste", 2: "tweede"}
+    gekoppeld = bes.align(acties, bes.split_besluit("1 niet,2 prima"))
+    assert gekoppeld == [(1, "eerste", "niet"), (2, "tweede", "prima")]
+
+
+def test_align_faalt_hard_bij_verkeerd_aantal():
+    try:
+        bes.align({1: "eerste", 2: "tweede"}, bes.split_besluit("1,2,3"))
+    except bes.BesluitFout:
+        return
+    raise AssertionError("verwachtte BesluitFout bij 3 besluiten op 2 acties")
+
+
+def test_align_faalt_hard_bij_onbekend_nummer():
+    try:
+        bes.align({1: "eerste"}, bes.split_besluit("7 prima"))
+    except bes.BesluitFout:
+        return
+    raise AssertionError("verwachtte BesluitFout bij een nummer zonder actie")
+
+
+# ---------------------------------------------------------------------------
+# Besluiten: de regel-fastpath (exact-match, buiten het model om)
+# ---------------------------------------------------------------------------
+
+def test_fastpath_keurt_kale_goedkeuring_goed():
+    for ann in ("", "prima", "wel", "ja", "OK", "Akkoord", "prima."):
+        assert bes.regel_label(ann) == bes.DOEN, ann
+
+
+def test_fastpath_wijst_kale_afwijzing_af():
+    for ann in ("niet", "nee", "Nee", "nvt"):
+        assert bes.regel_label(ann) == bes.NIET, ann
+
+
+def test_fastpath_laat_vrije_tekst_aan_het_model():
+    # "geen ..." is een VOORWAARDE, geen afwijzing -- de fastpath mag hier niet gokken
+    for ann in ("geen specifieke frameworks benoemen", "nee dat is advanced",
+                "in inleiding is dat prima", "nuanceer"):
+        assert bes.regel_label(ann) is None, ann
+
+
+# ---------------------------------------------------------------------------
+# Besluiten: wat de schrijver te zien krijgt
+# ---------------------------------------------------------------------------
+
+def _besluit(besluit, voorwaarde=""):
+    return bes.Besluit(1, "T", 1, "refresh: doe iets", voorwaarde, besluit,
+                       voorwaarde, bes.BRON_LLM)
+
+
+def test_voorwaarde_gaat_altijd_mee_naar_de_schrijver():
+    # ook bij `doen`: het label bepaalt of de actie doorgaat, niet of de reviewer
+    # gehoord wordt -- anders verdampt de aantekening bij een net-verkeerd label
+    for label, kop in ((bes.MITS, "VOORWAARDE"), (bes.DOEN, "VOORWAARDE"), (bes.NIET, "REDEN")):
+        tekst = _besluit(label, "alleen in de inleiding").als_instructie()
+        assert "alleen in de inleiding" in tekst
+        assert kop in tekst
+
+
+def test_kale_goedkeuring_voegt_niets_toe():
+    assert _besluit(bes.DOEN).als_instructie() == "refresh: doe iets"
+
+
+def test_splits_scheidt_goedgekeurd_van_afgewezen():
+    goed, afgewezen = bes.splits([_besluit(bes.DOEN), _besluit(bes.MITS), _besluit(bes.NIET)])
+    assert len(goed) == 2 and len(afgewezen) == 1
+
+
+# ---------------------------------------------------------------------------
+# Output: document -> CMS-content
+# ---------------------------------------------------------------------------
+
+def _document() -> dict:
+    return {
+        "overzicht": "Wil je slimmer werken?",
+        "inleiding": "Eerste alinea.\n\nTweede alinea.",
+        "modules": {"opening": sjabloon.modules_opening("Cursus XML"),
+                    "modules": [{"titel": "M1", "bullets": ["a", "b"]}]},
+        "doelgroep": "Deze training is voor iedereen.",
+        "voorkennis": sjabloon.VOORKENNIS_FALLBACK,
+        "aanpak": sjabloon.AANPAK_ALINEA_1.format(invulling="je dit toepast")
+                  + "\n\n" + sjabloon.AANPAK_ALINEA_2,
+        "doelen": {"intro": sjabloon.DOELEN_INTRO, "bullets": ["Doen van dingen"]},
+        "vervolgstappen": {"alineas": [sjabloon.VERVOLG_ALINEA_1, sjabloon.VERVOLG_ALINEA_2],
+                           "titels": ["Power BI"], "afsluiter": sjabloon.VERVOLG_AFSLUITER},
+        "kortste_omschrijving": "Wil je dit leren?",
+        "certificatie": sjabloon.CERTIFICATIE,
+    }
+
+
+def test_content_heeft_dezelfde_sleutels_als_de_bron():
+    bron = {"days": 3, "intro": "", "setup": "", "modules": "", "summary": "",
+            "follow_up": "", "objectives": "", "certification": "", "summary_edudex": "",
+            "prior_knowledge": "", "target_audience": ""}
+    content = uit.document_to_content(_document(), bron)
+    assert set(content) == set(bron), set(bron) ^ set(content)
+
+
+def test_days_wordt_ongewijzigd_overgenomen():
+    content = uit.document_to_content(_document(), {"days": 7})
+    assert content["days"] == 7
+
+
+def test_summary_is_platte_tekst_geen_html():
+    content = uit.document_to_content(_document(), {})
+    assert "<" not in content["summary"] and "<" not in content["summary_edudex"]
+
+
+def test_inleiding_krijgt_het_bedrijfstrainingblok_als_kop_3():
+    content = uit.document_to_content(_document(), {})
+    assert f"<h3>{sjabloon.BEDRIJFSTRAINING_KOP}</h3>" in content["intro"]
+    assert sjabloon.BEDRIJFSTRAINING_TEKST in content["intro"]
+
+
+def test_modules_gebruikt_geneste_lijsten():
+    content = uit.document_to_content(_document(), {})
+    assert content["modules"].count("<ul>") == 2   # buitenste + één module
+    assert "<h3>" not in content["modules"]
+
+
+def test_geen_placeholder_of_oplnaam_in_de_output():
+    content = uit.document_to_content(_document(), {})
+    samen = " ".join(v for v in content.values() if isinstance(v, str))
+    assert "{{ oplnaam }}" not in samen and "[" not in samen
+
+
+def test_soortwoord_wordt_niet_verdubbeld():
+    assert "de Training Opleiding" not in sjabloon.modules_opening("Opleiding PHP Professional")
+    assert sjabloon.modules_opening("Cursus XML").startswith("Tijdens de Cursus XML")
+    assert sjabloon.modules_opening("Photoshop").startswith("Tijdens de Training Photoshop")
+
+
+def test_markdown_heeft_kop_1_2_en_3():
+    md = uit.render_markdown(_document(), "Cursus XML")
+    assert md.startswith("# Cursus XML")
+    for kopje in sjabloon.KOPJES:
+        assert f"## {kopje.kop}" in md, kopje.kop
+    assert f"### **{sjabloon.BEDRIJFSTRAINING_KOP}**" in md
 
 
 # ---------------------------------------------------------------------------
