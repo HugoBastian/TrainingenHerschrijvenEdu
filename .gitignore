@@ -1,0 +1,19 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Output van de herschrijf-pipeline
+herschreven/
+
+# De echte catalogus (data) — commit bewust wanneer je 'm hebt gevuld
+vervolgtraining_catalog.json
+
+# macOS
+.DS_Store

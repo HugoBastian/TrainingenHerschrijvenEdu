@@ -1,0 +1,394 @@
+"""
+rewrite_checks.py
+=================
+Deterministische code-check voor een herschreven training (de 9 kopjes).
+Geen LLM: plain Python-functies die een lijst `Issue`-objecten teruggeven,
+gesplitst in HARD-FAIL (moet terug naar de schrijver) en FLAG (mag mee naar
+judge/review). Zelfde geest als `finalize_scores` in score_trainings.py:
+de code beslist deterministisch, het model schrijft alleen.
+
+Verwachte input `rewrite` (de gestructureerde schrijver-output, `submit_rewrite`):
+    {
+      "korte_omschrijving":    "Wil je ... (55-65 woorden, 1 alinea)",
+      "algemene_omschrijving":  "... (180-210 woorden)",
+      "programma": { "modules": [ {"titel": "...", "bullets": ["...", "..."]}, ... ] },
+      "opzet_invulling":        "... (alleen de [....]-invulling)",
+      "doelgroep":              "Deze training is voor ...",
+      "voorkennis":             "... (1 zin) of de vaste fallbackzin",
+      "doelen":                 ["Werkwoord ...", "Werkwoord ...", ...],   # 4-5 bullets
+      "vervolgtraining_titels": ["Titel A", "Titel B", ...],              # uit de catalogus
+      "kortste_omschrijving":   "Wil je ... (<=200 tekens)",
+    }
+
+Context `ctx` (optioneel):
+    { "catalog_titles": {"Titel A", ...}, "naam": "Trainingsnaam" }
+
+Gebruik:
+    issues = check_rewrite(rewrite, ctx)
+    if hard_fails(issues):
+        # terug naar de schrijver met format_issues(hard_fails(issues))
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+
+# ---------------------------------------------------------------------------
+# Severity + Issue
+# ---------------------------------------------------------------------------
+
+HARD = "hard"   # moet gerepareerd worden -> terug naar schrijver
+FLAG = "flag"   # signaal -> mee naar judge / menselijke review
+
+
+@dataclass(frozen=True)
+class Issue:
+    section: str      # kopje-sleutel of "algemeen"
+    severity: str     # HARD | FLAG
+    code: str         # korte machine-code, bv. "lengte_woorden"
+    message: str      # leesbare uitleg (gaat mee terug naar de schrijver)
+
+    def __str__(self) -> str:
+        return f"[{self.severity.upper()}] {self.section}: {self.message}"
+
+
+def hard_fails(issues: list[Issue]) -> list[Issue]:
+    return [i for i in issues if i.severity == HARD]
+
+
+def flags(issues: list[Issue]) -> list[Issue]:
+    return [i for i in issues if i.severity == FLAG]
+
+
+def format_issues(issues: list[Issue]) -> str:
+    """Bundelt issues tot tekst die als revisie-instructie de schrijver in kan."""
+    return "\n".join(f"- {i}" for i in issues)
+
+
+# ---------------------------------------------------------------------------
+# Tekst-helpers
+# ---------------------------------------------------------------------------
+
+_WORD_RE = re.compile(r"[A-Za-zÀ-ÿ0-9]+(?:['-][A-Za-zÀ-ÿ0-9]+)*")
+_HTML_RE = re.compile(r"<[^>]+>")
+_SENTENCE_END_RE = re.compile(r"[.!?]+(?:\s|$)")
+# placeholder-resten: [....], [naam training], {{ oplnaam }}, {iets}
+_PLACEHOLDER_RE = re.compile(r"\[[^\]]*\.{2,}[^\]]*\]|\[naam[^\]]*\]|\{\{[^}]*\}\}|\{\s*\.{2,}\s*\}")
+_BULLET_PREFIX_RE = re.compile(r"^\s*[-*•]\s+", re.M)
+# "u"/"uw" als los tweede-persoons-woord (niet "u-vormig" e.d.)
+_U_VORM_RE = re.compile(r"(?<![\w-])[Uu]w?(?![\w-])")
+
+# Verboden LLM-frasen (uit humanisering_nl.md), hoofdletter-ongevoelig -> FLAG
+BANNED_PATTERNS = [
+    r"in de (?:snel veranderende|hedendaagse|moderne|dynamische) wereld van",
+    r"in het (?:huidige|digitale) landschap",
+    r"of het nu gaat om",
+    r"duiken we (?:dieper )?in",
+    r"ontdek de kracht van",
+    r"ontgrendel het potentieel",
+    r"naar een hoger niveau",
+    r"niet alleen .{0,60}? maar ook",
+    r"een (?:breed|ruim) scala aan",
+    r"een schat aan",
+    r"in een handomdraai",
+    r"in no[- ]?time",
+    r"waar wacht je nog op",
+    r"zet (?:vandaag )?(?:nog )?de eerste stap",
+    r"\b(?:naadloos|moeiteloos|cruciaal|essentieel|baanbrekend|revolutionair|ongekend)\b",
+    r"\b(?:simpelweg|daadwerkelijk|gewoonweg)\b",
+]
+_BANNED_RE = [re.compile(p, re.I) for p in BANNED_PATTERNS]
+
+# Marketingtaal / superlatieven -> FLAG
+MARKETING_WORDS = ["de beste", "uniek", "gegarandeerd", "ongeëvenaard", "toonaangevend",
+                   "wereldklasse", "state-of-the-art", "next-level", "game-changer"]
+
+# Zwakke doel-openers (geen werkwoord) -> FLAG voor Doelen-bullets
+_NONVERB_START = {"de", "het", "een", "deze", "dit", "dat", "inzicht", "kennis", "begrip"}
+
+
+def word_count(text: str) -> int:
+    return len(_WORD_RE.findall(text or ""))
+
+
+def char_count(text: str) -> int:
+    return len(text or "")
+
+
+def sentence_count(text: str) -> int:
+    t = (text or "").strip()
+    if not t:
+        return 0
+    n = len(_SENTENCE_END_RE.findall(t))
+    return n if n > 0 else 1  # tekst zonder eindteken telt als 1 zin
+
+
+def _norm(text) -> str:
+    return (text or "").strip() if isinstance(text, str) else ""
+
+
+def _startswith_ci(text: str, prefix: str) -> bool:
+    return _norm(text).lower().startswith(prefix.lower())
+
+
+# ---------------------------------------------------------------------------
+# Generieke checks over alle tekstvelden (HTML, placeholders, u-vorm, LLM-taal)
+# ---------------------------------------------------------------------------
+
+def _all_text_fields(rw: dict) -> list[tuple[str, str]]:
+    """(sectie, tekst) voor elk tekstueel veld, incl. programma- en doelen-onderdelen."""
+    out: list[tuple[str, str]] = []
+    for key in ("korte_omschrijving", "algemene_omschrijving", "opzet_invulling",
+                "doelgroep", "voorkennis", "kortste_omschrijving"):
+        out.append((key, _norm(rw.get(key))))
+    for mod in _modules(rw):
+        out.append(("programma", _norm(mod.get("titel"))))
+        for b in mod.get("bullets", []) or []:
+            out.append(("programma", _norm(b)))
+    for b in _doelen(rw):
+        out.append(("doelen", _norm(b)))
+    return [(s, t) for s, t in out if t]
+
+
+def check_generic(rw: dict) -> list[Issue]:
+    issues: list[Issue] = []
+    for section, text in _all_text_fields(rw):
+        if _HTML_RE.search(text):
+            issues.append(Issue(section, HARD, "html", "bevat HTML-tags; lever platte tekst."))
+        if _PLACEHOLDER_RE.search(text):
+            issues.append(Issue(section, HARD, "placeholder",
+                                "onvervulde placeholder ([....] / {{ oplnaam }}) blijven staan."))
+        if _U_VORM_RE.search(text):
+            issues.append(Issue(section, FLAG, "u_vorm",
+                                "gebruikt mogelijk de 'u'-vorm; schrijf in 'je'-vorm."))
+        for rx in _BANNED_RE:
+            m = rx.search(text)
+            if m:
+                issues.append(Issue(section, FLAG, "llm_taal",
+                                    f"LLM-frase gevonden: '{m.group(0)}' (zie humanisering_nl.md)."))
+        low = text.lower()
+        for w in MARKETING_WORDS:
+            if w in low:
+                issues.append(Issue(section, FLAG, "marketing", f"marketingtaal: '{w}'."))
+    return issues
+
+
+# ---------------------------------------------------------------------------
+# Normalisatie van samengestelde velden
+# ---------------------------------------------------------------------------
+
+def _modules(rw: dict) -> list[dict]:
+    prog = rw.get("programma")
+    if isinstance(prog, dict):
+        mods = prog.get("modules")
+    elif isinstance(prog, list):
+        mods = prog
+    else:
+        mods = None
+    return [m for m in (mods or []) if isinstance(m, dict)]
+
+
+def _doelen(rw: dict) -> list[str]:
+    d = rw.get("doelen")
+    if isinstance(d, dict):
+        d = d.get("bullets")
+    if isinstance(d, list):
+        return [x for x in d if isinstance(x, str) and x.strip()]
+    return []
+
+
+def _titels(rw: dict) -> list[str]:
+    t = rw.get("vervolgtraining_titels")
+    if isinstance(t, list):
+        return [x for x in t if isinstance(x, str) and x.strip()]
+    return []
+
+
+# ---------------------------------------------------------------------------
+# Per-kopje checks
+# ---------------------------------------------------------------------------
+
+# voorkennis staat hier bewust NIET in: een lege voorkennis is geldig -> de code
+# voegt dan de vaste fallbackzin in (zie assemble_document / VOORKENNIS_FALLBACK).
+REQUIRED_SECTIONS = ["korte_omschrijving", "algemene_omschrijving", "programma",
+                     "doelgroep", "doelen", "kortste_omschrijving"]
+
+
+def check_presence(rw: dict) -> list[Issue]:
+    issues = []
+    for key in REQUIRED_SECTIONS:
+        val = rw.get(key)
+        empty = val is None or (isinstance(val, str) and not val.strip()) \
+            or (isinstance(val, (list, dict)) and not val)
+        if empty:
+            issues.append(Issue(key, HARD, "ontbreekt", "kopje ontbreekt of is leeg."))
+    return issues
+
+
+def check_korte_omschrijving(rw: dict) -> list[Issue]:
+    t = _norm(rw.get("korte_omschrijving"))
+    if not t:
+        return []
+    issues = []
+    wc = word_count(t)
+    if not (55 <= wc <= 65):
+        issues.append(Issue("korte_omschrijving", HARD, "lengte_woorden",
+                            f"{wc} woorden; moet 55-65 zijn."))
+    if not _startswith_ci(t, "wil je"):
+        issues.append(Issue("korte_omschrijving", HARD, "opening",
+                            'moet beginnen met een vraag die start met "Wil je …".'))
+    if _BULLET_PREFIX_RE.search(t):
+        issues.append(Issue("korte_omschrijving", HARD, "opsomming",
+                            "mag geen opsomming/bullets bevatten."))
+    return issues
+
+
+def check_algemene_omschrijving(rw: dict) -> list[Issue]:
+    t = _norm(rw.get("algemene_omschrijving"))
+    if not t:
+        return []
+    wc = word_count(t)
+    if not (180 <= wc <= 210):
+        return [Issue("algemene_omschrijving", HARD, "lengte_woorden",
+                      f"{wc} woorden; moet 180-210 zijn.")]
+    return []
+
+
+def check_programma(rw: dict) -> list[Issue]:
+    mods = _modules(rw)
+    issues = []
+    if not (4 <= len(mods) <= 6):
+        issues.append(Issue("programma", HARD, "modules_aantal",
+                            f"{len(mods)} modules; moet 4-6 zijn."))
+    bullet_counts = []
+    for idx, m in enumerate(mods, start=1):
+        bullets = [b for b in (m.get("bullets") or []) if isinstance(b, str) and b.strip()]
+        n = len(bullets)
+        bullet_counts.append(n)
+        if not (3 <= n <= 6):
+            issues.append(Issue("programma", HARD, "bullets_aantal",
+                                f"module {idx} heeft {n} sub-bullets; moet 3-6 zijn."))
+    if len(bullet_counts) >= 2 and len(set(bullet_counts)) == 1:
+        issues.append(Issue("programma", HARD, "bullets_variatie",
+                            "aantal sub-bullets moet variëren tussen modules; nu overal gelijk."))
+    return issues
+
+
+def check_doelgroep(rw: dict) -> list[Issue]:
+    t = _norm(rw.get("doelgroep"))
+    if not t:
+        return []
+    issues = []
+    if not _startswith_ci(t, "deze training is voor"):
+        issues.append(Issue("doelgroep", HARD, "opening",
+                            'moet beginnen met "Deze training is voor …".'))
+    if re.search(r"\bprofessionals?\b", t, re.I):
+        issues.append(Issue("doelgroep", HARD, "professionals",
+                            'gebruik het woord "professionals" niet.'))
+    if sentence_count(t) > 1:
+        issues.append(Issue("doelgroep", FLAG, "een_zin", "moet één compacte zin zijn."))
+    return issues
+
+
+def check_voorkennis(rw: dict) -> list[Issue]:
+    t = _norm(rw.get("voorkennis"))
+    if not t:
+        return []
+    if sentence_count(t) > 1:
+        return [Issue("voorkennis", FLAG, "een_zin", "moet één compacte zin zijn.")]
+    return []
+
+
+def check_doelen(rw: dict) -> list[Issue]:
+    bullets = _doelen(rw)
+    issues = []
+    if not (4 <= len(bullets) <= 5):
+        issues.append(Issue("doelen", HARD, "aantal", f"{len(bullets)} doelen; moet 4-5 zijn."))
+    for idx, b in enumerate(bullets, start=1):
+        first = b.strip().split()[0] if b.strip().split() else ""
+        if first and not first[0].isupper():
+            issues.append(Issue("doelen", HARD, "hoofdletter",
+                                f"doel {idx} begint niet met een hoofdletter."))
+        if first.lower() in _NONVERB_START:
+            issues.append(Issue("doelen", FLAG, "geen_werkwoord",
+                                f"doel {idx} begint niet met een werkwoord ('{first}')."))
+        if re.search(r"\binzicht toepassen\b", b, re.I):
+            issues.append(Issue("doelen", FLAG, "vaag", f"doel {idx} is vaag ('inzicht toepassen')."))
+    return issues
+
+
+def check_kortste_omschrijving(rw: dict) -> list[Issue]:
+    t = _norm(rw.get("kortste_omschrijving"))
+    if not t:
+        return []
+    issues = []
+    n = len(t)
+    if n > 200:
+        issues.append(Issue("kortste_omschrijving", HARD, "lengte_tekens",
+                            f"{n} tekens; mag maximaal 200 zijn."))
+    if not _startswith_ci(t, "wil je"):
+        issues.append(Issue("kortste_omschrijving", HARD, "opening",
+                            'moet beginnen met een vraag die start met "Wil je …".'))
+    return issues
+
+
+def check_vervolgtraining(rw: dict, ctx: dict | None) -> list[Issue]:
+    titels = _titels(rw)
+    catalog = (ctx or {}).get("catalog_titles")
+    if catalog is None:
+        if titels:
+            return [Issue("vervolgtraining", FLAG, "catalogus_ontbreekt",
+                          "geen catalogus geladen; titels niet te valideren.")]
+        return []
+    catalog_norm = {c.strip().lower() for c in catalog}
+    issues = []
+    for titel in titels:
+        if titel.strip().lower() not in catalog_norm:
+            issues.append(Issue("vervolgtraining", HARD, "titel_onbekend",
+                                f"'{titel}' staat niet in de catalogus; verzin geen titels."))
+    return issues
+
+
+# ---------------------------------------------------------------------------
+# Top-level
+# ---------------------------------------------------------------------------
+
+def check_rewrite(rewrite: dict, ctx: dict | None = None) -> list[Issue]:
+    """Draait alle checks en geeft één gecombineerde issue-lijst terug (HARD + FLAG)."""
+    rw = rewrite or {}
+    issues: list[Issue] = []
+    issues += check_presence(rw)
+    issues += check_korte_omschrijving(rw)
+    issues += check_algemene_omschrijving(rw)
+    issues += check_programma(rw)
+    issues += check_doelgroep(rw)
+    issues += check_voorkennis(rw)
+    issues += check_doelen(rw)
+    issues += check_kortste_omschrijving(rw)
+    issues += check_vervolgtraining(rw, ctx)
+    issues += check_generic(rw)
+    return issues
+
+
+if __name__ == "__main__":
+    # Mini-demo (zonder API-key). Voer test_rewrite.py uit voor de echte tests.
+    demo = {
+        "korte_omschrijving": "Wil je " + "woord " * 58 + "?",
+        "algemene_omschrijving": "zin " * 195,
+        "programma": {"modules": [
+            {"titel": "M1", "bullets": ["a", "b", "c"]},
+            {"titel": "M2", "bullets": ["a", "b", "c", "d"]},
+            {"titel": "M3", "bullets": ["a", "b", "c"]},
+            {"titel": "M4", "bullets": ["a", "b", "c", "d", "e"]},
+        ]},
+        "doelgroep": "Deze training is voor iedereen die data beter wil benutten.",
+        "voorkennis": "Specifieke voorkennis voor het volgen van deze training is niet noodzakelijk.",
+        "doelen": ["Bouwen van dashboards", "Opschonen van data",
+                   "Analyseren van trends", "Presenteren van resultaten"],
+        "vervolgtraining_titels": ["Power BI"],
+        "kortste_omschrijving": "Wil je slimmer met data werken en betere keuzes maken?",
+    }
+    for issue in check_rewrite(demo, {"catalog_titles": {"Power BI"}, "naam": "Data"}):
+        print(issue)
+    print("hard fails:", len(hard_fails(check_rewrite(demo))))
