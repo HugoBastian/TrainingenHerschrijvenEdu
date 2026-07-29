@@ -122,6 +122,41 @@ def nieuwe_titel(naam: str) -> str:
     return f"Training {naam}"
 
 
+# Woorden waarmee een titel niet begint. Staat er zo'n woord in kleine letters direct
+# achter het soortwoord, dan is de regel een lopende zin ("Training op maat") en geen
+# titel. Voorzorg: op de echte catalogus en het goud vuurt deze guard nergens --
+# "Training Van Excel naar Power BI" is wél een titel, met een hoofdletter.
+GEEN_TITELSTART = frozenset((
+    "op", "voor", "in", "met", "over", "van", "bij", "en", "of", "om",
+    "naar", "als", "die", "dat", "de", "het", "een", "aan", "uit", "per",
+))
+
+
+def vervolgtitel(naam: str) -> str:
+    """Titel zoals hij in de Vervolgstappen-lijst staat: zonder "Training" ervoor.
+
+    "Cursus PowerPoint"       -> "PowerPoint"
+    "Training Power BI"       -> "Power BI"
+    "Power BI"                -> "Power BI"
+    "Masterclass PHP"         -> "Masterclass PHP"     (afwijkende vorm blijft staan)
+    "Examentraining CEH"      -> "Examentraining CEH"
+
+    De lijst staat al onder het kopje Vervolgstappen; "Training" ervoor is bij elke regel
+    ruis. Een afwijkende vorm (masterclass, workshop, examentraining) is wél informatie
+    over de training en blijft staan, precies zoals in de gewone titel.
+
+    Ook de poort voor gekopieerde regels: wat geen titelvorm heeft, gaat door
+    `vervang_soortwoord` en houdt dus hooguit het verboden woord niet.
+    """
+    naam = (naam or "").strip()
+    woorden = naam.split()
+    if len(woorden) < 2 or woorden[0].lower() not in ("training",) + VERBODEN_SOORTWOORDEN:
+        return vervang_soortwoord(naam)
+    if woorden[1][:1].islower() and woorden[1].lower() in GEEN_TITELSTART:
+        return vervang_soortwoord(naam)
+    return " ".join(woorden[1:])
+
+
 def modules_opening(naam: str) -> str:
     """De openingszin van kopje Modules, met een lopende aanduiding van de training.
 

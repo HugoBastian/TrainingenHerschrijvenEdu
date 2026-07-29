@@ -223,7 +223,7 @@ def test_examentraining_mag_wel():
 
 
 # ---------------------------------------------------------------------------
-# Titelnormalisatie (sjabloon.nieuwe_titel / vervang_soortwoord)
+# Titelnormalisatie (sjabloon.nieuwe_titel / vervang_soortwoord / vervolgtitel)
 # ---------------------------------------------------------------------------
 
 def test_nieuwe_titel_vervangt_verboden_soortwoord():
@@ -247,6 +247,29 @@ def test_vervang_soortwoord_laat_niet_titels_met_rust():
     zin = "Trainingen voor specifieke databasesystemen zoals PostgreSQL"
     assert sjabloon.vervang_soortwoord(zin) == zin
     assert sjabloon.vervang_soortwoord("Cursus PowerPoint") == "Training PowerPoint"
+
+
+def test_vervolgtitel_haalt_het_voorvoegsel_weg():
+    """In de Vervolgstappen-lijst is "Training" bij elke regel ruis."""
+    assert sjabloon.vervolgtitel("Training Power BI") == "Power BI"
+    assert sjabloon.vervolgtitel("Cursus PowerPoint") == "PowerPoint"
+    assert sjabloon.vervolgtitel("Opleiding PHP Professional") == "PHP Professional"
+    assert sjabloon.vervolgtitel("Power BI") == "Power BI"
+
+
+def test_vervolgtitel_houdt_een_afwijkende_vorm():
+    """Masterclass/workshop/examentraining zeggen iets over de vorm: die blijft staan."""
+    for titel in ("Masterclass PHP", "Workshop Storytelling", "Examentraining CEH"):
+        assert sjabloon.vervolgtitel(titel) == titel
+
+
+def test_vervolgtitel_laat_regels_die_geen_titel_zijn_met_rust():
+    zin = "Trainingen voor specifieke databasesystemen zoals PostgreSQL"
+    assert sjabloon.vervolgtitel(zin) == zin
+    # lopende zin met een verboden soortwoord: hooguit dát woord vervangen
+    assert sjabloon.vervolgtitel("Cursus voor gevorderden") == "Training voor gevorderden"
+    # een hoofdletter erna maakt het wél een titel
+    assert sjabloon.vervolgtitel("Training Van Excel naar Power BI") == "Van Excel naar Power BI"
 
 
 def test_modules_opening_verdubbelt_soortwoord_niet():

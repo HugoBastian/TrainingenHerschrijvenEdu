@@ -166,6 +166,7 @@ De code voegt onderstaande **twee vaste alinea's** in. Het enige wat jij levert 
 **Regels:**
 - De code selecteert relevante vervolgtrainingen **uit de catalogus** (`vervolgtraining.json`) en plaatst het vaste boilerplate-blok + de afsluiter. **Verzin zelf nooit titels.** [hard]
 - Alleen titels die in de catalogus bestaan; verdiepend of verbredend op déze training; meest-gegeven trainingen hebben voorrang.
+- In de lijst staan de titels **zonder "Training" ervoor** — "Power BI", niet "Training Power BI". De lijst staat al onder het kopje Vervolgstappen, dus dat voorvoegsel is bij elke regel ruis. Een afwijkende vorm houdt zijn soortwoord wél: "Masterclass PHP", "Workshop Storytelling", "Examentraining CEH". De code doet dit; jij hoeft de titels niet aan te passen.
 - Als jij hier iets levert, is het hooguit de korte, uitnodigende inleidende zin/categorie-intro's — nooit titels van buiten de catalogus.
 
 Vaste boilerplate (code plaatst dit; titels ingevuld vanuit retrieval):

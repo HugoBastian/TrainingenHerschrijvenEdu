@@ -112,9 +112,10 @@ def load_catalog(path: str = CATALOG_PATH) -> list[dict]:
 
     Het echte bestand is een dict gesleuteld op product-id-string:
         {"5": {"product_id": 5, "titel": "Opleiding PHP Professional", "summary": "..."}, ...}
-    Een platte lijst wordt ook geaccepteerd. De titels gaan door `sjabloon.nieuwe_titel`,
-    zodat er nooit "Cursus PowerPoint" in de Vervolgstappen belandt; de brontitel blijft
-    bewaard onder `bron_titel` voor de matching.
+    Een platte lijst wordt ook geaccepteerd. De titels gaan door `sjabloon.vervolgtitel`:
+    geen "Cursus PowerPoint", maar ook geen "Training PowerPoint" -- in een lijst onder het
+    kopje Vervolgstappen is dat voorvoegsel bij elke regel ruis. Een masterclass of workshop
+    houdt zijn soortwoord wel. De brontitel blijft bewaard onder `bron_titel`.
 
     Ontbreekt het bestand, dan lege lijst (de code-check flagt dat).
     """
@@ -136,7 +137,7 @@ def load_catalog(path: str = CATALOG_PATH) -> list[dict]:
             continue
         catalog.append({
             "product_id": rij.get("product_id", rij.get("id")),
-            "titel": sjabloon.nieuwe_titel(bron_titel),
+            "titel": sjabloon.vervolgtitel(bron_titel),
             "bron_titel": bron_titel,
             "omschrijving": str(rij.get("omschrijving") or rij.get("summary") or "").strip(),
         })
@@ -1105,16 +1106,17 @@ _FOLLOW_UP_LI_RE = re.compile(r"(<li>)(.*?)(</li>)", re.S)
 def normaliseer_follow_up(html_tekst: str) -> tuple[str, list[str]]:
     """Zet de vervolgtraining-titels in een bestaande follow_up in de nieuwe stijl.
 
-    Al herschreven trainingen nemen we ongewijzigd over, met één uitzondering: in hun
-    Vervolgstappen-lijst staan soms nog titels als "Cursus PowerPoint". Alleen dát repareren
-    we -- `vervang_soortwoord` laat regels die geen titel zijn met rust.
-    Geeft (nieuwe html, lijst van gewijzigde titels) terug.
+    Al herschreven trainingen nemen we ongewijzigd over, met één uitzondering: hun
+    Vervolgstappen-lijst. Daar staan nog titels als "Cursus PowerPoint", en bij 197 van de
+    519 regels het voorvoegsel "Training". Beide gaan eruit; `sjabloon.vervolgtitel` laat
+    regels die geen titel zijn ("Trainingen voor specifieke databasesystemen zoals ...")
+    met rust. Geeft (nieuwe html, lijst van gewijzigde titels) terug.
     """
     gewijzigd: list[str] = []
 
     def vervang(m):
         oud = m.group(2).strip()
-        nieuw = sjabloon.vervang_soortwoord(oud)
+        nieuw = sjabloon.vervolgtitel(oud)
         if nieuw != oud:
             gewijzigd.append(f"{oud} -> {nieuw}")
             return f"{m.group(1)}{nieuw}{m.group(3)}"

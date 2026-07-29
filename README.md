@@ -35,7 +35,7 @@ het model.
 | `rewrite_output.py` | Document → CMS-`content`-JSON (HTML) en → markdown met kop 1/2/3. |
 | `rewrite_trainings.py` | Hybride schrijver + orchestratie + I/O. |
 | `herschrijven.ipynb` | Notebook om de pijplijn stap voor stap te draaien en te inspecteren. |
-| `test_rewrite.py` | 56 offline tests (geen API-key nodig). |
+| `test_rewrite.py` | 59 offline tests (geen API-key nodig). |
 
 ## Setup
 
@@ -186,7 +186,7 @@ veld in de CMS-`content`:
 ## Tests
 
 ```bash
-python test_rewrite.py     # 56 offline checks, geen API-key nodig
+python test_rewrite.py     # 59 offline checks, geen API-key nodig
 ```
 
 Getest wordt de deterministische laag: de code-check, de structurele splitsing van
@@ -206,6 +206,12 @@ Samen ~89k tokens, dus die gaat **nooit** naar de API. In plaats daarvan:
 
 De code-check blijft de poort: elke titel moet letterlijk in de catalogus staan, dus het model
 kan er geen verzinnen. Levert stap 2 niets bruikbaars, dan valt het terug op de shortlist.
+
+Bij het laden gaat elke catalogustitel door `sjabloon.vervolgtitel()`: het voorvoegsel
+"Training" (en elk verboden soortwoord) valt weg, want in een lijst onder het kopje
+Vervolgstappen staat het bij elke regel. Een afwijkende vorm blijft staan — "Masterclass PHP",
+"Workshop Storytelling", "Examentraining CEH". Omdat de shortlist, de Haiku-call, de code-check
+én de output allemaal dezelfde genormaliseerde titel zien, kan er geen vorm tussendoor glippen.
 
 ## Status
 

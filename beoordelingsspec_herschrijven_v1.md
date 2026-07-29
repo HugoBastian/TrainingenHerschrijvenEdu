@@ -28,7 +28,9 @@ Let per kopje op de *inhoudelijke* kern (niet de lengte — dat deed de code al)
 
 De vaste secties (Aanpak 6, Vervolgstappen 8, het bedrijfstrainingblok onder Inleiding en
 Certificatie 10) beoordeel je niet op schrijfkwaliteit — die plaatst de code. Check bij
-Vervolgstappen alleen dat de titels uit de catalogus komen en relevant/verdiepend zijn.
+Vervolgstappen alleen dat de titels uit de catalogus komen en relevant/verdiepend zijn. Die
+titels staan er bewust zónder "Training" ervoor ("Power BI", niet "Training Power BI") — dat
+is geen fout. Een masterclass, workshop of examentraining houdt zijn soortwoord wel.
 
 **Actualiseringen.** Je krijgt de goedgekeurde acties (met eventuele reviewer-voorwaarde) en de
 afgewezen acties. Twee harde controles: is elke goedgekeurde actie verwerkt en is de voorwaarde
