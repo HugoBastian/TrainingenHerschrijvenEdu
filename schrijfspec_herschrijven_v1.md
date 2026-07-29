@@ -17,6 +17,7 @@ delen bewust dezelfde definitie van "goed". Gedistilleerd uit
 
 Checkbaar, hard tenzij anders vermeld:
 
+0. **Alles heet een "training".** Nooit "cursus", "opleiding" of "leergang" — ook niet als de brontekst die woorden overal gebruikt, en ook niet in de titel. "Examentraining", "Masterclass" en "Workshop" mogen wel. De code levert een titel in de nieuwe stijl aan ("Cursus XML" → "Training XML"); neem die over. [hard]
 1. **"je"-vorm, nooit "u".** De bron mag in de u-vorm staan; jij zet alles om naar je/jouw/jij.
 2. **Geen marketingtaal, superlatieven of beloftes.** Geen "de beste", "uniek", "gegarandeerd", "in no-time", "moeiteloos".
 3. **Actief en concreet.** Actieve werkwoorden; geen vage termen ("realistische werksituaties", "diverse aspecten", "in de wereld van …").
@@ -142,14 +143,19 @@ De code voegt onderstaande **twee vaste alinea's** in. Het enige wat jij levert 
 **Doel:** in één oogopslag wat deelnemers na afloop kennen en kunnen.
 
 **Regels (checkbaar):**
-- **Begint met exact: "Na deze training heb je handvatten om:".** [hard]
+- **Begint met exact: "Na deze training heb je handvatten om:".** [hard] (plaatst de code)
 - **4–5 bullets.** [hard]
-- **Elke bullet begint met een werkwoord en met een hoofdletter.** [hard]
+- **Elke bullet staat in de infinitief mét "te" en loopt door op die introzin.** [hard] Lees het altijd hardop als één zin: "Na deze training heb je handvatten om … dashboards **te bouwen**". Zowel de aaneengesloten vorm ("te formuleren") als de gesplitste vorm ("voor **te** bereiden", "uit **te** oefenen") is goed.
+- **Elke bullet begint met een hoofdletter.** [hard]
 - Concreet en realistisch (geen overpromising, niet absoluut); praktijkgericht.
 - **Vermijd vage formuleringen** zoals "Inzicht toepassen". [flag]
 - Baseer de doelen op de omschrijving + het programma.
 
-**Goed:** "Na deze training heb je handvatten om: / • Datasets opschonen en samenvoegen voor analyse / • Dashboards bouwen die de juiste vraag beantwoorden …"
+**Goed:**
+- "Datasets op te schonen en samen te voegen voor analyse"
+- "Jezelf voor te bereiden op onderhandelingen door doelen en grenzen helder te formuleren"
+
+**Fout:** "Dashboards bouwen die de juiste vraag beantwoorden" — dit is de kale infinitief zonder "te"; achter "…handvatten om:" loopt die zin niet.
 
 ---
 
@@ -158,7 +164,7 @@ De code voegt onderstaande **twee vaste alinea's** in. Het enige wat jij levert 
 **Doel:** de deelnemer helpen een logische vervolgstap te kiezen.
 
 **Regels:**
-- De code selecteert relevante vervolgtrainingen **uit de catalogus** (`vervolgtraining_catalog.json`) en plaatst het vaste boilerplate-blok + de afsluiter. **Verzin zelf nooit titels.** [hard]
+- De code selecteert relevante vervolgtrainingen **uit de catalogus** (`vervolgtraining.json`) en plaatst het vaste boilerplate-blok + de afsluiter. **Verzin zelf nooit titels.** [hard]
 - Alleen titels die in de catalogus bestaan; verdiepend of verbredend op déze training; meest-gegeven trainingen hebben voorrang.
 - Als jij hier iets levert, is het hooguit de korte, uitnodigende inleidende zin/categorie-intro's — nooit titels van buiten de catalogus.
 
@@ -204,7 +210,7 @@ Vaste boilerplate (code plaatst dit; titels ingevuld vanuit retrieval):
 - **`gaten`**: informatie die het format vereist maar de bron mist — vul plausibel aan wáár het format een afleiding toelaat; markeer twijfel in je output.
 - **Goedgekeurde actualiseringen**: je krijgt ze onder het kopje ACTUALISERINGEN. Voer ze uit. Staat er een **VOORWAARDE (reviewer)** bij, dan is die bindend en gaat hij vóór de actietekst — de reviewer heeft de actie daarmee ingeperkt, bijgestuurd of vervangen.
 - **Afgewezen actualiseringen** staan onder **NIET DOEN**. Voer die **niet** uit, ook niet als de brontekst er aanleiding toe geeft en ook niet in afgezwakte vorm. [hard] Wat niet in de goedgekeurde lijst staat, is niet goedgekeurd; verzin geen aanvullende actualiseringen.
-- Kom je een "BESLISSING NODIG: …" (structureel) tegen zonder reviewer-voorwaarde, dan hoort deze training **niet** in de auto-herschrijving — signaleer dat. Staat er wél een voorwaarde bij, dan heeft de reviewer de beslissing genomen: volg die.
+- **"BESLISSING NODIG: …"-acties.** Zulke acties zijn geformuleerd als een vraag ("bepaal of module X vervangen wordt door Y"), maar de beslissing ís al genomen — die zit in de indeling. Staat zo'n actie onder **ACTUALISERINGEN**, dan heeft de reviewer besloten dat het gebeurt: voer de wijziging door en behandel de tekst als een opdracht, niet als een open vraag. Staat hij onder **NIET DOEN**, dan blijft de bestaande situatie ongewijzigd. Een training zonder ingevulde besluiten komt niet bij jou terecht. [hard]
 - **Feitgetrouwheid (hard):** verzin geen versienummers, vendors, features, jaartallen of cijfers. Bij een dunne bron mag je *pedagogische structuur* construeren (modules/doelen plausibel invullen), maar markeer de output dan als "thin / kandidaat tweede ronde". Verzonnen *feiten* zijn nooit toegestaan.
 
 ---

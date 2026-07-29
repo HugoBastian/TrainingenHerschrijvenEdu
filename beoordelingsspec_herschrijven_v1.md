@@ -23,7 +23,7 @@ Let per kopje op de *inhoudelijke* kern (niet de lengte — dat deed de code al)
 - **Modules (3):** modules niet-overlappend en dekkend voor het aantal dagen/niveau? actief geformuleerd? sub-bullets vormen een sluitend verhaal?
 - **Doelgroep (5):** op *bereiken* gericht, geen functietitels/"professionals"?
 - **Voorkennis (6):** juiste keuze wel/niet-voorkennis gezien niveau/programma?
-- **Doelen (7):** werkwoord-start, concreet en realistisch, geen vage "inzicht toepassen"?
+- **Doelen (7):** staat elke bullet in de infinitief mét "te", zodat hij doorloopt op "Na deze training heb je handvatten om:"? Concreet en realistisch, geen vage "inzicht toepassen"?
 - **Kortste omschrijving (9):** dezelfde belofte als (1), ingedikt, echte "Wil je …"-haak?
 
 De vaste secties (Aanpak 6, Vervolgstappen 8, het bedrijfstrainingblok onder Inleiding en
@@ -35,6 +35,15 @@ afgewezen acties. Twee harde controles: is elke goedgekeurde actie verwerkt en i
 gerespecteerd, en is geen enkele afgewezen actie alsnog in de tekst terechtgekomen. Een afgewezen
 actualisering die toch opduikt is een feitgetrouwheidsfout, geen stijlkwestie.
 
+Een goedgekeurde actie die begint met **"BESLISSING NODIG: …"** leest als een vraag, maar is er
+geen: door hem goed te keuren heeft de reviewer de beslissing genomen. Zo'n actie hoort dus
+gewoon verwerkt te zijn. Staat hij onder de afgewezen acties, dan hoort de bestaande situatie
+juist ongewijzigd te zijn gebleven.
+
+**Soortwoord.** Nergens in de tekst — titel inbegrepen — mag "cursus", "opleiding" of "leergang"
+staan; alles heet een training. "Examentraining", "Masterclass" en "Workshop" mogen wel. De
+code-check vangt dit al af; kom je het toch tegen, dan is het een fail.
+
 ---
 
 ## 2. Feitgetrouwheid (grounding)  ⚠️ zwaarste as
@@ -44,8 +53,7 @@ Onderscheid scherp — dit is waar auto-herschrijven fout gaat:
 
 - **Verzonnen feit (hard fail → human-queue):** een versienummer, vendor, feature, jaartal,
   cijfer of certificering die niet in de bron/feiten staat en niet klopt of niet te
-  verifiëren is. Ook: een actualiteit-"BESLISSING NODIG" (structureel) die tóch is
-  auto-ingevuld.
+  verifiëren is.
 - **Toegestane constructie (pass, wél flaggen als "thin"):** bij een dunne bron mag de
   schrijver plausibele *pedagogische structuur* invullen (modules opsplitsen, doelen
   afleiden). Dat is geen feitfout; markeer de output als "thin / kandidaat tweede ronde".

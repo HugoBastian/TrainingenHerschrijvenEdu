@@ -19,7 +19,7 @@ herschreven/
 *.xlsx
 
 # De echte catalogus (data) — commit bewust wanneer je 'm hebt gevuld
-vervolgtraining_catalog.json
+vervolgtraining.json
 
 # macOS
 .DS_Store

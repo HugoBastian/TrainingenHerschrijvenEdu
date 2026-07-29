@@ -95,10 +95,22 @@ def render_doelen(intro: str, bullets: list[str]) -> str:
     return f"<p>{_esc(intro)}</p>\n{_lijst(bullets)}"
 
 
-def render_vervolgstappen(alineas: list[str], titels: list[str], afsluiter: str) -> str:
-    """Kopje 8: vaste alinea's + aankondiging + <ul> met catalogustitels + afsluiter."""
+def render_vervolgstappen(alineas: list[str], titels: list[str], afsluiter: str,
+                          groepen: list[dict] | None = None) -> str:
+    """Kopje 8: vaste alinea's + de catalogustitels + afsluiter.
+
+    Twee vormen. Leverde de retrieval `groepen` ([{intro, titels}]), dan krijgt elke groep
+    een eigen intro-zin boven zijn lijst -- zo staat het in de al herschreven trainingen.
+    Zonder groepen valt het terug op één lijst onder de vaste aankondiging.
+    """
     delen = [f"<p>{_esc(a)}</p>" for a in alineas if str(a or "").strip()]
-    if titels:
+    schone_groepen = [g for g in (groepen or [])
+                      if [t for t in (g.get("titels") or []) if str(t or "").strip()]]
+    if schone_groepen:
+        for groep in schone_groepen:
+            intro = str(groep.get("intro") or "").strip() or sjabloon.VERVOLG_LIJST_INTRO
+            delen.append(f"<p>{_esc(intro)}</p>\n{_lijst(groep['titels'])}")
+    elif titels:
         delen.append(f"<p>{_esc(sjabloon.VERVOLG_LIJST_INTRO)}</p>\n{_lijst(titels)}")
     if str(afsluiter or "").strip():
         delen.append(f"<p>{_esc(afsluiter)}</p>")
@@ -133,7 +145,8 @@ def document_to_content(document: dict, source_content: dict | None = None) -> d
         "objectives": render_doelen(doelen.get("intro", ""), doelen.get("bullets") or []),
         "follow_up": render_vervolgstappen(vervolg.get("alineas") or [],
                                            vervolg.get("titels") or [],
-                                           vervolg.get("afsluiter", "")),
+                                           vervolg.get("afsluiter", ""),
+                                           vervolg.get("groepen") or []),
         "certification": f"<p>{_esc(document.get('certificatie') or sjabloon.CERTIFICATIE)}</p>",
     }
     for sleutel in sjabloon.BEHOUDEN_UIT_BRON:
@@ -184,7 +197,14 @@ def render_markdown(document: dict, titel: str) -> str:
     ]).strip()
 
     vervolg_regels = list(vervolg.get("alineas") or [])
-    if vervolg.get("titels"):
+    groepen = [g for g in (vervolg.get("groepen") or [])
+               if [t for t in (g.get("titels") or []) if str(t or "").strip()]]
+    if groepen:
+        for groep in groepen:
+            vervolg_regels.append(str(groep.get("intro") or "").strip()
+                                  or sjabloon.VERVOLG_LIJST_INTRO)
+            vervolg_regels.append("\n".join(f"* {t}" for t in groep["titels"]))
+    elif vervolg.get("titels"):
         vervolg_regels.append(sjabloon.VERVOLG_LIJST_INTRO)
         vervolg_regels.append("\n".join(f"* {t}" for t in vervolg["titels"]))
     if str(vervolg.get("afsluiter") or "").strip():

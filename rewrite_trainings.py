@@ -24,8 +24,9 @@ Gebruik:
     python rewrite_trainings.py --scored scoresheet.xlsx --source bronsheet.xlsx \
         --besluiten besluiten.xlsx --out-dir herschreven --limit 5
 
-Open punt: `vervolgtraining_catalog.json` ontbreekt nog, dus de Vervolgstappen-titels
-blijven leeg en geflagd.
+De Vervolgstappen komen uit `vervolgtraining.json` (779 trainingen, ~89k tokens). Die
+catalogus gaat nooit naar de API: Python maakt een shortlist van ~20 kandidaten en één
+goedkope call kiest en groepeert daaruit. De code-check bewaakt dat elke titel echt bestaat.
 """
 
 from __future__ import annotations
@@ -70,21 +71,24 @@ import sjabloon
 # ---------------------------------------------------------------------------
 
 MODEL = "claude-opus-4-8"          # generatie profiteert van Opus; makkelijk te wisselen
+KLEIN_MODEL = "claude-haiku-4-5"   # keuze uit een shortlist; geen generatie
 MAX_TOKENS = 16000
 THINKING = {"type": "adaptive"}    # adaptieve thinking voor schrijf-/oordeelskwaliteit
 MAX_REVISIONS = 2                  # code-check + judge revisies vóór mens-wachtrij
-N_VERVOLG = 4                      # aantal vervolgtrainingen dat de retrieval kiest
+N_SHORTLIST = 20                   # kandidaten die Python uit de catalogus voorselecteert
+N_VERVOLG = 6                      # vervolgtrainingen die uiteindelijk in de tekst komen
 
 # specs + catalogus liggen naast dit script (resolven onafhankelijk van de CWD)
 SCHRIJFSPEC = os.path.join(_HERE, "schrijfspec_herschrijven_v1.md")
 HUMANISERING = os.path.join(_HERE, "humanisering_nl.md")
 BEOORDELINGSSPEC = os.path.join(_HERE, "beoordelingsspec_herschrijven_v1.md")
-CATALOG_PATH = os.path.join(_HERE, "vervolgtraining_catalog.json")
+CATALOG_PATH = os.path.join(_HERE, "vervolgtraining.json")
 
 # statussen voor routing
 APPROVED = "approved"
 NEEDS_REVISION = "needs-revision"
 HUMAN_QUEUE = "human-queue"
+OVERGENOMEN = "overgenomen"   # stond al in de nieuwe stijl; ongewijzigd doorgezet
 
 # De vaste sjabloonteksten en de kopstructuur staan in sjabloon.py, afgeleid van
 # `Template trainingen nieuwe opbouw.md`. Eén bron, zodat spec, schrijver, judge en
@@ -104,35 +108,164 @@ def _tokens(*parts: str) -> set[str]:
 
 
 def load_catalog(path: str = CATALOG_PATH) -> list[dict]:
-    """Catalogus: lijst van {titel, categorie, populariteit, omschrijving, url}.
-    Ontbreekt het bestand, dan lege lijst (code-check flagt dit)."""
+    """Catalogus -> lijst van {product_id, titel, omschrijving}.
+
+    Het echte bestand is een dict gesleuteld op product-id-string:
+        {"5": {"product_id": 5, "titel": "Opleiding PHP Professional", "summary": "..."}, ...}
+    Een platte lijst wordt ook geaccepteerd. De titels gaan door `sjabloon.nieuwe_titel`,
+    zodat er nooit "Cursus PowerPoint" in de Vervolgstappen belandt; de brontitel blijft
+    bewaard onder `bron_titel` voor de matching.
+
+    Ontbreekt het bestand, dan lege lijst (de code-check flagt dat).
+    """
     if not os.path.exists(path):
         return []
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
-    return data if isinstance(data, list) else data.get("trainingen", [])
+    if isinstance(data, dict):
+        rijen = list(data.get("trainingen", data.values()))
+    else:
+        rijen = data
 
-
-def select_vervolgtrainingen(catalog: list[dict], titel: str, kern: str,
-                             n: int = N_VERVOLG) -> list[str]:
-    """Naïeve retrieval: keyword-overlap met titel/kern, meest-gegeven eerst.
-    Later te vervangen door semantische retrieval. Verzint nooit titels."""
-    want = _tokens(titel, kern)
-    scored = []
-    for entry in catalog:
-        etitel = str(entry.get("titel", "")).strip()
-        if not etitel or etitel.strip().lower() == (titel or "").strip().lower():
+    catalog = []
+    for rij in rijen:
+        if not isinstance(rij, dict):
             continue
-        overlap = len(want & _tokens(etitel, entry.get("omschrijving", ""),
-                                     entry.get("categorie", "")))
-        pop = int(entry.get("populariteit", 0) or 0)
-        scored.append((overlap, pop, etitel))
-    scored.sort(key=lambda t: (-t[0], -t[1]))
-    return [t[2] for t in scored[:n]]
+        bron_titel = str(rij.get("titel") or rij.get("title") or "").strip()
+        if not bron_titel:
+            continue
+        catalog.append({
+            "product_id": rij.get("product_id", rij.get("id")),
+            "titel": sjabloon.nieuwe_titel(bron_titel),
+            "bron_titel": bron_titel,
+            "omschrijving": str(rij.get("omschrijving") or rij.get("summary") or "").strip(),
+        })
+    return catalog
 
 
 def catalog_titles(catalog: list[dict]) -> set[str]:
     return {str(e.get("titel", "")).strip() for e in catalog if e.get("titel")}
+
+
+def _idf(catalog: list[dict]) -> dict[str, float]:
+    """Inverse document frequency over de catalogus.
+
+    Zonder dit domineren woorden die overal staan ("training", "je", "data") de overlap.
+    """
+    import math
+    doc_freq: dict[str, int] = {}
+    for entry in catalog:
+        for token in _tokens(entry["titel"], entry["omschrijving"]):
+            doc_freq[token] = doc_freq.get(token, 0) + 1
+    n = max(len(catalog), 1)
+    return {t: math.log(n / (1 + f)) for t, f in doc_freq.items()}
+
+
+def shortlist_vervolgtrainingen(catalog: list[dict], titel: str, kern: str,
+                                training_id: Any = None,
+                                n: int = N_SHORTLIST) -> list[dict]:
+    """Trap 1: IDF-gewogen keyword-overlap. Pure Python, nul API-kosten.
+
+    Sluit de training zelf uit op `product_id` -- elke gescoorde training staat ook
+    in de catalogus, dus zonder deze filter beveelt een training zichzelf aan.
+    """
+    if not catalog:
+        return []
+    idf = _idf(catalog)
+    want = _tokens(titel, kern)
+    eigen = str(training_id) if training_id is not None else None
+    scored = []
+    for entry in catalog:
+        if eigen is not None and str(entry.get("product_id")) == eigen:
+            continue
+        overlap = want & _tokens(entry["titel"], entry["omschrijving"])
+        score = sum(idf.get(t, 0.0) for t in overlap)
+        if score > 0:
+            scored.append((score, entry))
+    scored.sort(key=lambda t: -t[0])
+    return [entry for _, entry in scored[:n]]
+
+
+SUBMIT_VERVOLGSTAPPEN = {
+    "name": "submit_vervolgstappen",
+    "description": "Kies uit de aangeboden kandidaten de vervolgtrainingen die logisch "
+                   "aansluiten, en verdeel ze over één of twee groepen met elk een korte "
+                   "inleidende zin. Kies ALLEEN uit de aangeboden titels.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "groepen": {
+                "type": "array",
+                "description": "Eén of twee groepen; samen 3-6 titels.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "intro": {"type": "string",
+                            "description": "Eén zin die de groep aankondigt en eindigt op een "
+                                           "dubbele punt, bv. 'Wil je je verder verdiepen in "
+                                           "datamodellering, dan sluiten deze trainingen aan:'."},
+                        "titels": {"type": "array", "items": {"type": "string"},
+                            "description": "Letterlijke titels uit de aangeboden kandidatenlijst."},
+                    },
+                    "required": ["intro", "titels"],
+                },
+            },
+        },
+        "required": ["groepen"],
+    },
+}
+
+KIES_VERVOLG_SYSTEM = """\
+Je kiest vervolgtrainingen. Je krijgt een training (titel, kern, doelgroep-niveau) en een
+lijst kandidaat-trainingen uit de catalogus, met hun omschrijving.
+
+Kies er 3 tot 6 die een deelnemer ná deze training logisch zou volgen: verdiepend op
+hetzelfde onderwerp, of verbredend naar een aangrenzend onderwerp. Laat kandidaten liggen
+die alleen een woord delen maar inhoudelijk niets met de training te maken hebben; liever
+drie rake dan zes vage.
+
+Verdeel ze over één of twee groepen met elk een korte inleidende zin in de 'je'-vorm, die
+eindigt op een dubbele punt. Twee groepen alleen als er echt twee richtingen zijn
+(bijvoorbeeld verdiepen versus verbreden).
+
+Neem titels LETTERLIJK over uit de kandidatenlijst. Verzin er nooit een bij en pas ze niet
+aan. Roep tot slot het tool `submit_vervolgstappen` aan.
+"""
+
+
+def kies_vervolgtrainingen(client, titel: str, kern: str, persona: str,
+                           shortlist: list[dict]) -> list[dict]:
+    """Trap 2: één goedkope call kiest en groepeert uit de shortlist.
+
+    De catalogus zelf gaat nooit naar de API -- alleen deze ~20 kandidaten. Levert
+    [{intro, titels}]; bij twijfel een lege lijst, dan valt de code terug op de shortlist.
+    """
+    if not shortlist or client is None:
+        return []
+    toegestaan = {e["titel"] for e in shortlist}
+    kandidaten = "\n".join(
+        f"- {e['titel']}: {(e['omschrijving'] or '(geen omschrijving)')[:220]}"
+        for e in shortlist)
+    user_text = (f"Training: {titel}\nPersona: {persona}\nKern: {kern}\n\n"
+                 f"Kandidaten:\n{kandidaten}")
+    out = _call_tool(client, KIES_VERVOLG_SYSTEM, user_text, [SUBMIT_VERVOLGSTAPPEN],
+                     "submit_vervolgstappen", max_tokens=2000, model=KLEIN_MODEL,
+                     thinking=None)
+    if not isinstance(out, dict):
+        return []
+
+    # Het model mag alleen kiezen, niet verzinnen: alles buiten de shortlist valt af.
+    groepen, gezien = [], set()
+    for groep in out.get("groepen") or []:
+        if not isinstance(groep, dict):
+            continue
+        titels = [t.strip() for t in (groep.get("titels") or [])
+                  if isinstance(t, str) and t.strip() in toegestaan and t.strip() not in gezien]
+        gezien.update(titels)
+        if titels:
+            groepen.append({"intro": str(groep.get("intro") or "").strip(),
+                            "titels": titels[:N_VERVOLG]})
+    return groepen[:2]
 
 
 # ---------------------------------------------------------------------------
@@ -187,14 +320,36 @@ class RewriteBriefing:
         return self.verdict in ("dun", "redelijk")
 
     @property
+    def nieuwe_titel(self) -> str:
+        """De titel in de nieuwe stijl; niks heet nog een opleiding of cursus."""
+        return sjabloon.nieuwe_titel(self.titel)
+
+    @property
+    def reviewer_besloten(self) -> bool:
+        """Heeft de reviewer de actielijst daadwerkelijk ingevuld?
+
+        `besluiten.build_besluiten` schrijft bij een lege `actie_besluit`-cel records weg
+        met een lege `besluit_ruw`. Staat er ergens wél een annotatie, dan heeft een mens
+        naar deze training gekeken en is de menselijke poort al gepasseerd.
+        """
+        return any(b.besluit_ruw.strip() for b in self.goedgekeurd + self.afgewezen)
+
+    @property
     def route_out(self) -> str | None:
-        """Harde routes die NIET de auto-herschrijving in gaan."""
-        if self.actualiteit_type == "structureel":
-            return "structurele actualiteitsbreuk — beslissing nodig"
+        """Harde routes die NIET de auto-herschrijving in gaan.
+
+        Structurele actualiteitsbreuken en `menselijke_input_nodig` vragen een beslissing
+        van een mens -- maar als de reviewer die al genomen heeft (besluiten ingevuld), is
+        er niets meer om op te wachten en gaat de training gewoon mee.
+        """
         if self.verdict == "onbruikbaar":
             return "verdict onbruikbaar — te weinig bron"
+        if self.reviewer_besloten:
+            return None
+        if self.actualiteit_type == "structureel":
+            return "structurele actualiteitsbreuk — nog geen reviewer-besluit"
         if self.menselijke_input_nodig:
-            return "scorer markeerde menselijke_input_nodig"
+            return "menselijke_input_nodig — nog geen reviewer-besluit"
         return None
 
 
@@ -270,9 +425,16 @@ SUBMIT_REWRITE = {
             "aanpak_invulling": {"type": "string",
                 "description": "Kopje Aanpak. Alleen de [.....]-invulling: één woord of enkele woorden."},
             "doelen": {"type": "array", "items": {"type": "string"},
-                "description": "Kopje Doelen. 4-5 doelen, elk begint met een werkwoord + hoofdletter (zonder de vaste introzin)."},
+                "description": "Kopje Doelen. 4-5 doelen in de infinitief MET 'te', aansluitend op de "
+                               "vaste introzin 'Na deze training heb je handvatten om:' — dus "
+                               "'Dashboards te bouwen die de juiste vraag beantwoorden', niet "
+                               "'Dashboards bouwen'. Hoofdletter aan het begin, zonder de introzin."},
             "kortste_omschrijving": {"type": "string",
                 "description": "Kopje Kortste omschrijving. Max 200 tekens, begint met 'Wil je …'. Ingedikte versie van Overzicht."},
+            "nieuwe_titel": {"type": "string",
+                "description": "Optioneel. De code maakt zelf al een titel in de nieuwe stijl "
+                               "('Cursus XML' -> 'Training XML'). Lever hier alleen iets als dat "
+                               "mechanische resultaat krom loopt. Nooit 'cursus' of 'opleiding'."},
             "notities": {"type": "string",
                 "description": "Optioneel: signaleer 'thin' (dunne bron, veel geconstrueerd) of een structurele twijfel."},
         },
@@ -322,8 +484,46 @@ def _read(path: str) -> str:
         return f.read().strip()
 
 
+# De vier trainingen uit het goud-corpus die élke harde check halen (lengtes, openingszinnen,
+# doelen in te-infinitief). De andere 74 zijn historisch materiaal van wisselende kwaliteit --
+# 59 falen de Inleiding-lengte, 50 het Overzicht -- en zijn dus geen voorbeeld.
+# Draai `checks_over_goud()` opnieuw als je een regel verandert; die meting levert deze lijst.
+GOUD_VOORBEELDEN = (2730, 3046, 3101, 3125)
+GOUD_DIR = os.path.join(_HERE, "herschreven", "goud")
+
+
+def goud_voorbeelden(n: int = 2, goud_dir: str = GOUD_DIR) -> str:
+    """Twee voorbeelden uit het goud, als tekstblok voor de gecachete system-prefix.
+
+    Vaste selectie, niet per training: een wisselende prefix maakt de prompt-cache waardeloos.
+    """
+    from score_trainings import clean_text
+    delen = []
+    for tid in GOUD_VOORBEELDEN[:n]:
+        pad = os.path.join(goud_dir, f"{tid}.json")
+        if not os.path.exists(pad):
+            continue
+        with open(pad, encoding="utf-8") as f:
+            d = json.load(f)
+        c = d.get("content") or {}
+        blok = [f"### {d.get('titel', '')}"]
+        for kop, sleutel in (("Overzicht", "summary"), ("Modules", "modules"),
+                             ("Doelen", "objectives")):
+            tekst = clean_text(c.get(sleutel, ""), d.get("titel", ""))
+            if tekst:
+                blok.append(f"**{kop}**\n{tekst}")
+        delen.append("\n\n".join(blok))
+    if not delen:
+        return ""
+    return ("VOORBEELDEN — trainingen die al in de nieuwe stijl staan en alle regels halen.\n"
+            "Neem de vorm over, niet de inhoud.\n\n" + "\n\n---\n\n".join(delen))
+
+
 def build_writer_system() -> list[dict]:
     prefix = (_read(SCHRIJFSPEC) + "\n\n---\n\n" + _read(HUMANISERING))
+    voorbeelden = goud_voorbeelden()
+    if voorbeelden:
+        prefix += "\n\n---\n\n" + voorbeelden
     instr = ("Je herschrijft één training naar de nieuwe stijl. Volg de schrijfspec hierboven "
              "letterlijk (lengtes, verplichte openingszinnen, persona-toon, 'je'-vorm). Schrijf "
              "ALLEEN de generatieve kopjes en roep tot slot het tool `submit_rewrite` aan. Verzin "
@@ -342,10 +542,21 @@ def _opsomming(regels, leeg: str = "(geen)") -> str:
     return "\n".join(f"- {r}" for r in regels) or leeg
 
 
+# Een goedgekeurde actie leest vaak als een vráág ("BESLISSING NODIG: bepaal of de module
+# vervangen wordt door X"). Zonder deze uitleg laat het model zo'n actie liggen, want er
+# staat nergens wát de uitkomst was. Het besluit ligt in de indeling: goedgekeurd = doen.
+BESLISSING_UITLEG = (
+    "Let op bij acties die beginnen met 'BESLISSING NODIG:'. Staat zo'n actie hieronder\n"
+    "onder ACTUALISERINGEN, dan hééft de reviewer de beslissing genomen en moet je de\n"
+    "wijziging doorvoeren — behandel hem als een opdracht, niet als een open vraag. Staat\n"
+    "hij onder NIET DOEN, dan blijft de bestaande situatie ongewijzigd."
+)
+
+
 def build_writer_user(b: RewriteBriefing) -> str:
     dagen = str(b.dagen) if b.dagen is not None else "ONBEKEND (schat plausibel)"
     return (
-        f"Titel: {b.titel}\n"
+        f"Titel: {b.nieuwe_titel}\n"
         f"Persona: {b.persona}\n"
         f"Aantal dagen: {dagen}\n"
         f"Verdict scorer: {b.verdict}{'  (THIN: markeer constructie)' if b.thin else ''}\n"
@@ -353,6 +564,7 @@ def build_writer_user(b: RewriteBriefing) -> str:
         f"Te verwerken feiten (bruikbaar):\n{_opsomming(b.bruikbaar)}\n\n"
         f"Weglaten (strippen):\n{_opsomming(b.strippen)}\n\n"
         f"Gaten (vul plausibel waar afleidbaar):\n{_opsomming(b.gaten)}\n\n"
+        f"{BESLISSING_UITLEG}\n\n"
         "ACTUALISERINGEN — door de reviewer goedgekeurd. Voer deze uit; staat er een\n"
         "VOORWAARDE bij, dan is die bindend en gaat hij vóór de actietekst:\n"
         f"{_opsomming(x.als_instructie() for x in b.goedgekeurd)}\n\n"
@@ -368,11 +580,12 @@ def build_judge_user(b: RewriteBriefing, document: dict) -> str:
     return (
         f"Persona: {b.persona}\n"
         f"Feiten (bruikbaar): " + (" | ".join(b.bruikbaar) or "(geen)") + "\n\n"
+        f"{BESLISSING_UITLEG}\n\n"
         "Goedgekeurde actualiseringen (moeten verwerkt zijn):\n"
         f"{_opsomming(x.als_instructie() for x in b.goedgekeurd)}\n\n"
         "Afgewezen actualiseringen (mogen NIET terugkomen):\n"
         f"{_opsomming(x.actie for x in b.afgewezen)}\n\n"
-        f"CONCEPT:\n{uit.render_markdown(document, b.titel)}"
+        f"CONCEPT:\n{uit.render_markdown(document, b.nieuwe_titel)}"
     )
 
 
@@ -388,14 +601,20 @@ def _extract_tool_input(response, tool_name: str) -> dict | None:
 
 
 def _call_tool(client, system, user_text: str, tools: list[dict], tool_name: str,
-               max_tokens: int = MAX_TOKENS) -> dict | None:
-    """Roept het model tot het `tool_name` aanroept. Verdubbelt budget bij afkapping."""
+               max_tokens: int = MAX_TOKENS, model: str = MODEL,
+               thinking: dict | None = THINKING) -> dict | None:
+    """Roept het model tot het `tool_name` aanroept. Verdubbelt budget bij afkapping.
+
+    `model`/`thinking` staan los zodat de goedkope keuzes (vervolgtrainingen) op een
+    klein model zonder thinking kunnen draaien, met dezelfde retry-logica.
+    """
     messages = [{"role": "user", "content": user_text}]
     budget = max_tokens
+    extra = {"thinking": thinking} if thinking else {}
     for _ in range(3):
         resp = client.messages.create(
-            model=MODEL, max_tokens=budget, system=system,
-            messages=messages, tools=tools, thinking=THINKING,
+            model=model, max_tokens=budget, system=system,
+            messages=messages, tools=tools, **extra,
         )
         tool_input = _extract_tool_input(resp, tool_name)
         if tool_input is not None:
@@ -428,15 +647,31 @@ def rewrite_input_complete(inp: dict) -> bool:
 # 8. ASSEMBLAGE (LLM-secties + vaste template + catalogus -> volledig document)
 # ---------------------------------------------------------------------------
 
-def assemble_document(writer_out: dict, b: RewriteBriefing, titels: list[str]) -> dict:
+def bepaal_titel(writer_out: dict, b: RewriteBriefing) -> str:
+    """De titel in de nieuwe stijl: code eerst, schrijver alleen als vangnet.
+
+    De mechanische vervanging dekt vrijwel alles ('Cursus XML' -> 'Training XML'). Loopt hij
+    krom, dan mag de schrijver een alternatief leveren -- maar alleen als dat zelf geen
+    verboden soortwoord bevat, anders wint de code alsnog.
+    """
+    voorstel = str(writer_out.get("nieuwe_titel", "") or "").strip()
+    if voorstel and not checks.hard_fails(checks.check_soortwoorden({"nieuwe_titel": voorstel})):
+        return voorstel
+    return b.nieuwe_titel
+
+
+def assemble_document(writer_out: dict, b: RewriteBriefing, titels: list[str],
+                      groepen: list[dict] | None = None) -> dict:
     """Bouwt het complete tien-kopjes-document; vaste teksten door de code ingevoegd."""
     invulling = str(writer_out.get("aanpak_invulling", "")).strip() or sjabloon.AANPAK_FALLBACK
     voorkennis = str(writer_out.get("voorkennis", "") or "").strip() or sjabloon.VOORKENNIS_FALLBACK
+    titel = bepaal_titel(writer_out, b)
     return {
+        "titel": titel,
         "overzicht": str(writer_out.get("overzicht", "")).strip(),
         "inleiding": str(writer_out.get("inleiding", "")).strip(),
         "modules": {
-            "opening": sjabloon.modules_opening(b.titel),
+            "opening": sjabloon.modules_opening(titel),
             "modules": (writer_out.get("modules") or {}).get("modules", []),
         },
         "doelgroep": str(writer_out.get("doelgroep", "")).strip(),
@@ -447,6 +682,7 @@ def assemble_document(writer_out: dict, b: RewriteBriefing, titels: list[str]) -
         "vervolgstappen": {
             "alineas": [sjabloon.VERVOLG_ALINEA_1, sjabloon.VERVOLG_ALINEA_2],
             "titels": titels,
+            "groepen": groepen or [],
             "afsluiter": sjabloon.VERVOLG_AFSLUITER,
         },
         "kortste_omschrijving": str(writer_out.get("kortste_omschrijving", "")).strip(),
@@ -454,7 +690,7 @@ def assemble_document(writer_out: dict, b: RewriteBriefing, titels: list[str]) -
     }
 
 
-def build_check_input(writer_out: dict, titels: list[str]) -> dict:
+def build_check_input(writer_out: dict, titels: list[str], titel: str = "") -> dict:
     """Platte structuur voor rewrite_checks (op de door de LLM geschreven velden)."""
     return {
         "overzicht": writer_out.get("overzicht"),
@@ -466,6 +702,7 @@ def build_check_input(writer_out: dict, titels: list[str]) -> dict:
         "doelen": writer_out.get("doelen"),
         "vervolgstappen_titels": titels,
         "kortste_omschrijving": writer_out.get("kortste_omschrijving"),
+        "nieuwe_titel": titel,
     }
 
 
@@ -481,28 +718,48 @@ def render_document(doc: dict, titel: str = "") -> str:
 @dataclass
 class RewriteResult:
     training_id: Any
-    titel: str
-    status: str                       # approved | human-queue | error
+    titel: str                        # de nieuwe titel; nooit een cursus of opleiding
+    status: str                       # approved | human-queue | overgenomen | error
     reden: str = ""
     document: dict = field(default_factory=dict)
     flags: list[str] = field(default_factory=list)
     judgment: dict = field(default_factory=dict)
     thin: bool = False
     toegepaste_acties: list[str] = field(default_factory=list)
+    oude_titel: str = ""
+    writer_out: dict = field(default_factory=dict)   # nodig om één kopje te hergenereren
+
+
+def bepaal_vervolgstappen(client, b: RewriteBriefing,
+                          catalog: list[dict]) -> tuple[list[str], list[dict]]:
+    """Twee trappen -> (platte titellijst voor de check, groepen voor de weergave).
+
+    Trap 1 is Python en kost niets; trap 2 stuurt alleen de shortlist naar een klein model,
+    nooit de hele catalogus. Levert trap 2 niets bruikbaars, dan valt het terug op de
+    shortlist zelf -- dan staan er nog steeds echte catalogustitels in de tekst.
+    """
+    shortlist = shortlist_vervolgtrainingen(catalog, b.titel, b.kern, b.training_id)
+    if not shortlist:
+        return [], []
+    groepen = kies_vervolgtrainingen(client, b.nieuwe_titel, b.kern, b.persona, shortlist)
+    if groepen:
+        return [t for g in groepen for t in g["titels"]], groepen
+    return [e["titel"] for e in shortlist[:N_VERVOLG]], []
 
 
 def rewrite_one(client, b: RewriteBriefing, catalog: list[dict]) -> RewriteResult:
-    # harde routes eruit (structureel / onbruikbaar / menselijke_input_nodig)
+    # harde routes eruit (onbruikbaar, of een beslissing waar de reviewer nog niet aan toe is)
     route = b.route_out
     if route:
-        return RewriteResult(b.training_id, b.titel, HUMAN_QUEUE, reden=route, thin=b.thin)
+        return RewriteResult(b.training_id, b.nieuwe_titel, HUMAN_QUEUE, reden=route,
+                             thin=b.thin, oude_titel=b.titel)
 
     # audit-spoor: welke actualiseringen zijn meegegaan, en onder welke voorwaarde
     toegepast = [f"{x.nr}. {x.actie}" + (f" [{x.voorwaarde}]" if x.voorwaarde else "")
                  for x in b.goedgekeurd]
 
-    titels = select_vervolgtrainingen(catalog, b.titel, b.kern)
-    ctx = {"catalog_titles": catalog_titles(catalog) if catalog else None, "naam": b.titel}
+    titels, groepen = bepaal_vervolgstappen(client, b, catalog)
+    ctx = {"catalog_titles": catalog_titles(catalog) if catalog else None, "naam": b.nieuwe_titel}
     writer_system = build_writer_system()
     base_user = build_writer_user(b)
 
@@ -516,36 +773,171 @@ def rewrite_one(client, b: RewriteBriefing, catalog: list[dict]) -> RewriteResul
             notes = ["De submit_rewrite-output was onvolledig; lever alle verplichte kopjes."]
             continue
 
-        issues = checks.check_rewrite(build_check_input(writer_out, titels), ctx)
+        titel = bepaal_titel(writer_out, b)
+        issues = checks.check_rewrite(build_check_input(writer_out, titels, titel), ctx)
         hard = checks.hard_fails(issues)
         if hard:
             notes = ["Los deze code-check fouten op:"] + [str(i) for i in hard]
             continue
 
-        document = assemble_document(writer_out, b, titels)
+        document = assemble_document(writer_out, b, titels, groepen)
         flags = [str(i) for i in checks.flags(issues)]
 
         judgment = judge_document(client, b, document)
         last_judgment = judgment
         verdict = judgment.get("verdict", HUMAN_QUEUE)
+        gedeeld = dict(document=document, flags=flags, judgment=judgment,
+                       toegepaste_acties=toegepast, oude_titel=b.titel, writer_out=writer_out)
         if verdict == APPROVED:
-            return RewriteResult(b.training_id, b.titel, APPROVED, reden="",
-                                 document=document, flags=flags, judgment=judgment,
+            return RewriteResult(b.training_id, titel, APPROVED, reden="",
                                  thin=b.thin or judgment.get("feitgetrouw", {}).get("thin", False),
-                                 toegepaste_acties=toegepast)
+                                 **gedeeld)
         if verdict == NEEDS_REVISION and attempt < MAX_REVISIONS:
             notes = ["Judge-revisie:"] + list(judgment.get("revisie_notities", []))
             continue
         # human-queue of revisies op -> mens
         reden = judgment.get("human_reden") or "judge: needs-revision na max revisies"
-        return RewriteResult(b.training_id, b.titel, HUMAN_QUEUE, reden=reden,
-                             document=document, flags=flags, judgment=judgment, thin=b.thin,
-                             toegepaste_acties=toegepast)
+        return RewriteResult(b.training_id, titel, HUMAN_QUEUE, reden=reden,
+                             thin=b.thin, **gedeeld)
 
-    return RewriteResult(b.training_id, b.titel, HUMAN_QUEUE,
+    return RewriteResult(b.training_id, b.nieuwe_titel, HUMAN_QUEUE,
                          reden="geen valide concept na max pogingen",
                          document=document, judgment=last_judgment, thin=b.thin,
-                         toegepaste_acties=toegepast)
+                         toegepaste_acties=toegepast, oude_titel=b.titel)
+
+
+# ---------------------------------------------------------------------------
+# 9b. ÉÉN KOPJE OPNIEUW (retry, of gericht bijsturen met een opmerking)
+# ---------------------------------------------------------------------------
+
+# Welke checks horen bij welk kopje: bij een gerichte hergeneratie willen we niet dat een
+# ander kopje de revisie-lus laat vastlopen.
+CHECKS_PER_KOPJE = {
+    "overzicht": checks.check_overzicht,
+    "inleiding": checks.check_inleiding,
+    "modules": checks.check_modules,
+    "doelgroep": checks.check_doelgroep,
+    "voorkennis": checks.check_voorkennis,
+    "doelen": checks.check_doelen,
+    "kortste_omschrijving": checks.check_kortste_omschrijving,
+}
+# `notities` is geen kopje maar een signaal van de schrijver -- niet los te hergenereren.
+HERGENEREERBAAR = tuple(k for k in SUBMIT_REWRITE["input_schema"]["properties"]
+                        if k != "notities")
+
+
+def build_kopje_tool(kopje: str) -> dict:
+    """Tool voor één kopje, afgeleid uit `SUBMIT_REWRITE`.
+
+    Eén bron voor de veldbeschrijvingen: past de schrijfspec zich aan, dan verandert deze
+    tool automatisch mee.
+    """
+    if kopje not in HERGENEREERBAAR:
+        raise KeyError(f"onbekend kopje {kopje!r}; kies uit {sorted(HERGENEREERBAAR)}")
+    schema = SUBMIT_REWRITE["input_schema"]["properties"][kopje]
+    return {
+        "name": "submit_kopje",
+        "description": f"Lever alleen het kopje '{kopje}' opnieuw. De rest van de training "
+                       f"blijft ongewijzigd.",
+        "input_schema": {"type": "object", "properties": {kopje: schema}, "required": [kopje]},
+    }
+
+
+def _writer_out_uit_json(resultaat: dict) -> dict:
+    """`writer_out` uit een per-training-JSON, met reconstructie voor oudere bestanden."""
+    writer_out = resultaat.get("writer_out")
+    if writer_out:
+        return dict(writer_out)
+    doc = resultaat.get("document") or {}
+    # Oudere bestanden hebben alleen het samengestelde document. Alles is terug te halen
+    # behalve aanpak_invulling -- die zit ingebakken in de vaste alinea; vandaar de regex.
+    aanpak = str(doc.get("aanpak", "") or "")
+    prefix = sjabloon.AANPAK_ALINEA_1.split("{invulling}")[0]
+    invulling = ""
+    if aanpak.startswith(prefix):
+        invulling = aanpak[len(prefix):].split("\n\n")[0].rstrip(". ")
+    return {
+        "overzicht": doc.get("overzicht", ""),
+        "inleiding": doc.get("inleiding", ""),
+        "modules": {"modules": (doc.get("modules") or {}).get("modules", [])},
+        "doelgroep": doc.get("doelgroep", ""),
+        "voorkennis": doc.get("voorkennis", ""),
+        "aanpak_invulling": invulling,
+        "doelen": (doc.get("doelen") or {}).get("bullets", []),
+        "kortste_omschrijving": doc.get("kortste_omschrijving", ""),
+        "nieuwe_titel": doc.get("titel", ""),
+    }
+
+
+def hergenereer_kopje(client, b: RewriteBriefing, resultaat: dict, kopje: str,
+                      comment: str = "", *, catalog: list[dict] | None = None,
+                      judge: bool = True) -> RewriteResult:
+    """Genereert één kopje opnieuw en bouwt het document opnieuw op.
+
+    Zonder `comment` is dit een gewone retry. Met `comment` krijgt de schrijver de
+    aanwijzing van de reviewer erbij -- de rest van de training gaat als context mee, zodat
+    het nieuwe kopje aansluit op wat er al staat.
+    """
+    writer_out = _writer_out_uit_json(resultaat)
+    document = resultaat.get("document") or {}
+    vervolg = document.get("vervolgstappen") or {}
+    titels = list(vervolg.get("titels") or [])
+    groepen = list(vervolg.get("groepen") or [])
+    if not titels and catalog:
+        titels, groepen = bepaal_vervolgstappen(client, b, catalog)
+
+    ctx = {"catalog_titles": catalog_titles(catalog) if catalog else None, "naam": b.nieuwe_titel}
+    huidig = json.dumps(writer_out.get(kopje), ensure_ascii=False, indent=2)
+    opdracht = [
+        f"Schrijf ALLEEN het kopje '{kopje}' opnieuw. Alle andere kopjes blijven zoals ze zijn;",
+        "gebruik ze als context zodat je versie erop aansluit.",
+        "",
+        f"HUIDIGE VERSIE VAN '{kopje}':\n{huidig}",
+        "",
+        f"VOLLEDIGE HUIDIGE TRAINING:\n{uit.render_markdown(document, b.nieuwe_titel)}",
+    ]
+    if comment.strip():
+        opdracht += ["", f"AANWIJZING VAN DE REVIEWER — dit moet er anders:\n{comment.strip()}"]
+    base_user = build_writer_user(b) + "\n\n---\n" + "\n".join(opdracht)
+
+    tool = build_kopje_tool(kopje)
+    check = CHECKS_PER_KOPJE.get(kopje)
+    notes: list[str] = []
+    for _ in range(MAX_REVISIONS + 1):
+        user_text = base_user if not notes else base_user + "\n\n---\nHERSTEL:\n" + "\n".join(notes)
+        out = _call_tool(client, build_writer_system(), user_text, [tool], "submit_kopje")
+        if not isinstance(out, dict) or kopje not in out:
+            notes = [f"De output miste het veld '{kopje}'; roep submit_kopje correct aan."]
+            continue
+
+        kandidaat = dict(writer_out, **{kopje: out[kopje]})
+        titel = bepaal_titel(kandidaat, b)
+        issues = (check(kandidaat) if check else []) + checks.check_soortwoorden(
+            {kopje: out[kopje], "nieuwe_titel": titel})
+        hard = checks.hard_fails(issues)
+        if hard:
+            notes = ["Los deze code-check fouten op:"] + [str(i) for i in hard]
+            continue
+        writer_out = kandidaat
+        break
+    else:
+        return RewriteResult(b.training_id, b.nieuwe_titel, HUMAN_QUEUE,
+                             reden=f"kopje '{kopje}' bleef falen na max pogingen",
+                             document=document, oude_titel=b.titel, writer_out=writer_out)
+
+    nieuw_document = assemble_document(writer_out, b, titels, groepen)
+    alle_issues = checks.check_rewrite(
+        build_check_input(writer_out, titels, bepaal_titel(writer_out, b)), ctx)
+    flags = [str(i) for i in checks.flags(alle_issues)]
+    judgment = judge_document(client, b, nieuw_document) if judge else {}
+    status = judgment.get("verdict", APPROVED) if judge else APPROVED
+    return RewriteResult(
+        b.training_id, bepaal_titel(writer_out, b),
+        APPROVED if status == APPROVED else HUMAN_QUEUE,
+        reden="" if status == APPROVED else judgment.get("human_reden", status),
+        document=nieuw_document, flags=flags, judgment=judgment, thin=b.thin,
+        toegepaste_acties=list(resultaat.get("toegepaste_acties") or []),
+        oude_titel=b.titel, writer_out=writer_out)
 
 
 def judge_document(client, b: RewriteBriefing, document: dict) -> dict:
@@ -630,10 +1022,71 @@ def export_goud_corpus(source_path: str, out_dir: str, verbose: bool = True) -> 
     return n
 
 
+_LI_RE = re.compile(r"<li>(.*?)(?=<li>|</li>)", re.S)
+
+
+def goud_naar_check_input(content: dict, titel: str = "") -> dict:
+    """Goud-content (HTML) -> de platte writer-vorm, zodat de checks erover kunnen.
+
+    Ruwe benadering: goed genoeg om te tellen welke regels het goud haalt, niet om mee te
+    genereren. De modules-structuur laten we leeg -- geneste <ul> betrouwbaar terugparsen
+    levert meer valkuilen op dan het antwoord waard is.
+    """
+    from score_trainings import clean_text
+    plat = {k: clean_text(v, titel) if isinstance(v, str) else v for k, v in content.items()}
+    intro = plat.get("intro", "").replace(sjabloon.BEDRIJFSTRAINING_KOP, "")
+    intro = intro.replace(sjabloon.BEDRIJFSTRAINING_TEKST, "").strip()
+    doelen = [clean_text(m, titel) for m in _LI_RE.findall(content.get("objectives", "") or "")]
+    return {
+        "overzicht": plat.get("summary", ""),
+        "inleiding": intro,
+        "doelgroep": plat.get("target_audience", ""),
+        "voorkennis": plat.get("prior_knowledge", ""),
+        "doelen": [d for d in doelen if d],
+        "kortste_omschrijving": plat.get("summary_edudex", ""),
+        "nieuwe_titel": titel,
+    }
+
+
+def checks_over_goud(goud_dir: str = GOUD_DIR, verbose: bool = True) -> dict:
+    """Kalibratie: hoe vaak faalt elke harde regel op het goud-corpus?
+
+    Het goud is referentie, geen norm -- daarom staat dit hier en niet in test_rewrite.py.
+    Valt een regel bij meer dan de helft van het corpus om, dan is die regel verdacht en
+    niet de training. De trainingen die álles halen zijn de few-shot-kandidaten
+    (`GOUD_VOORBEELDEN`).
+    """
+    import glob
+    from collections import Counter
+    tellingen: Counter = Counter()
+    schoon: list[tuple[Any, str]] = []
+    bestanden = sorted(glob.glob(os.path.join(goud_dir, "*.json")))
+    for pad in bestanden:
+        with open(pad, encoding="utf-8") as f:
+            d = json.load(f)
+        titel = d.get("titel", "")
+        rw = goud_naar_check_input(d.get("content") or {}, titel)
+        # modules zitten er bewust niet in; die checks zouden altijd falen
+        hard = [i for i in checks.hard_fails(checks.check_rewrite(rw)) if i.section != "modules"]
+        for issue in hard:
+            tellingen[f"{issue.section}: {issue.code}"] += 1
+        if not hard:
+            schoon.append((d.get("training_id"), titel))
+    if verbose:
+        print(f"{len(bestanden)} goud-trainingen; aantal dat elke harde regel NIET haalt:")
+        for regel, n in tellingen.most_common():
+            print(f"  {n:3d}  {regel}")
+        print(f"\n{len(schoon)} halen alles -> kandidaat voor GOUD_VOORBEELDEN:")
+        for tid, titel in schoon:
+            print(f"  {tid:6} {titel}")
+    return {"tellingen": dict(tellingen), "schoon": schoon, "totaal": len(bestanden)}
+
+
 def _review_rij(res: RewriteResult, content: dict) -> dict:
     """Eén rij voor het review-tabblad: status + elk kopje in platte tekst."""
     rij = {
-        "training_id": res.training_id, "titel": res.titel, "status": res.status,
+        "training_id": res.training_id, "titel": res.titel,
+        "oude_titel": res.oude_titel, "status": res.status,
         "reden": res.reden, "thin": res.thin,
         "n_flags": len(res.flags), "flags": " | ".join(res.flags),
         "judge_confidence": (res.judgment or {}).get("judge_confidence", ""),
@@ -644,6 +1097,126 @@ def _review_rij(res: RewriteResult, content: dict) -> dict:
     for kopje in sjabloon.KOPJES:
         rij[kopje.kop] = plat.get(kopje.cms, "")
     return rij
+
+
+_FOLLOW_UP_LI_RE = re.compile(r"(<li>)(.*?)(</li>)", re.S)
+
+
+def normaliseer_follow_up(html_tekst: str) -> tuple[str, list[str]]:
+    """Zet de vervolgtraining-titels in een bestaande follow_up in de nieuwe stijl.
+
+    Al herschreven trainingen nemen we ongewijzigd over, met één uitzondering: in hun
+    Vervolgstappen-lijst staan soms nog titels als "Cursus PowerPoint". Alleen dát repareren
+    we -- `vervang_soortwoord` laat regels die geen titel zijn met rust.
+    Geeft (nieuwe html, lijst van gewijzigde titels) terug.
+    """
+    gewijzigd: list[str] = []
+
+    def vervang(m):
+        oud = m.group(2).strip()
+        nieuw = sjabloon.vervang_soortwoord(oud)
+        if nieuw != oud:
+            gewijzigd.append(f"{oud} -> {nieuw}")
+            return f"{m.group(1)}{nieuw}{m.group(3)}"
+        return m.group(0)
+
+    return _FOLLOW_UP_LI_RE.sub(vervang, html_tekst or ""), gewijzigd
+
+
+def neem_over(tid: Any, naam: str, content_bron: dict) -> tuple[RewriteResult, dict]:
+    """Een training die al in de nieuwe stijl staat, ongewijzigd doorzetten.
+
+    Niet herschrijven (dat zou een goede tekst alleen maar slechter maken), maar wel in
+    `herschreven.xlsx` zetten -- anders is dat sheet geen compleet CMS-document. De
+    code-check draait er wel overheen, zodat afwijkingen zichtbaar worden in `flags`.
+    Geeft (resultaat, CMS-content) terug.
+    """
+    content = dict(content_bron or {})
+    titel = sjabloon.nieuwe_titel(naam)
+    flags: list[str] = []
+    if content.get("follow_up"):
+        content["follow_up"], gewijzigd = normaliseer_follow_up(content["follow_up"])
+        flags += [f"vervolgstappen-titel aangepast: {g}" for g in gewijzigd]
+    if naam != titel:
+        flags.append(f"titel aangepast: {naam} -> {titel}")
+    rw = goud_naar_check_input(content, titel)
+    flags += [str(i) for i in checks.check_rewrite(rw) if i.section != "modules"]
+    res = RewriteResult(tid, titel, OVERGENOMEN, reden="stond al in de nieuwe stijl",
+                        flags=flags, oude_titel=naam)
+    return res, content
+
+
+def schrijf_training_json(json_dir: str, tid: Any, res: RewriteResult, content_uit: dict):
+    """Het lossless artefact per training. Eén plek, zodat batch en hergeneratie gelijk blijven."""
+    os.makedirs(json_dir, exist_ok=True)
+    with open(os.path.join(json_dir, f"{tid}.json"), "w", encoding="utf-8") as f:
+        json.dump({
+            "training_id": tid, "titel": res.titel, "oude_titel": res.oude_titel,
+            "status": res.status, "reden": res.reden, "thin": res.thin, "flags": res.flags,
+            "toegepaste_acties": res.toegepaste_acties,
+            # writer_out is wat de schrijver letterlijk leverde; nodig om later één kopje te
+            # hergenereren (aanpak_invulling zit ingebakken in de vaste Aanpak-alinea).
+            "writer_out": res.writer_out,
+            "document": res.document, "content": content_uit,
+            "judgment": res.judgment,
+        }, f, ensure_ascii=False, indent=2)
+
+
+def _werk_xlsx_rij_bij(out_path: str, res: RewriteResult, content_uit: dict, verbose=True):
+    """Vervangt één rij in `herschreven.xlsx` (beide tabbladen) na een hergeneratie."""
+    import pandas as pd
+    if not os.path.exists(out_path):
+        if verbose:
+            print(f"({out_path} bestaat nog niet; alleen de JSON is bijgewerkt)")
+        return
+    vorige = pd.read_excel(out_path, sheet_name=None)
+    cms = vorige.get("cms", pd.DataFrame(columns=["id", "name", "content"]))
+    review = vorige.get("review", pd.DataFrame())
+    if res.status == APPROVED and content_uit:
+        nieuw = pd.DataFrame([{"id": res.training_id, "name": res.titel,
+                               "content": json.dumps(content_uit, ensure_ascii=False)}])
+        cms = pd.concat([cms, nieuw], ignore_index=True).drop_duplicates(
+            subset="id", keep="last")
+    review = pd.concat([review, pd.DataFrame([_review_rij(res, content_uit)])],
+                       ignore_index=True).drop_duplicates(subset="training_id", keep="last")
+    with pd.ExcelWriter(out_path) as writer:
+        cms.to_excel(writer, sheet_name="cms", index=False)
+        review.to_excel(writer, sheet_name="review", index=False)
+
+
+def hergenereer_kopje_op_schijf(scored_path: str, source_path: str, training_id: Any,
+                                kopje: str, comment: str = "", *, besluiten_path: str,
+                                out_dir: str = "herschreven", judge: bool = True,
+                                verbose: bool = True) -> RewriteResult:
+    """Hergenereert één kopje van een al herschreven training en slaat het resultaat op.
+
+    Zonder `comment` is het een gewone retry; met `comment` stuur je gericht bij
+    ("de modules overlappen, voeg 2 en 4 samen"). Werkt zowel de per-training-JSON als de
+    rij in `herschreven.xlsx` bij.
+    """
+    json_dir = os.path.join(out_dir, "trainingen")
+    pad = os.path.join(json_dir, f"{training_id}.json")
+    if not os.path.exists(pad):
+        raise FileNotFoundError(f"{pad} bestaat niet; herschrijf deze training eerst.")
+    with open(pad, encoding="utf-8") as f:
+        resultaat = json.load(f)
+
+    b = build_briefing_for_id(scored_path, source_path, training_id,
+                              besluiten_path=besluiten_path)
+    src_by_id, cols = load_source(source_path)
+    src_row = src_by_id.get(training_id)
+    content_bron = parse_content(src_row[cols["content"]]) if src_row is not None else {}
+
+    client = make_client()
+    res = hergenereer_kopje(client, b, resultaat, kopje, comment,
+                            catalog=load_catalog(), judge=judge)
+    content_uit = uit.document_to_content(res.document, content_bron) if res.document else {}
+    schrijf_training_json(json_dir, training_id, res, content_uit)
+    _werk_xlsx_rij_bij(os.path.join(out_dir, "herschreven.xlsx"), res, content_uit, verbose)
+    if verbose:
+        print(f"{res.titel} — kopje '{kopje}' opnieuw gegenereerd -> {res.status}"
+              + (f" ({res.reden})" if res.reden else ""))
+    return res
 
 
 def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
@@ -670,12 +1243,13 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
             "zonder dat sheet is niet vast te stellen wat de reviewer heeft goedgekeurd.")
     per_training = bes.load_besluiten(besluiten_path)
 
-    # al herschreven trainingen niet opnieuw genereren
+    # Al herschreven trainingen niet opnieuw genereren, maar wél doorzetten: het scoresheet
+    # is de bron van waarheid voor wat er in het CMS-document hoort.
+    overnemen = scored.iloc[0:0]
     if skip_herschreven and "herschreven" in scored.columns:
-        overslaan = scored["herschreven"] == 1
-        if verbose and overslaan.any():
-            print(f"{int(overslaan.sum())} trainingen met herschreven=1 overgeslagen")
-        scored = scored[~overslaan]
+        al_klaar = scored["herschreven"] == 1
+        overnemen = scored[al_klaar]
+        scored = scored[~al_klaar]
 
     # hervatten: rijen die al in de output staan overslaan
     bestaand_cms, bestaand_review = None, None
@@ -686,6 +1260,7 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
         if skip_existing and bestaand_review is not None:
             klaar = set(bestaand_review["training_id"])
             scored = scored[~scored["training_id"].isin(klaar)]
+            overnemen = overnemen[~overnemen["training_id"].isin(klaar)]
             if verbose and klaar:
                 print(f"{len(klaar)} trainingen stonden al in {out_path} -> overgeslagen")
 
@@ -699,6 +1274,24 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
     client = make_client() if len(scored) else None
 
     cms_records, review_records = [], []
+
+    # 1. de al herschreven trainingen, ongewijzigd (geen API-calls)
+    for _, srow in overnemen.iterrows():
+        tid = srow["training_id"]
+        src_row = src_by_id.get(tid)
+        if src_row is None:
+            if verbose:
+                print(f"  (id {tid} staat op herschreven=1 maar heeft geen bron; overgeslagen)")
+            continue
+        naam = str(srow.get("titel") or src_row[cols["name"]] or "")
+        res, content_uit = neem_over(tid, naam, parse_content(src_row[cols["content"]]))
+        cms_records.append({"id": tid, "name": res.titel,
+                            "content": json.dumps(content_uit, ensure_ascii=False)})
+        review_records.append(_review_rij(res, content_uit))
+    if verbose and len(overnemen):
+        print(f"{len(overnemen)} trainingen met herschreven=1 ongewijzigd overgenomen")
+
+    # 2. de trainingen die wél herschreven moeten worden
     for n, (_, srow) in enumerate(scored.iterrows(), start=1):
         scored_dict = {k: srow[k] for k in scored.columns}
         tid = scored_dict.get("training_id")
@@ -718,14 +1311,7 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
 
         content_uit = uit.document_to_content(res.document, content_bron) if res.document else {}
 
-        with open(os.path.join(json_dir, f"{tid}.json"), "w", encoding="utf-8") as f:
-            json.dump({
-                "training_id": tid, "titel": res.titel, "status": res.status,
-                "reden": res.reden, "thin": res.thin, "flags": res.flags,
-                "toegepaste_acties": res.toegepaste_acties,
-                "document": res.document, "content": content_uit,
-                "judgment": res.judgment,
-            }, f, ensure_ascii=False, indent=2)
+        schrijf_training_json(json_dir, tid, res, content_uit)
 
         if res.status == APPROVED and content_uit:
             cms_records.append({"id": tid, "name": res.titel,

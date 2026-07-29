@@ -15,9 +15,10 @@ Verwachte input `rewrite` (de gestructureerde schrijver-output, `submit_rewrite`
       "aanpak_invulling":        "... (alleen de [....]-invulling)",
       "doelgroep":              "Deze training is voor ...",
       "voorkennis":             "... (1 zin) of de vaste fallbackzin",
-      "doelen":                 ["Werkwoord ...", "Werkwoord ...", ...],   # 4-5 bullets
+      "doelen":                 ["... te ...en", "... te ...en", ...],    # 4-5 bullets, te-infinitief
       "vervolgstappen_titels": ["Titel A", "Titel B", ...],              # uit de catalogus
       "kortste_omschrijving":   "Wil je ... (<=200 tekens)",
+      "nieuwe_titel":           "Training ...",                          # nooit cursus/opleiding
     }
 
 Context `ctx` (optioneel):
@@ -104,8 +105,16 @@ _BANNED_RE = [re.compile(p, re.I) for p in BANNED_PATTERNS]
 MARKETING_WORDS = ["de beste", "uniek", "gegarandeerd", "ongeëvenaard", "toonaangevend",
                    "wereldklasse", "state-of-the-art", "next-level", "game-changer"]
 
-# Zwakke doel-openers (geen werkwoord) -> FLAG voor Doelen-bullets
-_NONVERB_START = {"de", "het", "een", "deze", "dit", "dat", "inzicht", "kennis", "begrip"}
+# Alles heet een training. "Examentraining" bevat geen van deze woorden en mag dus blijven.
+_SOORTWOORD_RE = re.compile(
+    r"\b(?:cursus(?:sen|se)?|opleiding(?:en)?|gebruikerscursus|examencursus|leergang(?:en)?)\b",
+    re.I)
+
+# Doelen staan in de te-infinitief, aansluitend op "Na deze training heb je handvatten om:".
+# Twee vormen: aaneengesloten ("te formuleren") en gesplitst ("voor te bereiden"). De meeste
+# infinitieven eindigen op -en; de onregelmatige korte vormen staan er expliciet bij.
+_TE_INFINITIEF_RE = re.compile(
+    r"\bte\s+(?:\w+en|zijn|doen|gaan|staan|slaan|zien|hebben)\b", re.I)
 
 
 def word_count(text: str) -> int:
@@ -310,9 +319,11 @@ def check_doelen(rw: dict) -> list[Issue]:
         if first and not first[0].isupper():
             issues.append(Issue("doelen", HARD, "hoofdletter",
                                 f"doel {idx} begint niet met een hoofdletter."))
-        if first.lower() in _NONVERB_START:
-            issues.append(Issue("doelen", FLAG, "geen_werkwoord",
-                                f"doel {idx} begint niet met een werkwoord ('{first}')."))
+        if not _TE_INFINITIEF_RE.search(b):
+            issues.append(Issue("doelen", HARD, "geen_te_infinitief",
+                                f"doel {idx} staat niet in de infinitief met 'te'; het moet "
+                                f"aansluiten op \"Na deze training heb je handvatten om:\" "
+                                f"(bv. 'Dashboards te bouwen die de juiste vraag beantwoorden')."))
         if re.search(r"\binzicht toepassen\b", b, re.I):
             issues.append(Issue("doelen", FLAG, "vaag", f"doel {idx} is vaag ('inzicht toepassen')."))
     return issues
@@ -350,6 +361,22 @@ def check_vervolgstappen(rw: dict, ctx: dict | None) -> list[Issue]:
     return issues
 
 
+def check_soortwoorden(rw: dict) -> list[Issue]:
+    """Niks heet nog een opleiding of een cursus -- alles is een training.
+
+    De brontekst zit er vol mee, dus dit is precies het soort woord dat de schrijver
+    ongemerkt overneemt. Hard, ook in de titel. "Examentraining" mag wel.
+    """
+    issues = []
+    velden = _all_text_fields(rw) + [("nieuwe_titel", _norm(rw.get("nieuwe_titel")))]
+    for section, text in velden:
+        m = _SOORTWOORD_RE.search(text or "")
+        if m:
+            issues.append(Issue(section, HARD, "soortwoord",
+                                f"gebruikt '{m.group(0)}'; noem het een training."))
+    return issues
+
+
 # ---------------------------------------------------------------------------
 # Top-level
 # ---------------------------------------------------------------------------
@@ -367,6 +394,7 @@ def check_rewrite(rewrite: dict, ctx: dict | None = None) -> list[Issue]:
     issues += check_doelen(rw)
     issues += check_kortste_omschrijving(rw)
     issues += check_vervolgstappen(rw, ctx)
+    issues += check_soortwoorden(rw)
     issues += check_generic(rw)
     return issues
 
@@ -384,11 +412,14 @@ if __name__ == "__main__":
         ]},
         "doelgroep": "Deze training is voor iedereen die data beter wil benutten.",
         "voorkennis": "Specifieke voorkennis voor het volgen van deze training is niet noodzakelijk.",
-        "doelen": ["Bouwen van dashboards", "Opschonen van data",
-                   "Analyseren van trends", "Presenteren van resultaten"],
-        "vervolgstappen_titels": ["Power BI"],
+        "doelen": ["Dashboards te bouwen die de juiste vraag beantwoorden",
+                   "Datasets op te schonen en samen te voegen voor analyse",
+                   "Trends te analyseren en te vertalen naar keuzes",
+                   "Resultaten te presenteren aan je team"],
+        "vervolgstappen_titels": ["Training Power BI"],
         "kortste_omschrijving": "Wil je slimmer met data werken en betere keuzes maken?",
+        "nieuwe_titel": "Training Data",
     }
-    for issue in check_rewrite(demo, {"catalog_titles": {"Power BI"}, "naam": "Data"}):
+    for issue in check_rewrite(demo, {"catalog_titles": {"Training Power BI"}, "naam": "Data"}):
         print(issue)
     print("hard fails:", len(hard_fails(check_rewrite(demo))))

@@ -33,7 +33,7 @@ talloze, diverse (zonder specificatie).
 
 - **"Niet alleen … maar ook …"** — herschrijf tot een directe zin.
 - **Drieslag-opsommingen als opvulling** (adjectief, adjectief, adjectief) zonder inhoud.
-- **Em-dash-verslaving** — max. spaarzaam; vervang meestal door punt of komma.
+- **Em-dash-verslaving** — nooit gebruiken; vervang door punt of komma.
 - **"Dit betekent dat …" / "Dat wil zeggen …"** als vulzin.
 - **Retorische dubbelvraag** aan het begin van meerdere kopjes (buiten de bewuste "Wil je …"-openers).
 - **Slot-aanmoediging** ("Zet vandaag nog de eerste stap!", "Waar wacht je nog op?").

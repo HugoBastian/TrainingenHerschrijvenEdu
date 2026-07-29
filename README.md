@@ -35,7 +35,7 @@ het model.
 | `rewrite_output.py` | Document → CMS-`content`-JSON (HTML) en → markdown met kop 1/2/3. |
 | `rewrite_trainings.py` | Hybride schrijver + orchestratie + I/O. |
 | `herschrijven.ipynb` | Notebook om de pijplijn stap voor stap te draaien en te inspecteren. |
-| `test_rewrite.py` | 42 offline tests (geen API-key nodig). |
+| `test_rewrite.py` | 56 offline tests (geen API-key nodig). |
 
 ## Setup
 
@@ -111,15 +111,30 @@ python rewrite_trainings.py \
 Output in `--out-dir`:
 
 - `trainingen/<id>.json` — lossless: `document`, `content` (CMS-JSON), `judgment`,
-  `toegepaste_acties`, flags;
+  `toegepaste_acties`, flags en `writer_out` (wat de schrijver letterlijk leverde);
 - `herschreven.xlsx`, tabblad **cms** — `id` / `name` / `content`, met dezelfde
-  JSON-structuur als het bronsheet, zodat het zo terug het CMS in kan. Alleen `approved`;
+  JSON-structuur als het bronsheet, zodat het zo terug het CMS in kan;
 - `herschreven.xlsx`, tabblad **review** — status, flags en elk kopje in platte tekst, met een
   lege `approve_edit`-kolom.
 
-De run **hervat** standaard: trainingen die al in `herschreven.xlsx` staan worden overgeslagen,
-en `herschreven=1` (al in de nieuwe stijl) wordt sowieso niet opnieuw gegenereerd. Gebruik
-`--no-append` om te overschrijven.
+Trainingen met `herschreven=1` worden **niet** herschreven maar wél ongewijzigd doorgezet
+(status `overgenomen`), zodat `herschreven.xlsx` één compleet CMS-document is. Het scoresheet
+bepaalt wat erin hoort. De run **hervat** verder standaard: wat al in `herschreven.xlsx` staat
+wordt overgeslagen. Gebruik `--no-append` om te overschrijven.
+
+### Eén kopje opnieuw
+
+Een reviewer die alleen de Modules wil bijsturen hoeft niet de hele training opnieuw te
+betalen:
+
+```python
+rw.hergenereer_kopje_op_schijf(SCORED, SOURCE, training_id=5, kopje="modules",
+                               comment="module 2 en 4 overlappen; voeg ze samen",
+                               besluiten_path=BESLUITEN)
+```
+
+Zonder `comment` is het een gewone retry. De JSON en de rij in `herschreven.xlsx` worden
+bijgewerkt.
 
 ### 3. Goud-corpus
 
@@ -129,7 +144,17 @@ python rewrite_trainings.py --goud --source "/pad/naar/bronsheet.xlsx" --out-dir
 
 Schrijft de trainingen met `herschreven=1` weg naar `herschreven/goud/<id>.json`. Dat is
 referentiemateriaal om spec en judge aan te kalibreren — géén voorschrift; het template en de
-schrijfspec zijn leidend.
+schrijfspec zijn leidend. Het corpus heeft twee toepassingen:
+
+```python
+rw.checks_over_goud()   # hoe vaak faalt elke harde regel op de 78 trainingen?
+```
+
+Van de 78 halen er **4** élke harde check; die vier staan in `GOUD_VOORBEELDEN` en gaan als
+few-shot mee in de gecachete system-prefix van de schrijver. De rest is meetlat: valt een regel
+bij meer dan de helft van het corpus om, dan is de regel verdacht en niet de training (59 van
+de 78 falen bijvoorbeeld de Inleiding-lengte). Verander je een check, draai dit dan opnieuw en
+werk `GOUD_VOORBEELDEN` bij.
 
 ### Notebook
 
@@ -161,19 +186,27 @@ veld in de CMS-`content`:
 ## Tests
 
 ```bash
-python test_rewrite.py     # 42 offline checks, geen API-key nodig
+python test_rewrite.py     # 56 offline checks, geen API-key nodig
 ```
 
 Getest wordt de deterministische laag: de code-check, de structurele splitsing van
 `actie_besluit` (met de echte strings uit het sheet als fixtures) en de CMS-output. De
 LLM-classificatie erboven blijft bewust ongetest — die vraagt een API-call.
 
+## Vervolgstappen: twee trappen
+
+`vervolgtraining.json` is de catalogus: 779 trainingen als `{product_id, titel, summary}`.
+Samen ~89k tokens, dus die gaat **nooit** naar de API. In plaats daarvan:
+
+1. **Python** (`shortlist_vervolgtrainingen`) — IDF-gewogen keyword-overlap over titel +
+   summary levert ~20 kandidaten. De training zelf valt af op `product_id`; elke gescoorde
+   training staat namelijk ook in de catalogus. Nul API-kosten.
+2. **Haiku** (`kies_vervolgtrainingen`) — kiest uit die 20 er 3-6 en verdeelt ze over één of
+   twee groepen met een eigen intro-zin, zoals in het goud. ~$0,003 per training.
+
+De code-check blijft de poort: elke titel moet letterlijk in de catalogus staan, dus het model
+kan er geen verzinnen. Levert stap 2 niets bruikbaars, dan valt het terug op de shortlist.
+
 ## Status
 
-End-to-end werkend. Nog open:
-
-1. **`vervolgtraining_catalog.json`** — echte titels (titel/categorie/populariteit/omschrijving).
-   Zonder dit blijven de Vervolgstappen-titels leeg en geflagd.
-   `~/Downloads/Vervolgtrainingen (cleaned).xlsx` lijkt de bron.
-2. **Goud-corpus benutten** — de 78 geëxporteerde trainingen zijn nu alleen referentie; ze
-   worden nog niet als few-shot of regressietest gebruikt.
+End-to-end werkend.

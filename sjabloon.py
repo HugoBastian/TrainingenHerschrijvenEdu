@@ -70,19 +70,68 @@ MODULES_OPENING = (
     "hier echter van afwijken. Bel ons gerust voor meer informatie over de actuele inhoud."
 )
 
-# Titels beginnen vaak al met het soortwoord ("Opleiding PHP Professional", "Cursus XML").
-# "de Training Opleiding PHP Professional" leest dan verkeerd.
-_SOORTWOORDEN = ("training", "opleiding", "cursus", "masterclass", "workshop", "leergang")
+# Soortwoorden die een titel mag houden. Alles wat hier NIET in staat wordt door
+# `nieuwe_titel` vervangen door "Training".
+TOEGESTANE_SOORTWOORDEN = ("training", "examentraining", "masterclass", "workshop")
+
+# Soortwoorden die een titel verliest: "Cursus XML" -> "Training XML".
+VERBODEN_SOORTWOORDEN = ("opleiding", "cursus", "gebruikerscursus", "examencursus", "leergang")
+
+
+def vervang_soortwoord(naam: str) -> str:
+    """Vervangt alléén een leidend verboden soortwoord. Laat de rest met rust.
+
+    "Cursus XML"    -> "Training XML"
+    "Power BI"      -> "Power BI"        (geen soortwoord: niet aanraken)
+
+    Dit is de voorzichtige variant, voor tekst die we verder ongewijzigd overnemen --
+    bijvoorbeeld de vervolgstappen-lijst van een training die al herschreven was. Daar
+    staan regels tussen die helemaal geen titel zijn ("Trainingen voor specifieke
+    databasesystemen zoals ..."), en die moeten ongemoeid blijven.
+    """
+    naam = (naam or "").strip()
+    if not naam:
+        return ""
+    woorden = naam.split()
+    if woorden[0].lower() not in VERBODEN_SOORTWOORDEN:
+        return naam
+    rest = " ".join(woorden[1:]).strip()
+    return f"Training {rest}" if rest else "Training"
+
+
+def nieuwe_titel(naam: str) -> str:
+    """Bron-titel -> titel in de nieuwe stijl. Niks heet nog opleiding of cursus.
+
+    "Opleiding PHP Professional" -> "Training PHP Professional"
+    "Cursus XML"                 -> "Training XML"
+    "Gebruikerscursus Sitecore"  -> "Training Sitecore"
+    "Masterclass PHP"            -> "Masterclass PHP"    (toegestaan soortwoord)
+    "Excel"                      -> "Training Excel"     (geen soortwoord -> voorvoegsel)
+
+    Voor een trainingstitel, die altijd een soortwoord hoort te hebben. Voor losse regels
+    in bestaande tekst is `vervang_soortwoord` de juiste functie.
+    """
+    naam = (naam or "").strip()
+    if not naam:
+        return ""
+    if naam.split()[0].lower() in TOEGESTANE_SOORTWOORDEN:
+        return naam
+    vervangen = vervang_soortwoord(naam)
+    if vervangen != naam:
+        return vervangen
+    return f"Training {naam}"
 
 
 def modules_opening(naam: str) -> str:
-    """De openingszin van kopje Modules, met een lopende aanduiding van de training."""
-    naam = (naam or "").strip()
-    if not naam:
+    """De openingszin van kopje Modules, met een lopende aanduiding van de training.
+
+    Draait op de nieuwe titel, zodat er nooit "de Training Opleiding PHP Professional"
+    ontstaat: die begint na normalisatie met een toegestaan soortwoord.
+    """
+    titel = nieuwe_titel(naam)
+    if not titel:
         return MODULES_OPENING.format(aanduiding="deze training")
-    eerste = naam.split()[0].lower()
-    aanduiding = f"de {naam}" if eerste in _SOORTWOORDEN else f"de Training {naam}"
-    return MODULES_OPENING.format(aanduiding=aanduiding)
+    return MODULES_OPENING.format(aanduiding=f"de {titel}")
 
 # Kopje 6 -- Aanpak: twee vaste alinea's; de schrijver levert alleen de [....]-invulling.
 AANPAK_ALINEA_1 = (
@@ -115,6 +164,8 @@ VERVOLG_ALINEA_2 = (
     "Er zijn verschillende vervolgtrainingen die aansluiten op specifieke onderwerpen, "
     "toepassingen en werkcontexten."
 )
+# Aankondiging boven één ongegroepeerde lijst. Levert de retrieval groepen met een
+# eigen intro-zin (zoals in het goud), dan gebruikt de code die in plaats hiervan.
 VERVOLG_LIJST_INTRO = "Zo bieden we onder andere:"
 # Staat niet in het template, wel in de schrijfspec én in alle zes al herschreven
 # trainingen. Bewust behouden; zet op "" om hem te laten vervallen.

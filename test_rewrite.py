@@ -38,14 +38,17 @@ def _good_rewrite() -> dict:
         "aanpak_invulling": "je datagedreven keuzes maakt",
         "doelgroep": "Deze training is voor iedereen die met data betere keuzes wil maken.",
         "voorkennis": "Specifieke voorkennis voor het volgen van deze training is niet noodzakelijk.",
-        "doelen": ["Bouwen van heldere dashboards", "Opschonen van ruwe data",
-                   "Analyseren van terugkerende trends", "Presenteren van resultaten aan het team"],
-        "vervolgstappen_titels": ["Power BI"],
+        "doelen": ["Heldere dashboards te bouwen voor je team",
+                   "Ruwe data op te schonen en samen te voegen",
+                   "Terugkerende trends te analyseren",
+                   "Resultaten te presenteren aan het team"],
+        "vervolgstappen_titels": ["Training Power BI"],
         "kortste_omschrijving": "Wil je slimmer met data werken en betere keuzes maken?",
+        "nieuwe_titel": "Training Data-analyse",
     }
 
 
-_CTX = {"catalog_titles": {"Power BI", "T-SQL"}, "naam": "Data-analyse"}
+_CTX = {"catalog_titles": {"Training Power BI", "Training T-SQL"}, "naam": "Training Data-analyse"}
 
 
 def _codes(issues, severity=None):
@@ -123,8 +126,32 @@ def test_doelen_verkeerd_aantal():
 
 def test_doelen_kleine_letter():
     rw = _good_rewrite()
-    rw["doelen"][0] = "bouwen van dashboards"
-    assert "hoofdletter" in _codes(check_rewrite(rw, _CTX), HARD)
+    rw["doelen"][0] = "heldere dashboards te bouwen"   # wel te-infinitief, geen hoofdletter
+    codes = _codes(check_rewrite(rw, _CTX), HARD)
+    assert "hoofdletter" in codes
+    assert "geen_te_infinitief" not in codes
+
+
+def test_doelen_zonder_te_infinitief():
+    """De kale infinitief ('Dashboards bouwen') loopt niet door op de vaste introzin."""
+    rw = _good_rewrite()
+    rw["doelen"][0] = "Dashboards bouwen die de juiste vraag beantwoorden"
+    assert "geen_te_infinitief" in _codes(check_rewrite(rw, _CTX), HARD)
+
+
+def test_doelen_gesplitste_te_infinitief_is_goed():
+    """'voor te bereiden' / 'uit te oefenen' zijn geldige te-infinitieven."""
+    rw = _good_rewrite()
+    rw["doelen"][0] = "Jezelf voor te bereiden op een gesprek met je team"
+    rw["doelen"][1] = "Invloed uit te oefenen zonder formele macht"
+    assert "geen_te_infinitief" not in _codes(check_rewrite(rw, _CTX), HARD)
+
+
+def test_doelen_onregelmatige_infinitief_is_goed():
+    rw = _good_rewrite()
+    rw["doelen"][0] = "Data te zien als basis voor besluitvorming"
+    rw["doelen"][1] = "Om te gaan met tegenstrijdige belangen in het team"
+    assert "geen_te_infinitief" not in _codes(check_rewrite(rw, _CTX), HARD)
 
 
 def test_kortste_te_lang():
@@ -157,7 +184,7 @@ def test_html_in_tekst():
 
 def test_onbekende_vervolgtraining_titel():
     rw = _good_rewrite()
-    rw["vervolgstappen_titels"] = ["Niet Bestaande Cursus"]
+    rw["vervolgstappen_titels"] = ["Training Bestaat Niet"]
     assert "titel_onbekend" in _codes(check_rewrite(rw, _CTX), HARD)
 
 
@@ -165,6 +192,67 @@ def test_ontbrekend_kopje():
     rw = _good_rewrite()
     rw["doelgroep"] = ""
     assert "ontbreekt" in _codes(check_rewrite(rw, _CTX), HARD)
+
+
+# ---------------------------------------------------------------------------
+# Soortwoord: niks heet nog een cursus of opleiding
+# ---------------------------------------------------------------------------
+
+def test_cursus_in_lopende_tekst_is_hardfail():
+    rw = _good_rewrite()
+    rw["inleiding"] = "Tijdens deze cursus " + " ".join(["onderwerp"] * 193)
+    assert "soortwoord" in _codes(check_rewrite(rw, _CTX), HARD)
+
+
+def test_opleiding_in_module_bullet_is_hardfail():
+    rw = _good_rewrite()
+    rw["modules"]["modules"][0]["bullets"][0] = "Opzet van de opleiding"
+    assert "soortwoord" in _codes(check_rewrite(rw, _CTX), HARD)
+
+
+def test_cursus_in_titel_is_hardfail():
+    rw = _good_rewrite()
+    rw["nieuwe_titel"] = "Cursus XML"
+    assert "soortwoord" in _codes(check_rewrite(rw, _CTX), HARD)
+
+
+def test_examentraining_mag_wel():
+    rw = _good_rewrite()
+    rw["nieuwe_titel"] = "Examentraining DAMA-DMBOK CDMP"
+    assert "soortwoord" not in _codes(check_rewrite(rw, _CTX), HARD)
+
+
+# ---------------------------------------------------------------------------
+# Titelnormalisatie (sjabloon.nieuwe_titel / vervang_soortwoord)
+# ---------------------------------------------------------------------------
+
+def test_nieuwe_titel_vervangt_verboden_soortwoord():
+    assert sjabloon.nieuwe_titel("Opleiding PHP Professional") == "Training PHP Professional"
+    assert sjabloon.nieuwe_titel("Cursus XML") == "Training XML"
+    assert sjabloon.nieuwe_titel("Gebruikerscursus Sitecore") == "Training Sitecore"
+
+
+def test_nieuwe_titel_laat_toegestane_soortwoorden_staan():
+    for titel in ("Training Linux", "Masterclass PHP", "Workshop Storytelling",
+                  "Examentraining CEH"):
+        assert sjabloon.nieuwe_titel(titel) == titel
+
+
+def test_nieuwe_titel_zet_voorvoegsel_bij_titel_zonder_soortwoord():
+    assert sjabloon.nieuwe_titel("Excel") == "Training Excel"
+
+
+def test_vervang_soortwoord_laat_niet_titels_met_rust():
+    """In gekopieerde tekst staan regels die geen titel zijn; die niet aanraken."""
+    zin = "Trainingen voor specifieke databasesystemen zoals PostgreSQL"
+    assert sjabloon.vervang_soortwoord(zin) == zin
+    assert sjabloon.vervang_soortwoord("Cursus PowerPoint") == "Training PowerPoint"
+
+
+def test_modules_opening_verdubbelt_soortwoord_niet():
+    opening = sjabloon.modules_opening("Opleiding PHP Professional")
+    assert "de Training PHP Professional" in opening
+    assert "Opleiding" not in opening
 
 
 # ---------------------------------------------------------------------------
@@ -372,10 +460,30 @@ def test_geen_placeholder_of_oplnaam_in_de_output():
     assert "{{ oplnaam }}" not in samen and "[" not in samen
 
 
+def test_vervolgstappen_met_groepen_krijgt_per_groep_een_eigen_intro():
+    doc = _document()
+    doc["vervolgstappen"]["groepen"] = [
+        {"intro": "Wil je je verder verdiepen:", "titels": ["Training Power BI"]},
+        {"intro": "Wil je juist verbreden:", "titels": ["Training T-SQL", "Training Python"]},
+    ]
+    html = uit.document_to_content(doc, {})["follow_up"]
+    assert "Wil je je verder verdiepen:" in html and "Wil je juist verbreden:" in html
+    assert html.count("<ul>") == 2
+    # de vaste aankondiging hoort er dan NIET meer boven te staan
+    assert sjabloon.VERVOLG_LIJST_INTRO not in html
+
+
+def test_vervolgstappen_zonder_groepen_valt_terug_op_een_vlakke_lijst():
+    html = uit.document_to_content(_document(), {})["follow_up"]
+    assert sjabloon.VERVOLG_LIJST_INTRO in html
+    assert html.count("<ul>") == 1
+
+
 def test_soortwoord_wordt_niet_verdubbeld():
     assert "de Training Opleiding" not in sjabloon.modules_opening("Opleiding PHP Professional")
-    assert sjabloon.modules_opening("Cursus XML").startswith("Tijdens de Cursus XML")
+    assert sjabloon.modules_opening("Cursus XML").startswith("Tijdens de Training XML")
     assert sjabloon.modules_opening("Photoshop").startswith("Tijdens de Training Photoshop")
+    assert sjabloon.modules_opening("Masterclass C#").startswith("Tijdens de Masterclass C#")
 
 
 def test_markdown_heeft_kop_1_2_en_3():
