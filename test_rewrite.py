@@ -13,9 +13,13 @@ splitsing van `actie_besluit` en de uitlijning met `actualiteit_actie`.
 from __future__ import annotations
 
 import copy
+import json
+import os
+import tempfile
 
 import besluiten as bes
 import rewrite_output as uit
+import rewrite_trainings as rw
 import sjabloon
 from rewrite_checks import HARD, FLAG, check_rewrite, hard_fails, flags
 
@@ -270,6 +274,219 @@ def test_vervolgtitel_laat_regels_die_geen_titel_zijn_met_rust():
     assert sjabloon.vervolgtitel("Cursus voor gevorderden") == "Training voor gevorderden"
     # een hoofdletter erna maakt het wél een titel
     assert sjabloon.vervolgtitel("Training Van Excel naar Power BI") == "Van Excel naar Power BI"
+
+
+# ---------------------------------------------------------------------------
+# Vervolgtrainingen: taxonomieboom + shortlist
+# ---------------------------------------------------------------------------
+
+def _mini_catalog() -> list[dict]:
+    """Catalogus met net genoeg structuur om de shortlist te kunnen sturen.
+
+    XSL en JavaScript delen geen woord maar wel een vakgebied; Active Directory deelt
+    wél woorden met LDAP maar hangt in een ander domein. Precies de twee gevallen waarop
+    keyword-overlap en boom afzonderlijk stukgaan.
+    """
+    rijen = [
+        (1, "Cursus XSL", "Transformeer XML-documenten met stylesheets."),
+        (2, "Cursus JavaScript", "Programmeer interactie in de browser."),
+        (3, "Cursus Node.js", "Bouw serverapplicaties in de browsertaal."),
+        (4, "Cursus LDAP", "Ontsluit centraal opgeslagen directory-gegevens via het netwerk."),
+        (5, "Training Active Directory", "Beheer directory-gegevens en gebruikers centraal."),
+        (6, "Training 5G Mobiele Communicatie", "Mobiele netwerken van de vijfde generatie."),
+        (7, "Training Bloemschikken", "Niets met techniek te maken."),
+        (8, "Opleiding C# Professional", "Professioneel programmeren in C-sharp."),
+        (9, "Training C++ Professional", "Professioneel programmeren in C-plus-plus."),
+        (10, "Training Claude CoWork", "Samenwerken met een AI-assistent."),
+    ]
+    return rw.catalog_uit_rijen([
+        {"product_id": pid, "titel": t, "summary": s} for pid, t, s in rijen])
+
+
+_MINI_BOOM = {
+    "name": "Trainingscatalogus",
+    "children": [
+        {"name": "Software Development", "children": [
+            {"name": "Web Development", "children": [
+                {"name": "Cursus XSL"}, {"name": "Cursus JavaScript"}, {"name": "Cursus Node.js"},
+            ]},
+            {"name": "Programmeertalen", "children": [
+                {"name": "Opleiding C# Professional"}, {"name": "Training C++ Professional"},
+            ]},
+        ]},
+        {"name": "Cloud & Infrastructuur", "children": [
+            {"name": "Netwerken & Connectiviteit", "children": [
+                {"name": "Cursus LDAP"}, {"name": "Training 5G Mobiele Communicatie"},
+            ]},
+        ]},
+        {"name": "Modern Workplace", "children": [
+            {"name": "Identity & Access Management", "children": [
+                {"name": "Training Active Directory"},
+            ]},
+        ]},
+        # bestaat niet in de catalogus -> mag nooit in de index belanden
+        {"name": "Data & Analytics", "children": [
+            {"name": "Big Data", "children": [{"name": "Cursus Apache Pig"}]},
+        ]},
+    ],
+}
+
+
+def _mini_boom(catalog, boom=None):
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as f:
+        json.dump(boom if boom is not None else _MINI_BOOM, f)
+        pad = f.name
+    try:
+        return rw.load_tree(catalog, pad)
+    finally:
+        os.unlink(pad)
+
+
+def test_boom_bevat_alleen_bestaande_catalogustitels():
+    """De veiligheidsgarantie: wat hier in staat, overleeft check_vervolgstappen.
+
+    Elke titel buiten de catalogus is een HARD `titel_onbekend`, dus een blad zonder
+    catalogusrij (vervallen aanbod als Apache Pig) mag niet als kandidaat naar buiten.
+    """
+    catalog = _mini_catalog()
+    boom = _mini_boom(catalog)
+    bekend = {t.strip().lower() for t in rw.catalog_titles(catalog)}
+    assert boom["paden"], "de boom moet wél gevuld zijn"
+    for sleutel in boom["paden"]:
+        assert sleutel in bekend, sleutel
+    assert "apache pig" not in boom["paden"]
+
+
+def test_boom_koppelt_over_interpunctie_heen():
+    """"Claude Co-Work" in de boom is dezelfde training als "Claude CoWork"."""
+    catalog = _mini_catalog()
+    boom = _mini_boom(catalog, {"name": "wortel", "children": [
+        {"name": "Artificial Intelligence", "children": [
+            {"name": "AI-assistenten", "children": [{"name": "Training Claude Co-Work"}]}]}]})
+    assert "claude cowork" in boom["paden"]
+
+
+def test_boom_slaat_ambigue_titels_over():
+    """C# en C++ vallen na het strippen van interpunctie samen; dan liever niets koppelen."""
+    catalog = _mini_catalog()
+    boom = _mini_boom(catalog, {"name": "wortel", "children": [
+        {"name": "Software Development", "children": [
+            {"name": "Programmeertalen", "children": [{"name": "Cursus C＃ Professional"}]}]}]})
+    # de exacte titel matcht niet en de losse sleutel is ambigu -> geen van beide gekoppeld
+    assert "c# professional" not in boom["paden"]
+    assert "c++ professional" not in boom["paden"]
+
+
+def test_boom_kent_meerdere_takken():
+    catalog = _mini_catalog()
+    boom = _mini_boom(catalog, {"name": "wortel", "children": [
+        {"name": "Software Development", "children": [
+            {"name": "Web Development", "children": [{"name": "Cursus XSL"}]}]},
+        {"name": "Data & Analytics", "children": [
+            {"name": "Dataformaten", "children": [{"name": "Cursus XSL"}]}]}]})
+    assert len(boom["paden"]["xsl"]) == 2
+
+
+def test_shortlist_zonder_boom_is_ongewijzigd():
+    """De boom is optioneel; zonder boom moet de oude volgorde er exact uit komen."""
+    catalog = _mini_catalog()
+    zonder = rw.shortlist_vervolgtrainingen(catalog, "Cursus XSL", "stylesheets en xml", 1)
+    met_none = rw.shortlist_vervolgtrainingen(catalog, "Cursus XSL", "stylesheets en xml", 1,
+                                              boom=None)
+    assert [e["titel"] for e in zonder] == [e["titel"] for e in met_none]
+    assert "XSL" not in [e["titel"] for e in zonder], "de training zelf hoort er niet in"
+
+
+def test_shortlist_haalt_vakgenoot_zonder_woordoverlap_binnen():
+    """XSL deelt geen woord met JavaScript, maar wel het subdomein Web Development."""
+    catalog = _mini_catalog()
+    boom = _mini_boom(catalog)
+    zonder = {e["titel"] for e in
+              rw.shortlist_vervolgtrainingen(catalog, "Cursus XSL", "stylesheets", 1, n=3)}
+    met = {e["titel"] for e in
+           rw.shortlist_vervolgtrainingen(catalog, "Cursus XSL", "stylesheets", 1, n=3, boom=boom)}
+    assert "JavaScript" not in zonder
+    assert "JavaScript" in met
+    assert "Bloemschikken" not in met
+
+
+def test_shortlist_houdt_de_sterkste_keyword_treffer_vast():
+    """Een vol subdomein mag de beste treffer uit een ánder domein niet verdringen.
+
+    LDAP hangt onder Netwerken, maar de logische vervolgstap (Active Directory) staat
+    onder Identity. Die moet de unie overleven.
+    """
+    catalog = _mini_catalog()
+    boom = _mini_boom(catalog)
+    titels = [e["titel"] for e in rw.shortlist_vervolgtrainingen(
+        catalog, "Cursus LDAP", "directory-gegevens centraal beheren", 4, n=3, boom=boom)]
+    assert "Active Directory" in titels
+
+
+def test_taxonomie_pad_kiest_de_tak_die_de_bron_deelt():
+    """Hangt een kandidaat in meerdere takken, dan telt de tak van de bron."""
+    catalog = _mini_catalog()
+    boom = _mini_boom(catalog, {"name": "wortel", "children": [
+        {"name": "Software Development", "children": [
+            {"name": "Web Development", "children": [
+                {"name": "Cursus XSL"}, {"name": "Cursus JavaScript"}]}]},
+        {"name": "Data & Analytics", "children": [
+            {"name": "Dataformaten", "children": [{"name": "Cursus JavaScript"}]}]}]})
+    assert rw.taxonomie_pad(boom, "javascript", "xsl") == "Software Development > Web Development"
+    assert rw.taxonomie_pad(boom, "javascript", "") in (
+        "Software Development > Web Development", "Data & Analytics > Dataformaten")
+    assert rw.taxonomie_pad(boom, "bloemschikken", "xsl") == ""
+
+
+class _StubBlok:
+    type = "tool_use"
+
+    def __init__(self, naam, invoer):
+        self.name, self.input = naam, invoer
+
+
+class _StubResp:
+    stop_reason = "tool_use"
+
+    def __init__(self, content):
+        self.content = content
+
+
+class _StubMessages:
+    def __init__(self, client, groepen):
+        self._client, self._groepen = client, groepen
+
+    def create(self, **kw):
+        self._client.laatste = kw
+        return _StubResp([_StubBlok("submit_vervolgstappen", {"groepen": self._groepen})])
+
+
+class _StubClient:
+    """Client die één vast tool-antwoord teruggeeft; geen netwerk, geen API-key."""
+
+    def __init__(self, groepen):
+        self.laatste = None
+        self.messages = _StubMessages(self, groepen)
+
+
+def test_kies_vervolgtrainingen_toont_het_vakgebied_maar_neemt_het_niet_over():
+    """Het label stuurt de groepering; komt het terug in een titel, dan wordt het gestript."""
+    catalog = _mini_catalog()
+    boom = _mini_boom(catalog)
+    shortlist = rw.shortlist_vervolgtrainingen(catalog, "Cursus XSL", "stylesheets", 1, boom=boom)
+    client = _StubClient([{"intro": "Verdiep je verder:",
+                           "titels": ["JavaScript [Software Development > Web Development]"]}])
+    groepen = rw.kies_vervolgtrainingen(client, "Training XSL", "stylesheets", "A", shortlist,
+                                        boom=boom, oude_titel="Cursus XSL")
+    assert "[Software Development > Web Development]" in client.laatste["messages"][0]["content"]
+    assert groepen == [{"intro": "Verdiep je verder:", "titels": ["JavaScript"]}]
+
+
+def test_kies_vervolgtrainingen_weert_verzonnen_titels():
+    catalog = _mini_catalog()
+    client = _StubClient([{"intro": "Kijk ook naar:", "titels": ["Training Bestaat Niet"]}])
+    shortlist = rw.shortlist_vervolgtrainingen(catalog, "Cursus XSL", "stylesheets", 1)
+    assert rw.kies_vervolgtrainingen(client, "Training XSL", "x", "A", shortlist) == []
 
 
 def test_modules_opening_verdubbelt_soortwoord_niet():

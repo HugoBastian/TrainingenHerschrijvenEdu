@@ -35,7 +35,7 @@ het model.
 | `rewrite_output.py` | Document → CMS-`content`-JSON (HTML) en → markdown met kop 1/2/3. |
 | `rewrite_trainings.py` | Hybride schrijver + orchestratie + I/O. |
 | `herschrijven.ipynb` | Notebook om de pijplijn stap voor stap te draaien en te inspecteren. |
-| `test_rewrite.py` | 59 offline tests (geen API-key nodig). |
+| `test_rewrite.py` | 69 offline tests (geen API-key nodig). |
 
 ## Setup
 
@@ -186,7 +186,7 @@ veld in de CMS-`content`:
 ## Tests
 
 ```bash
-python test_rewrite.py     # 59 offline checks, geen API-key nodig
+python test_rewrite.py     # 69 offline checks, geen API-key nodig
 ```
 
 Getest wordt de deterministische laag: de code-check, de structurele splitsing van
@@ -199,13 +199,38 @@ LLM-classificatie erboven blijft bewust ongetest — die vraagt een API-call.
 Samen ~89k tokens, dus die gaat **nooit** naar de API. In plaats daarvan:
 
 1. **Python** (`shortlist_vervolgtrainingen`) — IDF-gewogen keyword-overlap over titel +
-   summary levert ~20 kandidaten. De training zelf valt af op `product_id`; elke gescoorde
-   training staat namelijk ook in de catalogus. Nul API-kosten.
-2. **Haiku** (`kies_vervolgtrainingen`) — kiest uit die 20 er 3-6 en verdeelt ze over één of
+   summary, aangevuld met vakgenoten uit de taxonomieboom, levert ~30 kandidaten. De training
+   zelf valt af op `product_id` en op titel; elke gescoorde training staat namelijk ook in de
+   catalogus. Nul API-kosten.
+2. **Haiku** (`kies_vervolgtrainingen`) — kiest uit die 30 er 3-6 en verdeelt ze over één of
    twee groepen met een eigen intro-zin, zoals in het goud. ~$0,003 per training.
 
 De code-check blijft de poort: elke titel moet letterlijk in de catalogus staan, dus het model
 kan er geen verzinnen. Levert stap 2 niets bruikbaars, dan valt het terug op de shortlist.
+
+### De taxonomieboom
+
+`vervolgtrainingen_tree.json` deelt het aanbod in als domein > subdomein > onderwerp
+(13 domeinen, 69 subdomeinen), en hangt een training desgewenst in meerdere takken.
+`load_tree()` koppelt elk blad aan een catalogusrij en gooit de rest weg — wat niet resolvet,
+kan de code-check niet passeren. De koppeling gaat eerst op genormaliseerde titel en daarna op
+een variant zonder spaties en interpunctie ("Claude Co-Work" ↔ "Claude CoWork",
+"Timemanagement" ↔ "Time management"); levert die variant meer dan één catalogusrij op, dan
+wordt hij overgeslagen — "C# Professional" en "C++ Professional" vallen anders samen.
+
+Keyword-overlap en boom worden bewust **samen** gebruikt, want ze falen op verschillende
+manieren. Keywords boden XSL "Interieurdesign met Vectorworks" en "Big Data in de Zorg" aan;
+de boom levert daar Web Development. Omgekeerd hangt LDAP onder Netwerken, waardoor de boom
+5G en breedband voorstelt terwijl de beste vervolgstap (Active Directory) onder Identity staat.
+De shortlist reserveert daarom `N_KEYWORD_GARANTIE` plekken voor de sterkste keyword-treffers
+en vult de rest op een gemengde score. Over de 51 te herschrijven trainingen zakte het aandeel
+kandidaten buiten het eigen vakgebied daarmee van 55% naar 24%, en houden alle 50 trainingen
+die in de boom staan minstens één vakgenoot op de shortlist (was: 6 zonder).
+
+Het vakgebied gaat als label mee in de prompt — `Node.js [Software Development > Web
+Development]` — zodat het model de twee groepen langs echte vakgrenzen legt in plaats van op
+gevoel. Het label mag nooit in een titel terugkomen; doet het dat toch, dan strippen we het
+vóór de controle tegen de shortlist.
 
 Bij het laden gaat elke catalogustitel door `sjabloon.vervolgtitel()`: het voorvoegsel
 "Training" (en elk verboden soortwoord) valt weg, want in een lijst onder het kopje

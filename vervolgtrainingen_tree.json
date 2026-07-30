@@ -1,0 +1,4723 @@
+{
+  "name": "Trainingscatalogus",
+  "children": [
+    {
+      "name": "Artificial Intelligence",
+      "children": [
+        {
+          "name": "AI & Automatisering",
+          "children": [
+            {
+              "name": "Agentic AI",
+              "children": [
+                {
+                  "name": "Training AI Agents en automation met n8n"
+                },
+                {
+                  "name": "Training AI agents in Python"
+                },
+                {
+                  "name": "Training Agentic AI"
+                },
+                {
+                  "name": "Training CrewAI"
+                },
+                {
+                  "name": "Training Cursor"
+                },
+                {
+                  "name": "Training Intelligent Document Processing - IDP - met UiPath"
+                },
+                {
+                  "name": "Training LangGraph"
+                },
+                {
+                  "name": "Training Langchain"
+                },
+                {
+                  "name": "Training Mistral Coding"
+                },
+                {
+                  "name": "Training Roocode"
+                },
+                {
+                  "name": "Training Windsurf"
+                }
+              ]
+            },
+            {
+              "name": "Workflow Automation",
+              "children": [
+                {
+                  "name": "Examentraining UiPath Specialized AI Professional"
+                },
+                {
+                  "name": "Training AI Agents en automation met n8n"
+                },
+                {
+                  "name": "Training AI Automation"
+                },
+                {
+                  "name": "Training AIOps"
+                },
+                {
+                  "name": "Training Hyperautomation"
+                },
+                {
+                  "name": "Training Intelligent Document Processing (IDP) met UiPath"
+                },
+                {
+                  "name": "Training Make"
+                },
+                {
+                  "name": "Training Zapier"
+                },
+                {
+                  "name": "Training n8n"
+                },
+                {
+                  "name": "Training n8n voor business teams"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "AI Governance & Organisatie",
+          "children": [
+            {
+              "name": "AI Governance",
+              "children": [
+                {
+                  "name": "Training AI Ethiek"
+                },
+                {
+                  "name": "Training AI Governance"
+                },
+                {
+                  "name": "Training Verantwoord AI Gebruik"
+                }
+              ]
+            },
+            {
+              "name": "AI Strategie",
+              "children": [
+                {
+                  "name": "Training AI Maturity voor teams en organisaties"
+                },
+                {
+                  "name": "Training Europese AI alternatieven"
+                },
+                {
+                  "name": "Training Green AI"
+                },
+                {
+                  "name": "Training Impact van AI op de bedrijfsvoering"
+                }
+              ]
+            },
+            {
+              "name": "Awareness & Adoptie",
+              "children": [
+                {
+                  "name": "Training AI Awareness voor organisaties"
+                },
+                {
+                  "name": "Training AI geletterdheid"
+                },
+                {
+                  "name": "Training AI praktisch integreren in je organisatie met ChatGPT"
+                }
+              ]
+            },
+            {
+              "name": "Compliance",
+              "children": [
+                {
+                  "name": "Training AAIA - Advanced in AI Audit"
+                },
+                {
+                  "name": "Training AAISM - Advanced in AI Security Management"
+                },
+                {
+                  "name": "Training AI Act"
+                },
+                {
+                  "name": "Training Verantwoord AI Gebruik"
+                }
+              ]
+            },
+            {
+              "name": "Digitale afhankelijkheid",
+              "children": [
+                {
+                  "name": "Training Digitale afhankelijkheid - cloud, software en AI in strategisch perspectief"
+                },
+                {
+                  "name": "Training Digitale afhankelijkheid: cloud, software en AI in strategisch perspectief"
+                },
+                {
+                  "name": "Training Europese AI alternatieven"
+                },
+                {
+                  "name": "Training Europese IT alternatieven"
+                }
+              ]
+            },
+            {
+              "name": "Risico management",
+              "children": [
+                {
+                  "name": "Training AI Risicomanagement"
+                },
+                {
+                  "name": "Training Verantwoord AI Gebruik"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Deep Learning",
+          "children": [
+            {
+              "name": "Training Introductie neurale netwerken en Deep Learning"
+            },
+            {
+              "name": "Training Keras"
+            },
+            {
+              "name": "Training Python Deep Learning met businesscase"
+            },
+            {
+              "name": "Training Tensorflow Machine Learning"
+            },
+            {
+              "name": "Training Tensorflow.js"
+            }
+          ]
+        },
+        {
+          "name": "Machine Learning",
+          "children": [
+            {
+              "name": "Cursus Data Mining"
+            },
+            {
+              "name": "Training AI Algoritmes"
+            },
+            {
+              "name": "Training AIOps"
+            },
+            {
+              "name": "Training AWS SageMaker"
+            },
+            {
+              "name": "Training Artificial Intelligence"
+            },
+            {
+              "name": "Training Azure AI"
+            },
+            {
+              "name": "Training Azure Machine Learning Studio"
+            },
+            {
+              "name": "Training Designing and implementing a Data Science Solution on Azure DP-100"
+            },
+            {
+              "name": "Training Designing and implementing a Data Science Solution on Azure DP-100 bootcamp"
+            },
+            {
+              "name": "Training Kunstmatige Intelligentie"
+            },
+            {
+              "name": "Training ML.NET"
+            },
+            {
+              "name": "Training MLOps"
+            },
+            {
+              "name": "Training MLflow"
+            },
+            {
+              "name": "Training Machine Learning"
+            },
+            {
+              "name": "Training Milvus"
+            },
+            {
+              "name": "Training OpenCV"
+            },
+            {
+              "name": "Training Orange Machine Learning"
+            },
+            {
+              "name": "Training R Machine Learning"
+            },
+            {
+              "name": "Training Scikit-Learn"
+            },
+            {
+              "name": "Training Tensorflow Machine Learning"
+            },
+            {
+              "name": "Training Vectordatabases"
+            },
+            {
+              "name": "Training Werken met Large Language Models in Python"
+            }
+          ]
+        },
+        {
+          "name": "Prompt engineering en AI tools",
+          "children": [
+            {
+              "name": "AI Agents & Copilots",
+              "children": [
+                {
+                  "name": "Master Power BI - AI-Ready: Ontwerpen voor en met Copilot"
+                },
+                {
+                  "name": "Master Power BI - Werken met Copilot"
+                },
+                {
+                  "name": "Training AI Agents en Workflows met Microsoft Copilot"
+                },
+                {
+                  "name": "Training Azure AI Foundry fundamentals"
+                },
+                {
+                  "name": "Training ChatGPT Gemini en Copilot slim inzetten in je dagelijks werk"
+                },
+                {
+                  "name": "Training Claude Co-Work"
+                },
+                {
+                  "name": "Training Claude Code"
+                },
+                {
+                  "name": "Training Claude Code voor business professionals"
+                },
+                {
+                  "name": "Training Claude Code voor marketeers"
+                },
+                {
+                  "name": "Training Codex Coding Agent"
+                },
+                {
+                  "name": "Training Copilot Studio, zelf een Copilot maken"
+                },
+                {
+                  "name": "Training Copilot Studio: zelf een Copilot maken"
+                },
+                {
+                  "name": "Training Copilot Team training: slimmer samenwerken"
+                },
+                {
+                  "name": "Training Copilot met Microsoft Fabric en Power BI"
+                },
+                {
+                  "name": "Training Copilot voor financials"
+                },
+                {
+                  "name": "Training Custom GPTs ontwikkelen met ChatGPT"
+                },
+                {
+                  "name": "Training GitHub CoPilot en GitHub Actions"
+                },
+                {
+                  "name": "Training Junie Coding Agent"
+                },
+                {
+                  "name": "Training Lovable"
+                },
+                {
+                  "name": "Training MS365 Copilot"
+                },
+                {
+                  "name": "Training Manus"
+                },
+                {
+                  "name": "Training Microsoft 365 CoPilot Advanced"
+                },
+                {
+                  "name": "Training Microsoft 365 Copilot in de praktijk"
+                },
+                {
+                  "name": "Training Microsoft Copilot Security"
+                },
+                {
+                  "name": "Training Microsoft Power Apps met Copilot AI"
+                },
+                {
+                  "name": "Training Microsoft Virtual Agent Co-pilot chatbot bouwen"
+                },
+                {
+                  "name": "Training Power BI met Copilot van data tot inzichten"
+                },
+                {
+                  "name": "Training Process Mining met Copilot"
+                },
+                {
+                  "name": "Training Sharepoint Agents"
+                }
+              ]
+            },
+            {
+              "name": "AI in de dagelijkse werkpraktijk",
+              "children": [
+                {
+                  "name": "Generative AI voor HR"
+                },
+                {
+                  "name": "Master Power BI - AI-Ready & Ontwerpen voor en met Copilot"
+                },
+                {
+                  "name": "Training AI Copywriting"
+                },
+                {
+                  "name": "Training AI in het onderwijs voor docenten en onderwijs professionals"
+                },
+                {
+                  "name": "Training AI praktisch integreren in je organisatie met ChatGPT"
+                },
+                {
+                  "name": "Training AI research"
+                },
+                {
+                  "name": "Training AI tools slim inzetten in je dagelijks werk"
+                },
+                {
+                  "name": "Training ChatGPT"
+                },
+                {
+                  "name": "Training Copilot Team training - slimmer samenwerken"
+                },
+                {
+                  "name": "Training GenAI"
+                },
+                {
+                  "name": "Training Generatieve AI - Afbeeldingen, Infographics, foto's en video's maken"
+                },
+                {
+                  "name": "Training Google AI Studio"
+                },
+                {
+                  "name": "Training Grok"
+                },
+                {
+                  "name": "Training Java met ChatGPT"
+                },
+                {
+                  "name": "Training NotebookLM voor de business"
+                },
+                {
+                  "name": "Training PHP met ChatGPT"
+                },
+                {
+                  "name": "Training Perplexity.ai"
+                },
+                {
+                  "name": "Training Python met ChatGPT"
+                },
+                {
+                  "name": "Training Slim werken met AI Hands-on verdieping"
+                },
+                {
+                  "name": "Training Slim werken met AI: Hands-on verdieping"
+                }
+              ]
+            },
+            {
+              "name": "Prompt Engineering",
+              "children": [
+                {
+                  "name": "Masterclass AI Prompt Strategy"
+                },
+                {
+                  "name": "Training Advanced Prompt Engineering in de praktijk"
+                },
+                {
+                  "name": "Training GPTs ontwikkelen met ChatGPT"
+                },
+                {
+                  "name": "Training Master Prompt Method - AI inzetten als strategisch bedrijfsinstrument"
+                },
+                {
+                  "name": "Training Prompt Engineering"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Business Automation",
+      "children": [
+        {
+          "name": "AI Automation",
+          "children": [
+            {
+              "name": "Examentraining UiPath Specialized AI Professional"
+            },
+            {
+              "name": "Training AI Agents en Workflows met Microsoft Copilot"
+            },
+            {
+              "name": "Training AI Agents en automation met n8n"
+            },
+            {
+              "name": "Training AI Automation"
+            },
+            {
+              "name": "Training Copilot Studio, zelf een Copilot maken"
+            },
+            {
+              "name": "Training Copilot Studio: zelf een Copilot maken"
+            },
+            {
+              "name": "Training Hyperautomation"
+            },
+            {
+              "name": "Training Intelligent Document Processing (IDP) met UiPath"
+            },
+            {
+              "name": "Training Make"
+            },
+            {
+              "name": "Training Microsoft Power Apps met Copilot AI"
+            },
+            {
+              "name": "Training Node-RED"
+            },
+            {
+              "name": "Training Process Mining met Copilot"
+            },
+            {
+              "name": "Training Zapier"
+            },
+            {
+              "name": "Training n8n"
+            },
+            {
+              "name": "Training n8n voor business teams"
+            }
+          ]
+        },
+        {
+          "name": "Microsoft Power Platform",
+          "children": [
+            {
+              "name": "Training Copilot Studio: zelf een Copilot maken"
+            },
+            {
+              "name": "Training Microsoft Dynamics 365 Model driven Power Apps"
+            },
+            {
+              "name": "Training Microsoft Power Apps met Copilot AI"
+            },
+            {
+              "name": "Training Power Apps"
+            },
+            {
+              "name": "Training Power Apps Advanced"
+            },
+            {
+              "name": "Training Power Apps Project - Ontwikkel een Bedrijfsapp"
+            },
+            {
+              "name": "Training Power Apps Project: Ontwikkel een Bedrijfsapp"
+            },
+            {
+              "name": "Training Power Apps voor business professionals"
+            },
+            {
+              "name": "Training Power Automate"
+            },
+            {
+              "name": "Training Power Automate Advanced"
+            },
+            {
+              "name": "Training Power Platform Fundamentals"
+            }
+          ]
+        },
+        {
+          "name": "RPA & Process Automation",
+          "children": [
+            {
+              "name": "Cursus BPM"
+            },
+            {
+              "name": "Cursus Nintex Workflow"
+            },
+            {
+              "name": "Examentraining UiPath Automation Developer Professional"
+            },
+            {
+              "name": "Examentraining UiPath Specialized AI Professional"
+            },
+            {
+              "name": "Training Intelligent Document Processing (IDP) met UiPath"
+            },
+            {
+              "name": "Training Intelligent Document Processing - IDP - met UiPath"
+            },
+            {
+              "name": "Training Jira advanced workflows automation"
+            },
+            {
+              "name": "Training Nintex K2 automation en forms"
+            },
+            {
+              "name": "Training Process Mining"
+            },
+            {
+              "name": "Training Process Mining met Copilot"
+            },
+            {
+              "name": "Training RPA - Robotic Process Automation - Essentials"
+            },
+            {
+              "name": "Training RPA Business Analist"
+            },
+            {
+              "name": "Training RPA met UiPath fundamentals"
+            },
+            {
+              "name": "Training Robotic Process Automation - RPA - voor managers"
+            },
+            {
+              "name": "Training UIPath Orchestrator voor applicatiebeheerders"
+            },
+            {
+              "name": "Training Uipath Automation Developer"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Cloud & Infrastructuur",
+      "children": [
+        {
+          "name": "Cloud platformen",
+          "children": [
+            {
+              "name": "AWS",
+              "children": [
+                {
+                  "name": "Cursus Amazon Web Services"
+                },
+                {
+                  "name": "Training AWS Advanced Architecting"
+                },
+                {
+                  "name": "Training AWS Architecting"
+                },
+                {
+                  "name": "Training AWS CodePipeline"
+                },
+                {
+                  "name": "Training AWS DevOps Engineering"
+                },
+                {
+                  "name": "Training AWS Elastic Container Service - ECS"
+                },
+                {
+                  "name": "Training AWS Essentials"
+                },
+                {
+                  "name": "Training AWS Glue"
+                },
+                {
+                  "name": "Training AWS IAM"
+                },
+                {
+                  "name": "Training AWS Monitoring met CloudWatch"
+                },
+                {
+                  "name": "Training AWS SageMaker"
+                },
+                {
+                  "name": "Training AWS Security"
+                },
+                {
+                  "name": "Training AWS Serverless Solutions met Lambda"
+                },
+                {
+                  "name": "Training AWS System Operations"
+                },
+                {
+                  "name": "Training Amazon EKS"
+                },
+                {
+                  "name": "Training Big Data in AWS"
+                },
+                {
+                  "name": "Training Development in AWS"
+                },
+                {
+                  "name": "Training Migreren naar AWS"
+                }
+              ]
+            },
+            {
+              "name": "Google Cloud Platform",
+              "children": [
+                {
+                  "name": "Training Google BigQuery"
+                }
+              ]
+            },
+            {
+              "name": "Microsoft Azure",
+              "children": [
+                {
+                  "name": "Training Applied Designing Microsoft Azure Infrastructure Solutions (AZ-305)"
+                },
+                {
+                  "name": "Training Applied Designing Microsoft Azure Infrastructure Solutions AZ-305"
+                },
+                {
+                  "name": "Training Azure App Service"
+                },
+                {
+                  "name": "Training Azure Arc"
+                },
+                {
+                  "name": "Training Azure Backup"
+                },
+                {
+                  "name": "Training Azure Boards"
+                },
+                {
+                  "name": "Training Azure CLI in Azure Cloud Shell"
+                },
+                {
+                  "name": "Training Azure Functions"
+                },
+                {
+                  "name": "Training Azure Governance"
+                },
+                {
+                  "name": "Training Azure Key Vault"
+                },
+                {
+                  "name": "Training Azure Landing Zone"
+                },
+                {
+                  "name": "Training Azure Logic Apps"
+                },
+                {
+                  "name": "Training Azure Powershell"
+                },
+                {
+                  "name": "Training Azure SQL Database"
+                },
+                {
+                  "name": "Training Azure Search"
+                }
+              ]
+            },
+            {
+              "name": "Cursus Cloud Computing Essentials"
+            },
+            {
+              "name": "Training Cloud Computing en Private Cloud"
+            },
+            {
+              "name": "Training OpenStack"
+            },
+            {
+              "name": "Training Oracle Cloud Infrastructure"
+            },
+            {
+              "name": "Training Oracle Cloud Platform"
+            },
+            {
+              "name": "Training Red Hat Cloud"
+            },
+            {
+              "name": "Training Red Hat Cloud Infrastructure"
+            }
+          ]
+        },
+        {
+          "name": "Cloud security",
+          "children": [
+            {
+              "name": "Compliance & Governance",
+              "children": [
+                {
+                  "name": "Training Azure Governance"
+                },
+                {
+                  "name": "Training Azure Landing Zone"
+                },
+                {
+                  "name": "Training Certificate of Cloud Auditing Knowledge (CCAK)"
+                },
+                {
+                  "name": "Training Certificate of Cloud Auditing Knowledge CCAK"
+                },
+                {
+                  "name": "Training Certified Chief Information Security Officer CCISO"
+                },
+                {
+                  "name": "Training Security onderzoek met Microsoft Purview, Defender en Entra"
+                }
+              ]
+            },
+            {
+              "name": "Identity & Access Management (IAM)",
+              "children": [
+                {
+                  "name": "Training AWS IAM"
+                },
+                {
+                  "name": "Training Azure Active Directory"
+                },
+                {
+                  "name": "Training Azure Key Vault"
+                },
+                {
+                  "name": "Training Azure Security Technologies (AZ-500)"
+                },
+                {
+                  "name": "Training Microsoft Entra"
+                },
+                {
+                  "name": "Training Security onderzoek met Microsoft Purview, Defender en Entra"
+                }
+              ]
+            },
+            {
+              "name": "Cursus Cloud Security"
+            },
+            {
+              "name": "Training AWS Security"
+            },
+            {
+              "name": "Training Azure Security Technologies AZ-500"
+            },
+            {
+              "name": "Training Cloud Security CCSK"
+            },
+            {
+              "name": "Training Cloud Security CCSP"
+            },
+            {
+              "name": "Training Microsoft 365 Security Administration MS-500"
+            },
+            {
+              "name": "Training Microsoft Defender for Cloud"
+            },
+            {
+              "name": "Training Web Application Firewalls WAF"
+            }
+          ]
+        },
+        {
+          "name": "Containers & Orchestration",
+          "children": [
+            {
+              "name": "Container Security",
+              "children": [
+                {
+                  "name": "Training Docker Container Security"
+                },
+                {
+                  "name": "Training Kubernetes Security"
+                }
+              ]
+            },
+            {
+              "name": "Docker",
+              "children": [
+                {
+                  "name": "Training Docker"
+                }
+              ]
+            },
+            {
+              "name": "Kubernetes",
+              "children": [
+                {
+                  "name": "Training Amazon EKS"
+                },
+                {
+                  "name": "Training Azure Kubernetes Service"
+                },
+                {
+                  "name": "Training Azure Kubernetes Service (AKS) voor developers"
+                },
+                {
+                  "name": "Training Azure Kubernetes Service - AKS - voor developers"
+                },
+                {
+                  "name": "Training Certified Kubernetes Administrator (CKA)"
+                },
+                {
+                  "name": "Training Certified Kubernetes Administrator CKA"
+                },
+                {
+                  "name": "Training Certified Kubernetes Application Developer (CKAD)"
+                },
+                {
+                  "name": "Training Certified Kubernetes Application Developer CKAD"
+                },
+                {
+                  "name": "Training Kubernetes"
+                },
+                {
+                  "name": "Training Kubernetes Advanced"
+                },
+                {
+                  "name": "Training Kubernetes voor platform- en cloud engineers"
+                },
+                {
+                  "name": "Training Linkerd"
+                },
+                {
+                  "name": "Training Red Hat OpenShift"
+                },
+                {
+                  "name": "Training Red Hat OpenShift voor developers"
+                }
+              ]
+            },
+            {
+              "name": "Training AWS Elastic Container Service - ECS"
+            }
+          ]
+        },
+        {
+          "name": "DevOps & Automatisering",
+          "children": [
+            {
+              "name": "CI/CD",
+              "children": [
+                {
+                  "name": "Training AWS CodePipeline"
+                },
+                {
+                  "name": "Training AWS DevOps Engineering"
+                },
+                {
+                  "name": "Training Azure DevOps"
+                },
+                {
+                  "name": "Training Azure Pipelines"
+                },
+                {
+                  "name": "Training CI/CD"
+                },
+                {
+                  "name": "Training CICD"
+                },
+                {
+                  "name": "Training DevOps"
+                }
+              ]
+            },
+            {
+              "name": "Configuration Management",
+              "children": [
+                {
+                  "name": "Cursus Powershell"
+                },
+                {
+                  "name": "Cursus Puppet"
+                },
+                {
+                  "name": "Cursus Puppet Advanced"
+                },
+                {
+                  "name": "Training Ansible Advanced"
+                },
+                {
+                  "name": "Training Ansible Fundamentals"
+                },
+                {
+                  "name": "Training Ansible Professional"
+                },
+                {
+                  "name": "Training Ansible Tower - Automation Controller"
+                },
+                {
+                  "name": "Training Puppet Advanced"
+                }
+              ]
+            },
+            {
+              "name": "DevSecOps",
+              "children": [
+                {
+                  "name": "Training DevSecOps Essentials"
+                },
+                {
+                  "name": "Training DevSecOps integreren in je team"
+                },
+                {
+                  "name": "Training DevSecOps voor Scrum teams"
+                }
+              ]
+            },
+            {
+              "name": "Infrastructure as Code",
+              "children": [
+                {
+                  "name": "Training Ansible Advanced"
+                },
+                {
+                  "name": "Training Ansible Fundamentals"
+                },
+                {
+                  "name": "Training Ansible Professional"
+                },
+                {
+                  "name": "Training Ansible Tower - Automation Controller"
+                },
+                {
+                  "name": "Training Azure ARM Templates"
+                },
+                {
+                  "name": "Training Infrastructure as Code - Concepten, methoden en tooling"
+                },
+                {
+                  "name": "Training Infrastructure as Code met Ansible"
+                },
+                {
+                  "name": "Training Terraform Automation"
+                }
+              ]
+            },
+            {
+              "name": "Testautomatisering",
+              "children": [
+                {
+                  "name": "Training Azure Test Plans"
+                },
+                {
+                  "name": "Training Testautomatisering"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Monitoring / Observability",
+          "children": [
+            {
+              "name": "Cloud Monitoring",
+              "children": [
+                {
+                  "name": "Training AWS Monitoring met CloudWatch"
+                },
+                {
+                  "name": "Training Azure Monitor met Log Analytics"
+                },
+                {
+                  "name": "Training Elastic Observability"
+                },
+                {
+                  "name": "Training OpenSearch Observability"
+                }
+              ]
+            },
+            {
+              "name": "Logging & Log Management",
+              "children": [
+                {
+                  "name": "Training Cribl Advanced User"
+                },
+                {
+                  "name": "Training Cribl Fundamentals"
+                },
+                {
+                  "name": "Training Elastic Beats"
+                },
+                {
+                  "name": "Training Kibana"
+                },
+                {
+                  "name": "Training Kibana DevOps"
+                },
+                {
+                  "name": "Training OpenSearch Dashboards"
+                },
+                {
+                  "name": "Training OpenSearch Fundamentals"
+                },
+                {
+                  "name": "Training Searching en Reporting met Splunk SPL"
+                },
+                {
+                  "name": "Training Splunk Dashboarding"
+                },
+                {
+                  "name": "Training Splunk Enterprise Administrator"
+                },
+                {
+                  "name": "Training Splunk Enterprise Power User"
+                },
+                {
+                  "name": "Training Splunk Fundamentals"
+                }
+              ]
+            },
+            {
+              "name": "Metrics & Monitoring",
+              "children": [
+                {
+                  "name": "Training Grafana"
+                },
+                {
+                  "name": "Training Nagios"
+                },
+                {
+                  "name": "Training Prometheus"
+                },
+                {
+                  "name": "Training Zabbix"
+                }
+              ]
+            },
+            {
+              "name": "SIEM",
+              "children": [
+                {
+                  "name": "Training Elastic SIEM"
+                },
+                {
+                  "name": "Training SIEM Security Information and Event Management"
+                },
+                {
+                  "name": "Training SIEM: Security Information and Event Management"
+                },
+                {
+                  "name": "Training Splunk Enterprise Security"
+                },
+                {
+                  "name": "Training Splunk Phantom Administrator"
+                },
+                {
+                  "name": "Training Splunk Phantom Playbook Developer"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Netwerken & Connectiviteit",
+          "children": [
+            {
+              "name": "Mobile & Telecom Networks",
+              "children": [
+                {
+                  "name": "Cursus Asterisk"
+                },
+                {
+                  "name": "Training 5G Mobiele Communicatie"
+                },
+                {
+                  "name": "Training Breedband communicatie"
+                },
+                {
+                  "name": "Training Inkopen connectiviteit en mobiel"
+                },
+                {
+                  "name": "Training Private mobiele netwerken"
+                },
+                {
+                  "name": "Training Track en trace"
+                },
+                {
+                  "name": "Training VoIP"
+                },
+                {
+                  "name": "Training eSIM - technisch beheer en strategische implementatie"
+                }
+              ]
+            },
+            {
+              "name": "Network & Infrastructure Security",
+              "children": [
+                {
+                  "name": "Training Azure Security Technologies (AZ-500)"
+                },
+                {
+                  "name": "Training GVM (Greenbone Vulnerability Management)"
+                },
+                {
+                  "name": "Training Nessus Vulnerability Scanning"
+                },
+                {
+                  "name": "Training Public Key Infrastructure - PKI"
+                },
+                {
+                  "name": "Training Web Application Firewalls (WAF)"
+                }
+              ]
+            },
+            {
+              "name": "Network Fundamentals",
+              "children": [
+                {
+                  "name": "Cursus LDAP"
+                },
+                {
+                  "name": "Cursus Networking Fundamentals"
+                },
+                {
+                  "name": "Cursus TCP/IP netwerken"
+                },
+                {
+                  "name": "Training CompTIA Network"
+                },
+                {
+                  "name": "Training CompTIA Network+"
+                },
+                {
+                  "name": "Training IPv6 (Internet Protocol version 6)"
+                },
+                {
+                  "name": "Training IPv6 Internet Protocol version 6"
+                }
+              ]
+            },
+            {
+              "name": "Network Monitoring & Troubleshooting",
+              "children": [
+                {
+                  "name": "Training Wireshark"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Servers & Virtualisatie",
+          "children": [
+            {
+              "name": "Linux",
+              "children": [
+                {
+                  "name": "Cursus shell scripting"
+                },
+                {
+                  "name": "Training Linux"
+                },
+                {
+                  "name": "Training Linux LPIC 101"
+                },
+                {
+                  "name": "Training Linux LPIC 102"
+                },
+                {
+                  "name": "Training Linux LPIC 201"
+                },
+                {
+                  "name": "Training Linux LPIC 202"
+                },
+                {
+                  "name": "Training Linux LPIC 300 Mixed Environments"
+                },
+                {
+                  "name": "Training Linux LPIC 303 Security"
+                },
+                {
+                  "name": "Training Linux LPIC 304 Virtualization"
+                },
+                {
+                  "name": "Training Red Hat System Administration"
+                },
+                {
+                  "name": "Training Rocky Linux"
+                }
+              ]
+            },
+            {
+              "name": "Virtualisatie",
+              "children": [
+                {
+                  "name": "Cursus VMware"
+                },
+                {
+                  "name": "Cursus VMware View"
+                },
+                {
+                  "name": "Training KVM"
+                },
+                {
+                  "name": "Training Proxmox VE - Virtual Environment"
+                },
+                {
+                  "name": "Training Server virtualisatie met Hyper-V"
+                },
+                {
+                  "name": "Training VMware Horizon Virtual Desktop Management Fundamentals"
+                },
+                {
+                  "name": "Training VMware Horizon: Virtual Desktop Management Fundamentals"
+                },
+                {
+                  "name": "Training Windows Virtual Desktop"
+                }
+              ]
+            },
+            {
+              "name": "Cursus Datacenter Specialist"
+            },
+            {
+              "name": "Cursus Redis"
+            },
+            {
+              "name": "Cursus Tomcat"
+            },
+            {
+              "name": "Training CompTIA A"
+            },
+            {
+              "name": "Training Datacenter troubleshooting"
+            },
+            {
+              "name": "Training Datacenter voor engineers"
+            },
+            {
+              "name": "Training Nextcloud implementeren"
+            },
+            {
+              "name": "Training Nginx"
+            },
+            {
+              "name": "Training Owncloud implementeren"
+            },
+            {
+              "name": "Training Storage Architectuur"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Data & Analytics",
+      "children": [
+        {
+          "name": "BI & Analytics tools",
+          "children": [
+            {
+              "name": "Certified Master Power BI Developer - Assessment Day"
+            },
+            {
+              "name": "Certified Master Power BI Developer - Practical Case Assessment"
+            },
+            {
+              "name": "Cursus Cognos"
+            },
+            {
+              "name": "Cursus Crystal Reports"
+            },
+            {
+              "name": "Cursus Oracle BI Publisher"
+            },
+            {
+              "name": "Cursus Power Query"
+            },
+            {
+              "name": "Cursus Qlik Sense Advanced"
+            },
+            {
+              "name": "Cursus QlikView Scripting"
+            },
+            {
+              "name": "Cursus Qlikview"
+            },
+            {
+              "name": "Cursus SQL Reporting Services (SSRS)"
+            },
+            {
+              "name": "Cursus SQL Server Business Intelligence"
+            },
+            {
+              "name": "Master Power BI - AI-Ready & Ontwerpen voor en met Copilot"
+            },
+            {
+              "name": "Master Power BI - AI-Ready: Ontwerpen voor en met Copilot"
+            },
+            {
+              "name": "Master Power BI - Advanced DAX & Performance Patterns"
+            },
+            {
+              "name": "Master Power BI - Advanced Power Query & SQL"
+            },
+            {
+              "name": "Master Power BI - Ontwerpintelligentie met Data Modeling & Stermodelleren"
+            },
+            {
+              "name": "Master Power BI - Performance & Optimalisatie"
+            },
+            {
+              "name": "Master Power BI - Werken met Copilot"
+            },
+            {
+              "name": "Opleiding Business Intelligence"
+            },
+            {
+              "name": "Training Cognos Administrator"
+            },
+            {
+              "name": "Training Cognos Analytics"
+            },
+            {
+              "name": "Training Copilot met Microsoft Fabric en Power BI"
+            },
+            {
+              "name": "Training DAX Studio voor Power BI en Excel"
+            },
+            {
+              "name": "Training DAX formules en queries schrijven voor Power BI en Excel"
+            },
+            {
+              "name": "Training E-commerce Analytics & Reporting met Google BigQuery"
+            },
+            {
+              "name": "Training Google BigQuery"
+            },
+            {
+              "name": "Training Google Data Studio"
+            },
+            {
+              "name": "Training Knime datavisualisatie"
+            },
+            {
+              "name": "Training Looker"
+            },
+            {
+              "name": "Training Microsoft Fabric business intelligence met Power BI"
+            },
+            {
+              "name": "Training Microsoft Fabric data integration met Data Factory"
+            },
+            {
+              "name": "Training Microsoft Fabric data science met SynapseML en Spark Notebooks"
+            },
+            {
+              "name": "Training Microsoft Fabric en OneLake"
+            },
+            {
+              "name": "Training Power BI"
+            },
+            {
+              "name": "Training Power BI Advanced"
+            },
+            {
+              "name": "Training Power BI Data Analyst met praktische businesscase PL-300"
+            },
+            {
+              "name": "Training Power BI Datamarts"
+            },
+            {
+              "name": "Training Power BI Security"
+            },
+            {
+              "name": "Training Power BI met Copilot van data tot inzichten"
+            },
+            {
+              "name": "Training Power BI voor financials"
+            },
+            {
+              "name": "Training Power BI voor managers"
+            },
+            {
+              "name": "Training Qlik Sense"
+            },
+            {
+              "name": "Training SQL Server Analysis Services (SSAS)"
+            },
+            {
+              "name": "Training Tableau"
+            },
+            {
+              "name": "Training Tableau Advanced"
+            },
+            {
+              "name": "Training Tableau Professional"
+            },
+            {
+              "name": "Training Van Excel naar Power BI"
+            }
+          ]
+        },
+        {
+          "name": "Business Intelligence",
+          "children": [
+            {
+              "name": "BI Analyse",
+              "children": [
+                {
+                  "name": "Cursus Business Intelligence"
+                },
+                {
+                  "name": "Opleiding Business Intelligence"
+                },
+                {
+                  "name": "Training Cognos Analytics"
+                },
+                {
+                  "name": "Training Power BI Data Analyst met praktische businesscase PL-300"
+                },
+                {
+                  "name": "Training SQL Server Analysis Services"
+                }
+              ]
+            },
+            {
+              "name": "Dashboarding & Reporting",
+              "children": [
+                {
+                  "name": "Cursus Crystal Reports"
+                },
+                {
+                  "name": "Cursus SQL Reporting Services"
+                },
+                {
+                  "name": "Cursus SQL Reporting Services (SSRS)"
+                },
+                {
+                  "name": "Training E-commerce Analytics & Reporting met Google BigQuery"
+                },
+                {
+                  "name": "Training Excel Dashboards maken"
+                },
+                {
+                  "name": "Training Microsoft Fabric business intelligence met Power BI"
+                },
+                {
+                  "name": "Training SQL Server Integration Services (SSIS)"
+                },
+                {
+                  "name": "Training Sales Cloud Dashboarding en Reporting"
+                },
+                {
+                  "name": "Training Van complexe data naar een helder verhaal"
+                }
+              ]
+            },
+            {
+              "name": "Data Visualisatie",
+              "children": [
+                {
+                  "name": "Training Van complexe data naar een helder verhaal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Data Engineering",
+          "children": [
+            {
+              "name": "Cloud Data Engineering",
+              "children": [
+                {
+                  "name": "Training AWS Glue"
+                },
+                {
+                  "name": "Training Azure Data Engineer Bootcamp DP-203"
+                },
+                {
+                  "name": "Training Azure Data Engineer DP-203"
+                },
+                {
+                  "name": "Training Azure Data Factory"
+                },
+                {
+                  "name": "Training Azure Data Factory Advanced"
+                },
+                {
+                  "name": "Training Azure Data Factory Mapping Data Flows"
+                },
+                {
+                  "name": "Training Azure Data Lake"
+                },
+                {
+                  "name": "Training Azure Databricks"
+                },
+                {
+                  "name": "Training Azure Synapse Analytics"
+                },
+                {
+                  "name": "Training Big Data in AWS"
+                },
+                {
+                  "name": "Training Data Engineer"
+                },
+                {
+                  "name": "Training Microsoft Fabric data engineering met Data Pipelines en Spark"
+                },
+                {
+                  "name": "Training Microsoft Fabric data integration met Data Factory"
+                },
+                {
+                  "name": "Training Microsoft Fabric data science met SynapseML en Spark Notebooks"
+                },
+                {
+                  "name": "Training Microsoft Fabric en OneLake"
+                },
+                {
+                  "name": "Training Snowflake Advanced"
+                },
+                {
+                  "name": "Training Snowflake Fundamentals"
+                },
+                {
+                  "name": "Training Snowflake Geospatial"
+                },
+                {
+                  "name": "Training Snowflake voor data analisten"
+                },
+                {
+                  "name": "Training TimeXtender"
+                }
+              ]
+            },
+            {
+              "name": "Data Pipelines",
+              "children": [
+                {
+                  "name": "Cursus Apache Pig"
+                },
+                {
+                  "name": "Cursus Apache Storm"
+                },
+                {
+                  "name": "Cursus Big Data Foundation"
+                },
+                {
+                  "name": "Cursus Big Data Practitioner"
+                },
+                {
+                  "name": "Cursus RabbitMQ"
+                },
+                {
+                  "name": "Training Apache Hive"
+                },
+                {
+                  "name": "Training Apache Kafka"
+                },
+                {
+                  "name": "Training Apache Spark"
+                },
+                {
+                  "name": "Training Elasticsearch Data Ingestion"
+                },
+                {
+                  "name": "Training Event Driven Architecture EDA"
+                },
+                {
+                  "name": "Training Event Driven Architecture vertaald naar de praktijk"
+                },
+                {
+                  "name": "Training Hadoop"
+                },
+                {
+                  "name": "Training Kafka DBA"
+                },
+                {
+                  "name": "Training Kafka voor Java developers"
+                },
+                {
+                  "name": "Training Kafka voor Python developers"
+                },
+                {
+                  "name": "Training Microsoft Fabric data engineering met Data Pipelines en Spark"
+                },
+                {
+                  "name": "Training Node-RED"
+                },
+                {
+                  "name": "Training Redpanda"
+                }
+              ]
+            },
+            {
+              "name": "Data Platforms",
+              "children": [
+                {
+                  "name": "Cursus Apache Hive"
+                },
+                {
+                  "name": "Cursus Big Data"
+                },
+                {
+                  "name": "Cursus Big Data Foundation"
+                },
+                {
+                  "name": "Cursus Big Data Practitioner"
+                },
+                {
+                  "name": "Opleiding Big Data in de Zorg"
+                },
+                {
+                  "name": "Opleiding Big Data voor de Overheid"
+                },
+                {
+                  "name": "Training Data Virtualisatie Essentials"
+                },
+                {
+                  "name": "Training Microsoft Fabric en OneLake"
+                }
+              ]
+            },
+            {
+              "name": "Data Warehousing",
+              "children": [
+                {
+                  "name": "Cursus Data Modeling"
+                },
+                {
+                  "name": "Cursus Data Vault"
+                },
+                {
+                  "name": "Cursus Data Warehouse Concept"
+                },
+                {
+                  "name": "Master Power BI - Ontwerpintelligentie met Data Modeling & Stermodelleren"
+                },
+                {
+                  "name": "Training Anchor Modelling"
+                },
+                {
+                  "name": "Training Azure Synapse Analytics"
+                },
+                {
+                  "name": "Training Dimensioneel Modelleren"
+                },
+                {
+                  "name": "Training Dimensioneel Modelleren - Stermodelleren - Kimball"
+                },
+                {
+                  "name": "Training SQL Server Analysis Services (SSAS)"
+                }
+              ]
+            },
+            {
+              "name": "ETL",
+              "children": [
+                {
+                  "name": "Cursus Pentaho Data Integration"
+                },
+                {
+                  "name": "Cursus Power Query"
+                },
+                {
+                  "name": "Cursus SQL Server Business Intelligence"
+                },
+                {
+                  "name": "Training AWS Glue"
+                },
+                {
+                  "name": "Training Advanced SQL voor Data Science"
+                },
+                {
+                  "name": "Training Apache Airflow"
+                },
+                {
+                  "name": "Training Data Virtualisatie Essentials"
+                },
+                {
+                  "name": "Training ETL"
+                },
+                {
+                  "name": "Training Knime datavisualisatie"
+                },
+                {
+                  "name": "Training Matillion"
+                },
+                {
+                  "name": "Training Microsoft Fabric data integration met Data Factory"
+                },
+                {
+                  "name": "Training SQL Server Integration Services"
+                },
+                {
+                  "name": "Training SQL Server Integration Services (SSIS)"
+                },
+                {
+                  "name": "Training Snowflake voor data analisten"
+                },
+                {
+                  "name": "Training TimeXtender"
+                },
+                {
+                  "name": "Training dbt - Data Build Tool"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Data Management & Governance",
+          "children": [
+            {
+              "name": "Data Governance",
+              "children": [
+                {
+                  "name": "Pragmatische training Databeheer toepassen binnen MKB of KMO"
+                },
+                {
+                  "name": "Training Collibra fundamentals"
+                },
+                {
+                  "name": "Training Data Governance"
+                },
+                {
+                  "name": "Training Data Governance voor Webanalytics"
+                },
+                {
+                  "name": "Training Data Steward"
+                },
+                {
+                  "name": "Training Microsoft Purview - data governance"
+                },
+                {
+                  "name": "Training Purview voor Data Stewards"
+                },
+                {
+                  "name": "Training Purview voor Microsoft 365"
+                }
+              ]
+            },
+            {
+              "name": "Data Quality",
+              "children": [
+                {
+                  "name": "Training Data Quality"
+                },
+                {
+                  "name": "Training Data Steward"
+                },
+                {
+                  "name": "Training Purview voor Data Stewards"
+                }
+              ]
+            },
+            {
+              "name": "Data Security & Privacy",
+              "children": [
+                {
+                  "name": "Training Purview voor Microsoft 365"
+                }
+              ]
+            },
+            {
+              "name": "Data management frameworks",
+              "children": [
+                {
+                  "name": "Examentraining DAMA-DMBOK CDMP"
+                },
+                {
+                  "name": "Training Blockchain"
+                },
+                {
+                  "name": "Training Business Object Modelling - Data Management"
+                },
+                {
+                  "name": "Training Change Management voor DAMA-DMBOK"
+                },
+                {
+                  "name": "Training Data Management Fundamentals"
+                },
+                {
+                  "name": "Training Data Management met DAMA-DMBOK"
+                },
+                {
+                  "name": "Training Data Management met DCAM"
+                },
+                {
+                  "name": "Training Data Management plan ontwikkelen met DAMA-DMBOK"
+                }
+              ]
+            },
+            {
+              "name": "Master Data Management",
+              "children": [
+                {
+                  "name": "Training Master Data Management"
+                },
+                {
+                  "name": "Training Master Data Management (MDM)"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Data Science & Analytics",
+          "children": [
+            {
+              "name": "Data Analyse",
+              "children": [
+                {
+                  "name": "Cursus Big Data Analytics"
+                },
+                {
+                  "name": "Cursus Data Analyse met R"
+                },
+                {
+                  "name": "Cursus Data Mining"
+                },
+                {
+                  "name": "Cursus Data Science met Python"
+                },
+                {
+                  "name": "Cursus Matlab"
+                },
+                {
+                  "name": "Cursus Predictive Analytics"
+                },
+                {
+                  "name": "Data Analyse voor inkoop en logistiek"
+                },
+                {
+                  "name": "Training AI research"
+                },
+                {
+                  "name": "Training Advanced SQL voor Data Science"
+                },
+                {
+                  "name": "Training Data Analyse"
+                },
+                {
+                  "name": "Training Data Analyse voor Controllers en Financials"
+                },
+                {
+                  "name": "Training Data Analyse voor inkoop en logistiek"
+                },
+                {
+                  "name": "Training Data Analyse voor sales"
+                },
+                {
+                  "name": "Training HR Analytics"
+                },
+                {
+                  "name": "Training Marketing Analytics & Big Data"
+                },
+                {
+                  "name": "Training Marketing Analytics & Intelligence"
+                },
+                {
+                  "name": "Training Microsoft Fabric data science met SynapseML en Spark Notebooks"
+                },
+                {
+                  "name": "Training Planning Analytics"
+                },
+                {
+                  "name": "Training Prescriptive Analytics"
+                },
+                {
+                  "name": "Training Process Mining"
+                },
+                {
+                  "name": "Training Process Mining met Copilot"
+                }
+              ]
+            },
+            {
+              "name": "Data Visualisatie",
+              "children": [
+                {
+                  "name": "Cursus Data Visualisatie"
+                },
+                {
+                  "name": "Training Knime datavisualisatie"
+                },
+                {
+                  "name": "Training Streamlit"
+                },
+                {
+                  "name": "Training Van complexe data naar een helder verhaal"
+                }
+              ]
+            },
+            {
+              "name": "Statistiek",
+              "children": [
+                {
+                  "name": "Cursus Data Analyse met R"
+                },
+                {
+                  "name": "Cursus SPSS Advanced"
+                },
+                {
+                  "name": "Cursus Statistiek"
+                },
+                {
+                  "name": "Tentamentraining SPSS"
+                },
+                {
+                  "name": "Training SPSS"
+                },
+                {
+                  "name": "Training Statistische analyses met SPSS en Syntax"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Data Strategie & Organisatie",
+          "children": [
+            {
+              "name": "Data & Analytics Maturity",
+              "children": [
+                {
+                  "name": "Training Data Maturity Assessment CMM"
+                }
+              ]
+            },
+            {
+              "name": "Data Strategy",
+              "children": [
+                {
+                  "name": "Training Adviseren over data, digitalisering en innovatieve ontwikkeling"
+                },
+                {
+                  "name": "Training Data Assessment en Data Strategie"
+                },
+                {
+                  "name": "Training Data Science Management"
+                },
+                {
+                  "name": "Training Data Strategie"
+                },
+                {
+                  "name": "Training Transformeren naar een datagedreven organisatie"
+                }
+              ]
+            },
+            {
+              "name": "Datagedreven werken",
+              "children": [
+                {
+                  "name": "Training Datagedreven Sales"
+                },
+                {
+                  "name": "Training Transformeren naar een datagedreven organisatie"
+                }
+              ]
+            },
+            {
+              "name": "KPI & Performance Management",
+              "children": [
+                {
+                  "name": "Training KPI Analyse - begrijpen wat resultaat stuurt"
+                },
+                {
+                  "name": "Training KPI Analyse: begrijpen wat resultaat stuurt"
+                },
+                {
+                  "name": "Training Psychologie van KPI's in de Praktijk"
+                },
+                {
+                  "name": "Training Van Strategie naar KPI"
+                },
+                {
+                  "name": "Training Van Strategie naar KPI voor Leidinggevenden"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Databases & Datamodellering",
+          "children": [
+            {
+              "name": "Databases",
+              "children": [
+                {
+                  "name": "Cursus Cassandra DB"
+                },
+                {
+                  "name": "Cursus Cassandra DBA"
+                },
+                {
+                  "name": "Cursus Database Design"
+                },
+                {
+                  "name": "Cursus Excel databases en lijsten"
+                },
+                {
+                  "name": "Cursus MariaDB Advanced"
+                },
+                {
+                  "name": "Cursus MariaDB DBA"
+                },
+                {
+                  "name": "Cursus MongoDB"
+                },
+                {
+                  "name": "Cursus MySQL Advanced"
+                },
+                {
+                  "name": "Cursus MySQL DBA"
+                },
+                {
+                  "name": "Cursus Oracle DBA"
+                },
+                {
+                  "name": "Cursus Oracle SQL voor SQL gebruikers"
+                },
+                {
+                  "name": "Cursus PostgreSQL Advanced"
+                },
+                {
+                  "name": "Cursus PostgreSQL DBA"
+                },
+                {
+                  "name": "Cursus PostgreSQL voor SQL gebruikers"
+                },
+                {
+                  "name": "Cursus Redis"
+                },
+                {
+                  "name": "Cursus SQL"
+                },
+                {
+                  "name": "Cursus SQL Server DBA"
+                },
+                {
+                  "name": "Training Cosmos DB"
+                },
+                {
+                  "name": "Training Elastic"
+                },
+                {
+                  "name": "Training Elasticsearch Advanced"
+                },
+                {
+                  "name": "Training Elasticsearch Data Ingestion"
+                },
+                {
+                  "name": "Training Elasticsearch Fundamentals"
+                },
+                {
+                  "name": "Training InfluxDB"
+                },
+                {
+                  "name": "Training MySQL"
+                },
+                {
+                  "name": "Training Neo4J Fundamentals"
+                },
+                {
+                  "name": "Training NoSQL"
+                },
+                {
+                  "name": "Training Oracle Backup en Recovery"
+                },
+                {
+                  "name": "Training Oracle SQL"
+                },
+                {
+                  "name": "Training Performance Tuning in een Oracle database"
+                },
+                {
+                  "name": "Training PostGIS"
+                },
+                {
+                  "name": "Training Redis"
+                },
+                {
+                  "name": "Training Snowflake Fundamentals"
+                },
+                {
+                  "name": "Training Teradata SQL"
+                },
+                {
+                  "name": "Training Vectordatabases"
+                }
+              ]
+            },
+            {
+              "name": "Datamodellering",
+              "children": [
+                {
+                  "name": "Cursus Data Modeling"
+                },
+                {
+                  "name": "Cursus Data Vault"
+                },
+                {
+                  "name": "Cursus Database Design"
+                },
+                {
+                  "name": "Master Power BI - Ontwerpintelligentie met Data Modeling & Stermodelleren"
+                },
+                {
+                  "name": "Training Anchor Modelling"
+                },
+                {
+                  "name": "Training Business Object Modelling - Data Management"
+                },
+                {
+                  "name": "Training Dimensioneel Modelleren - Stermodelleren - Kimball"
+                },
+                {
+                  "name": "Training Neo4J Modelleren"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Programming for Data",
+          "children": [
+            {
+              "name": "Python",
+              "children": [
+                {
+                  "name": "Cursus Data Science met Python"
+                },
+                {
+                  "name": "Opleiding Python"
+                },
+                {
+                  "name": "Opleiding Python Advanced"
+                },
+                {
+                  "name": "Training Python"
+                },
+                {
+                  "name": "Training Python GIS en Geodata"
+                }
+              ]
+            },
+            {
+              "name": "R",
+              "children": [
+                {
+                  "name": "Cursus Data Analyse met R"
+                },
+                {
+                  "name": "Cursus Programmeren in R"
+                },
+                {
+                  "name": "Programmeren in R"
+                },
+                {
+                  "name": "Training R Machine Learning"
+                },
+                {
+                  "name": "Training R Shiny en Markdown"
+                }
+              ]
+            },
+            {
+              "name": "SQL",
+              "children": [
+                {
+                  "name": "Cursus Oracle PL/SQL"
+                },
+                {
+                  "name": "Cursus Oracle SQL voor SQL gebruikers"
+                },
+                {
+                  "name": "Cursus PostgreSQL voor SQL gebruikers"
+                },
+                {
+                  "name": "Cursus SQL"
+                },
+                {
+                  "name": "Cursus T-SQL"
+                },
+                {
+                  "name": "Training Advanced SQL voor Data Science"
+                },
+                {
+                  "name": "Training Oracle SQL"
+                },
+                {
+                  "name": "Training SQL Server"
+                },
+                {
+                  "name": "Training SQL voor data analytics"
+                },
+                {
+                  "name": "Training Teradata SQL"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Webanalytics",
+          "children": [
+            {
+              "name": "Google",
+              "children": [
+                {
+                  "name": "Cursus Google Analytics"
+                },
+                {
+                  "name": "Masterclass Google Analytics"
+                },
+                {
+                  "name": "Training E-commerce Analytics & Reporting met Google BigQuery"
+                },
+                {
+                  "name": "Training E-commerce Analytics and Reporting met Google BigQuery"
+                },
+                {
+                  "name": "Training Google Analytics 4 - GA4"
+                },
+                {
+                  "name": "Training Google Data Studio"
+                },
+                {
+                  "name": "Training Google Tag Manager"
+                }
+              ]
+            },
+            {
+              "name": "Matomo",
+              "children": [
+                {
+                  "name": "Cursus Matomo"
+                },
+                {
+                  "name": "Cursus Piwik"
+                },
+                {
+                  "name": "Training Matomo"
+                },
+                {
+                  "name": "Training Matomo Tag Manager"
+                },
+                {
+                  "name": "Training Piwik PRO"
+                }
+              ]
+            },
+            {
+              "name": "Training Data Governance voor Webanalytics"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Design & Creative Tools",
+      "children": [
+        {
+          "name": "3D modeling & design",
+          "children": [
+            {
+              "name": "Cinema 4D"
+            },
+            {
+              "name": "Cursus Blender"
+            },
+            {
+              "name": "Cursus Cinema 4D"
+            },
+            {
+              "name": "Cursus Vectorworks 2D/3D"
+            },
+            {
+              "name": "Training Blender"
+            },
+            {
+              "name": "Training Interieurdesign met Vectorworks"
+            },
+            {
+              "name": "Training Python scripting voor Blender"
+            },
+            {
+              "name": "Training Vectorworks BIM"
+            }
+          ]
+        },
+        {
+          "name": "AI voor visuele content",
+          "children": [
+            {
+              "name": "Training Adobe Express met FireFly AI"
+            },
+            {
+              "name": "Training Generatieve AI - Afbeeldingen, Infographics, foto's en video's maken"
+            },
+            {
+              "name": "Training Generatieve AI : Afbeeldingen, Infographics, foto's en video's maken"
+            }
+          ]
+        },
+        {
+          "name": "Creative Cloud",
+          "children": [
+            {
+              "name": "Cursus Adobe FrameMaker"
+            },
+            {
+              "name": "Cursus Adobe Lightroom"
+            },
+            {
+              "name": "Cursus Adobe Première Pro"
+            },
+            {
+              "name": "Cursus After Effects Professional"
+            },
+            {
+              "name": "Cursus DTP voor marketeers en communicatie professionals"
+            },
+            {
+              "name": "Cursus Digitaal Publiceren E-books en Magazines met Indesign"
+            },
+            {
+              "name": "Cursus Photoshop Professional"
+            },
+            {
+              "name": "Opleiding Creative Suite"
+            },
+            {
+              "name": "Opleiding DTP met InDesign"
+            },
+            {
+              "name": "Opleiding Photoshop Professional"
+            },
+            {
+              "name": "Opleiding Vormgeven met Illustrator"
+            },
+            {
+              "name": "Training Adobe Express met FireFly AI"
+            },
+            {
+              "name": "Training Adobe Lightroom"
+            },
+            {
+              "name": "Training Creative Cloud"
+            },
+            {
+              "name": "Training Figma"
+            },
+            {
+              "name": "Training Infographics vormgeven met Illustrator"
+            }
+          ]
+        },
+        {
+          "name": "Videobewerking",
+          "children": [
+            {
+              "name": "Cursus Adobe Première Pro"
+            },
+            {
+              "name": "Cursus After Effects Professional"
+            },
+            {
+              "name": "Cursus Final Cut Pro montage"
+            },
+            {
+              "name": "Cursus Videobewerking"
+            },
+            {
+              "name": "Training DaVinci Resolve"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Digital Marketing",
+      "children": [
+        {
+          "name": "Content creatie met AI / AI voor Marketing",
+          "children": [
+            {
+              "name": "Training AI Copywriting"
+            },
+            {
+              "name": "Training AI Marketing"
+            },
+            {
+              "name": "Training Copywriting met AI"
+            },
+            {
+              "name": "Training Generatieve AI - Afbeeldingen, Infographics, foto's en video's maken"
+            },
+            {
+              "name": "Training Generatieve AI : Afbeeldingen, Infographics, foto's en video's maken"
+            },
+            {
+              "name": "Training Marketing Analytics & Intelligence"
+            }
+          ]
+        },
+        {
+          "name": "Marketing Automation",
+          "children": [
+            {
+              "name": "Cursus E-mail Marketing"
+            },
+            {
+              "name": "Cursus Marketing Automation"
+            },
+            {
+              "name": "Training HubSpot Content Management System"
+            },
+            {
+              "name": "Training HubSpot voor Inbound Marketing"
+            },
+            {
+              "name": "Training HubSpot voor Marketing"
+            },
+            {
+              "name": "Training Salesforce Marketing Cloud voor marketeers"
+            }
+          ]
+        },
+        {
+          "name": "Online Marketing & SEO",
+          "children": [
+            {
+              "name": "Cursus E-commerce"
+            },
+            {
+              "name": "Cursus Google Ads Basis"
+            },
+            {
+              "name": "Cursus Google Ads Professional"
+            },
+            {
+              "name": "Cursus Zoekmachinemarketing"
+            },
+            {
+              "name": "Cursus Zoekmachinemarketing Professional"
+            },
+            {
+              "name": "Masterclass Google Ads"
+            },
+            {
+              "name": "Training Marketing Analytics & Big Data"
+            }
+          ]
+        },
+        {
+          "name": "Social Media & Content",
+          "children": [
+            {
+              "name": "Cursus Commercieel Schrijven"
+            },
+            {
+              "name": "Cursus Contentmarketing"
+            },
+            {
+              "name": "Cursus DTP voor marketeers en communicatie professionals"
+            },
+            {
+              "name": "Cursus Infographics"
+            },
+            {
+              "name": "Cursus Interactieve Infographics"
+            },
+            {
+              "name": "Cursus Linkedin voor bedrijven"
+            },
+            {
+              "name": "Cursus Social Media Monitoring"
+            },
+            {
+              "name": "Cursus Social Media Professional"
+            },
+            {
+              "name": "Cursus Social Media Strategie"
+            },
+            {
+              "name": "Cursus Storytelling"
+            },
+            {
+              "name": "Cursus Webredacteur"
+            },
+            {
+              "name": "Cursus Webschrijven Professional"
+            },
+            {
+              "name": "Cursus webinar organiseren"
+            },
+            {
+              "name": "Opleiding Customer Journey en Experience"
+            },
+            {
+              "name": "Training Infographics vormgeven met Illustrator"
+            },
+            {
+              "name": "Training Linkedin Recruitment"
+            },
+            {
+              "name": "Training Linkedin voor Bedrijven"
+            },
+            {
+              "name": "Training Online presenteren met impact"
+            },
+            {
+              "name": "Training Podcast voor bedrijven"
+            },
+            {
+              "name": "Training Social Media voor E-commerce"
+            },
+            {
+              "name": "Training Storytelling"
+            },
+            {
+              "name": "Workshop Storytelling"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ERP & CRM",
+      "children": [
+        {
+          "name": "(Office) Productiviteit & AI",
+          "children": [
+            {
+              "name": "Cursus Document Management"
+            },
+            {
+              "name": "Cursus Excel databases en lijsten"
+            },
+            {
+              "name": "Cursus Office 365"
+            },
+            {
+              "name": "Cursus PowerPoint"
+            },
+            {
+              "name": "Cursus VBA"
+            },
+            {
+              "name": "Cursus Visio"
+            },
+            {
+              "name": "Training Airtable"
+            },
+            {
+              "name": "Training Excel"
+            },
+            {
+              "name": "Training Excel Advanced"
+            },
+            {
+              "name": "Training Excel Formules en Functies"
+            },
+            {
+              "name": "Training Excel databases en lijsten"
+            },
+            {
+              "name": "Training Excel voor Financials"
+            },
+            {
+              "name": "Training Microsoft 365 CoPilot Advanced"
+            },
+            {
+              "name": "Training Microsoft 365 Copilot in de praktijk"
+            },
+            {
+              "name": "Training Outlook - Grip op je inbox"
+            }
+          ]
+        },
+        {
+          "name": "CRM & Marketing Platforms",
+          "children": [
+            {
+              "name": "Cursus CRM"
+            },
+            {
+              "name": "Cursus E-commerce"
+            },
+            {
+              "name": "Cursus Microsoft Dynamics CRM voor beheerders"
+            },
+            {
+              "name": "Cursus Microsoft Dynamics CRM voor sales en marketeers"
+            },
+            {
+              "name": "Cursus Salesforce CRM Programmeur"
+            },
+            {
+              "name": "Cursus Salesforce CRM beheerders"
+            },
+            {
+              "name": "Cursus Salesforce CRM voor sales en marketeers"
+            },
+            {
+              "name": "Opleiding Customer Journey en Experience"
+            },
+            {
+              "name": "Training Freshdesk"
+            },
+            {
+              "name": "Training HubSpot Administrator en Key User"
+            },
+            {
+              "name": "Training HubSpot CRM voor Sales"
+            },
+            {
+              "name": "Training HubSpot Content Management System"
+            },
+            {
+              "name": "Training HubSpot Content Management System (CMS)"
+            },
+            {
+              "name": "Training HubSpot voor Customer Service"
+            },
+            {
+              "name": "Training HubSpot voor Inbound Marketing"
+            },
+            {
+              "name": "Training HubSpot voor Marketing"
+            },
+            {
+              "name": "Training Microsoft Dynamics 365 Customer Engagement fundamentals"
+            },
+            {
+              "name": "Training Microsoft Dynamics 365 Customer Service"
+            },
+            {
+              "name": "Training Microsoft Dynamics 365 Sales"
+            },
+            {
+              "name": "Training Monday.com CRM"
+            },
+            {
+              "name": "Training Sales Cloud Dashboarding en Reporting"
+            },
+            {
+              "name": "Training Sales Cloud voor Salesforce Gebruikers"
+            },
+            {
+              "name": "Training Salesforce Einstein"
+            },
+            {
+              "name": "Training Salesforce Marketing Cloud voor marketeers"
+            },
+            {
+              "name": "Training Salesforce Pardot"
+            },
+            {
+              "name": "Training Salesforce Platform App Builder"
+            },
+            {
+              "name": "Training Service Cloud voor Salesforce Gebruikers"
+            },
+            {
+              "name": "Training Zendesk"
+            }
+          ]
+        },
+        {
+          "name": "ERP",
+          "children": [
+            {
+              "name": "Cursus Microsoft Dynamics NAV voor gebruikers"
+            },
+            {
+              "name": "Cursus SAP Business One"
+            },
+            {
+              "name": "Training Microsoft Dynamics 365 Business Central"
+            },
+            {
+              "name": "Training Microsoft Dynamics 365 Business Central voor Financials"
+            },
+            {
+              "name": "Training Microsoft Dynamics 365 Field Service"
+            },
+            {
+              "name": "Training Programmeren in AL - Dynamics 365 Business Central"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "IT Management & Governance",
+      "children": [
+        {
+          "name": "Duurzame / Sustainable IT",
+          "children": [
+            {
+              "name": "Training CSRD - Corporate Sustainability Reporting Directive"
+            },
+            {
+              "name": "Training ESG implementeren in je organisatie"
+            },
+            {
+              "name": "Training Europese IT alternatieven"
+            },
+            {
+              "name": "Training Green AI"
+            },
+            {
+              "name": "Training Green IT"
+            },
+            {
+              "name": "Training Nextcloud implementeren"
+            },
+            {
+              "name": "Training Owncloud implementeren"
+            }
+          ]
+        },
+        {
+          "name": "IT Operations",
+          "children": [
+            {
+              "name": "Cursus Datacenter Specialist"
+            },
+            {
+              "name": "Cursus Document Management"
+            },
+            {
+              "name": "Training AIOps"
+            },
+            {
+              "name": "Training CompTIA A"
+            },
+            {
+              "name": "Training CompTIA A+"
+            },
+            {
+              "name": "Training Datacenter troubleshooting"
+            },
+            {
+              "name": "Training Datacenter voor engineers"
+            },
+            {
+              "name": "Training FinOps"
+            }
+          ]
+        },
+        {
+          "name": "IT Service Management",
+          "children": [
+            {
+              "name": "Cursus BPM"
+            },
+            {
+              "name": "Cursus COBIT"
+            },
+            {
+              "name": "Training CMM Capability Maturity Model"
+            },
+            {
+              "name": "Training CMMI-DEV voor software"
+            },
+            {
+              "name": "Training Crisismanagement"
+            },
+            {
+              "name": "Training Praktisch Functioneel Beheer met BiSL"
+            },
+            {
+              "name": "Training ServiceNow ITSM"
+            },
+            {
+              "name": "Training praktisch BiSL - Grip op Business Informatiemanagement"
+            }
+          ]
+        },
+        {
+          "name": "IT Strategie & Leiderschap",
+          "children": [
+            {
+              "name": "Cursus COBIT"
+            },
+            {
+              "name": "Cursus IT-auditing"
+            },
+            {
+              "name": "Training Blockchain"
+            },
+            {
+              "name": "Training Blockchain voor juristen en accountants"
+            },
+            {
+              "name": "Training Certified Information System Auditor CISA"
+            },
+            {
+              "name": "Training Certified in Risk and Information Systems Control CRISC"
+            },
+            {
+              "name": "Training Certified in the Governance of Enterprise IT (CGEIT)"
+            },
+            {
+              "name": "Training Certified in the Governance of Enterprise IT CGEIT"
+            },
+            {
+              "name": "Training Digitale afhankelijkheid - cloud, software en AI in strategisch perspectief"
+            },
+            {
+              "name": "Training ISMS naar CSMS"
+            },
+            {
+              "name": "Training Information Security Management System - ISMS"
+            },
+            {
+              "name": "Training Leiderschap voor IT professionals"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Modern Workplace",
+      "children": [
+        {
+          "name": "AI voor de werkplek",
+          "children": [
+            {
+              "name": "Master Power BI - AI-Ready & Ontwerpen voor en met Copilot"
+            },
+            {
+              "name": "Master Power BI - AI-Ready: Ontwerpen voor en met Copilot"
+            },
+            {
+              "name": "Master Power BI - Werken met Copilot"
+            },
+            {
+              "name": "Training AI Agents en Workflows met Microsoft Copilot"
+            },
+            {
+              "name": "Training AI praktisch integreren in je organisatie met ChatGPT"
+            },
+            {
+              "name": "Training AI tools slim inzetten in je dagelijks werk"
+            },
+            {
+              "name": "Training ChatGPT"
+            },
+            {
+              "name": "Training ChatGPT Gemini en Copilot slim inzetten in je dagelijks werk"
+            },
+            {
+              "name": "Training Copilot Studio, zelf een Copilot maken"
+            },
+            {
+              "name": "Training Copilot Studio: zelf een Copilot maken"
+            },
+            {
+              "name": "Training Copilot Team training - slimmer samenwerken"
+            },
+            {
+              "name": "Training Copilot Team training: slimmer samenwerken"
+            },
+            {
+              "name": "Training Copilot met Microsoft Fabric en Power BI"
+            },
+            {
+              "name": "Training Copilot voor financials"
+            },
+            {
+              "name": "Training Custom GPTs ontwikkelen met ChatGPT"
+            },
+            {
+              "name": "Training Java met ChatGPT"
+            },
+            {
+              "name": "Training MS365 Copilot"
+            },
+            {
+              "name": "Training Microsoft 365 CoPilot Advanced"
+            },
+            {
+              "name": "Training Microsoft 365 Copilot in de praktijk"
+            },
+            {
+              "name": "Training Microsoft Copilot Security"
+            },
+            {
+              "name": "Training Microsoft Power Apps met Copilot AI"
+            },
+            {
+              "name": "Training PHP met ChatGPT"
+            },
+            {
+              "name": "Training Power BI met Copilot van data tot inzichten"
+            },
+            {
+              "name": "Training Process Mining met Copilot"
+            },
+            {
+              "name": "Training Python met ChatGPT"
+            },
+            {
+              "name": "Training Slim werken met AI: Hands-on verdieping"
+            }
+          ]
+        },
+        {
+          "name": "Device Management",
+          "children": [
+            {
+              "name": "Training Microsoft Intune"
+            },
+            {
+              "name": "Training Samsung Knox"
+            },
+            {
+              "name": "Training VMware Horizon Virtual Desktop Management Fundamentals"
+            },
+            {
+              "name": "Training VMware Horizon: Virtual Desktop Management Fundamentals"
+            },
+            {
+              "name": "Training Windows Autopilot"
+            },
+            {
+              "name": "Training Windows Virtual Desktop"
+            }
+          ]
+        },
+        {
+          "name": "Endpoint Security",
+          "children": [
+            {
+              "name": "Training Microsoft 365 Security Administration MS-500"
+            },
+            {
+              "name": "Training Microsoft Defender for Endpoint"
+            }
+          ]
+        },
+        {
+          "name": "Identity & Access Management",
+          "children": [
+            {
+              "name": "Cursus Active Directory"
+            },
+            {
+              "name": "Training Azure Active Directory"
+            },
+            {
+              "name": "Training Azure Security Technologies AZ-500"
+            },
+            {
+              "name": "Training Microsoft Entra"
+            },
+            {
+              "name": "Training Security onderzoek met Microsoft Purview, Defender en Entra"
+            }
+          ]
+        },
+        {
+          "name": "Microsoft 365",
+          "children": [
+            {
+              "name": "Cursus Office 365"
+            },
+            {
+              "name": "Cursus SharePoint"
+            },
+            {
+              "name": "Cursus SharePoint Workflow"
+            },
+            {
+              "name": "Cursus Sharepoint beheerders"
+            },
+            {
+              "name": "Gebruikerscursus SharePoint"
+            },
+            {
+              "name": "Training MS365 Copilot"
+            },
+            {
+              "name": "Training Microsoft 365 CoPilot Advanced"
+            },
+            {
+              "name": "Training Microsoft 365 Copilot in de praktijk"
+            },
+            {
+              "name": "Training Microsoft 365 Security Administration (MS-500)"
+            },
+            {
+              "name": "Training Microsoft Planner"
+            },
+            {
+              "name": "Training Microsoft To Do"
+            },
+            {
+              "name": "Training Outlook - Grip op je inbox"
+            },
+            {
+              "name": "Training Purview voor Microsoft 365"
+            },
+            {
+              "name": "Training Sharepoint Agents"
+            },
+            {
+              "name": "Training online samenwerken met Microsoft Teams"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Persoonlijke Ontwikkeling & Leiderschap",
+      "children": [
+        {
+          "name": "Communicatie",
+          "children": [
+            {
+              "name": "Cursus Commercieel Schrijven"
+            },
+            {
+              "name": "Cursus Crisiscommunicatie"
+            },
+            {
+              "name": "Cursus Prezi"
+            },
+            {
+              "name": "Cursus Storytelling"
+            },
+            {
+              "name": "Effectiever communiceren met NLP"
+            },
+            {
+              "name": "Feedback geven, vragen en ontvangen"
+            },
+            {
+              "name": "Opleiding Customer Journey en Experience"
+            },
+            {
+              "name": "Training Commercieel Schrijven"
+            },
+            {
+              "name": "Training Constructieve Conflicthantering"
+            },
+            {
+              "name": "Training Crisiscommunicatie"
+            },
+            {
+              "name": "Training Customer Journey en Experience"
+            },
+            {
+              "name": "Training Effectief Onderhandelen"
+            },
+            {
+              "name": "Training Effectief Recruitment met LinkedIn"
+            },
+            {
+              "name": "Training Effectief en Overtuigend Spreken"
+            },
+            {
+              "name": "Training Effectiever communiceren met NLP"
+            },
+            {
+              "name": "Training Effectiever samenwerken met Transactionele Analyse"
+            },
+            {
+              "name": "Training Feedback Geven, Vragen en Ontvangen"
+            },
+            {
+              "name": "Training Filosofie van het overtuigen"
+            },
+            {
+              "name": "Training Inrichten van je Commercieel Proces"
+            },
+            {
+              "name": "Training Interviewtechnieken"
+            },
+            {
+              "name": "Training Klantgericht Communiceren"
+            },
+            {
+              "name": "Training Linkedin Recruitment"
+            },
+            {
+              "name": "Training Online Presenteren"
+            },
+            {
+              "name": "Training Online presenteren met impact"
+            },
+            {
+              "name": "Training Podcast voor bedrijven"
+            },
+            {
+              "name": "Training Presenteren Je publiek meenemen in je verhaal"
+            },
+            {
+              "name": "Training Presenteren: Je Publiek Meenemen in je Verhaal"
+            },
+            {
+              "name": "Training Social Selling"
+            },
+            {
+              "name": "Training Storytelling"
+            },
+            {
+              "name": "Training Strategische Communicatie"
+            },
+            {
+              "name": "Training Van Klantreis naar Klantgericht Proces"
+            },
+            {
+              "name": "Training Vergaderen met Resultaat"
+            },
+            {
+              "name": "Workshop Storytelling"
+            }
+          ]
+        },
+        {
+          "name": "Leiderschap & Management",
+          "children": [
+            {
+              "name": "Effectieve Feedback voor Leidinggevenden"
+            },
+            {
+              "name": "Informeel Leiderschap"
+            },
+            {
+              "name": "Persoonlijk Leiderschap voor Leidinggevenden"
+            },
+            {
+              "name": "Training Agile Transitie voor Managers"
+            },
+            {
+              "name": "Training Crisismanagement"
+            },
+            {
+              "name": "Training Game Thinking in de praktijk"
+            },
+            {
+              "name": "Training Gesprekstechnieken voor Leidinggevenden"
+            },
+            {
+              "name": "Training Goal Setting en Team Performance"
+            },
+            {
+              "name": "Training Informeel Leiderschap"
+            },
+            {
+              "name": "Training Leiderschap voor IT professionals"
+            },
+            {
+              "name": "Training Leiderschap voor optimaal teammanagement"
+            },
+            {
+              "name": "Training Leidinggeven op afstand"
+            },
+            {
+              "name": "Training Leidinggeven zonder formele macht"
+            },
+            {
+              "name": "Training Persoonlijk Leiderschap"
+            },
+            {
+              "name": "Training Persoonlijk Leiderschap voor Leidinggevenden"
+            },
+            {
+              "name": "Training Product Management voor IT"
+            },
+            {
+              "name": "Training Product Owner"
+            },
+            {
+              "name": "Training Psychologische veiligheid op de werkvloer"
+            },
+            {
+              "name": "Training Resultaatgericht Sturen"
+            },
+            {
+              "name": "Workshop Game Thinking in de Praktijk"
+            }
+          ]
+        },
+        {
+          "name": "Persoonlijke Effectiviteit",
+          "children": [
+            {
+              "name": "Cursus Mindmapping"
+            },
+            {
+              "name": "Cursus Timemanagement"
+            },
+            {
+              "name": "Excelleren in aanpassingsvermogen"
+            },
+            {
+              "name": "Training Brainstormen"
+            },
+            {
+              "name": "Training Design Thinking"
+            },
+            {
+              "name": "Training Digital Health - Grip op je inbox"
+            },
+            {
+              "name": "Training Excelleren in aanpassingsvermogen"
+            },
+            {
+              "name": "Training Mentaal Meesterschap"
+            },
+            {
+              "name": "Training Mindmapping"
+            },
+            {
+              "name": "Training Personal Branding"
+            },
+            {
+              "name": "Training Persoonlijke effectiviteit"
+            },
+            {
+              "name": "Training Stress Management"
+            },
+            {
+              "name": "Training Stressmanagement"
+            },
+            {
+              "name": "Training Time management"
+            },
+            {
+              "name": "Training Van Incident tot Inzicht"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Projectmanagement & Samenwerken",
+      "children": [
+        {
+          "name": "Agile werken",
+          "children": [
+            {
+              "name": "Cursus Agile Development en Management"
+            },
+            {
+              "name": "Cursus Scrum"
+            },
+            {
+              "name": "Training Agile Transitie voor Managers"
+            },
+            {
+              "name": "Training DevSecOps voor Scrum teams"
+            },
+            {
+              "name": "Training Jira Align"
+            }
+          ]
+        },
+        {
+          "name": "Projectmanagement",
+          "children": [
+            {
+              "name": "Awareness training voor inkoop en begeleiding bij audiovisuele projectinrichting"
+            },
+            {
+              "name": "Cursus Business Analyse"
+            },
+            {
+              "name": "Cursus Business Analyst"
+            },
+            {
+              "name": "Cursus Mindmapping"
+            },
+            {
+              "name": "Cursus Projectmanagement"
+            },
+            {
+              "name": "Training AV Project Management"
+            },
+            {
+              "name": "Training Business Analyse met BABOK"
+            },
+            {
+              "name": "Training Projectmanagement"
+            },
+            {
+              "name": "Training Requirements & Information Engineering"
+            },
+            {
+              "name": "Training Requirements and Information Engineering"
+            },
+            {
+              "name": "Training praktisch BiSL - Grip op Business Informatiemanagement"
+            }
+          ]
+        },
+        {
+          "name": "Samenwerkingstools",
+          "children": [
+            {
+              "name": "Cursus SharePoint"
+            },
+            {
+              "name": "Cursus SharePoint Workflow"
+            },
+            {
+              "name": "Cursus Sharepoint beheerders"
+            },
+            {
+              "name": "Gebruikerscursus SharePoint"
+            },
+            {
+              "name": "Training Airtable"
+            },
+            {
+              "name": "Training Asana"
+            },
+            {
+              "name": "Training Azure Boards"
+            },
+            {
+              "name": "Training ClickUp"
+            },
+            {
+              "name": "Training Confluence"
+            },
+            {
+              "name": "Training Copilot Team training - slimmer samenwerken"
+            },
+            {
+              "name": "Training Jira"
+            },
+            {
+              "name": "Training Jira Administrator"
+            },
+            {
+              "name": "Training Jira Plans"
+            },
+            {
+              "name": "Training Jira advanced workflows & automation"
+            },
+            {
+              "name": "Training Jira advanced workflows automation"
+            },
+            {
+              "name": "Training Microsoft Planner"
+            },
+            {
+              "name": "Training Microsoft To Do"
+            },
+            {
+              "name": "Training Monday.com"
+            },
+            {
+              "name": "Training Monday.com CRM"
+            },
+            {
+              "name": "Training Monday.com Projectbeheer"
+            },
+            {
+              "name": "Training Notion"
+            },
+            {
+              "name": "Training Online samenwerken met Miro"
+            },
+            {
+              "name": "Training ServiceNow ITSM"
+            },
+            {
+              "name": "Training Sharepoint Agents"
+            },
+            {
+              "name": "Training Slack"
+            },
+            {
+              "name": "Training Trello"
+            },
+            {
+              "name": "Training Zendesk"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Security & Privacy",
+      "children": [
+        {
+          "name": "Cloud Security",
+          "children": [
+            {
+              "name": "Cursus Cloud Security"
+            },
+            {
+              "name": "Training AWS Security"
+            },
+            {
+              "name": "Training Azure Security Technologies (AZ-500)"
+            },
+            {
+              "name": "Training Azure Security Technologies AZ-500"
+            },
+            {
+              "name": "Training Certificate of Cloud Auditing Knowledge (CCAK)"
+            },
+            {
+              "name": "Training Cloud Security CCSK"
+            },
+            {
+              "name": "Training Cloud Security CCSP"
+            },
+            {
+              "name": "Training Docker Container Security"
+            },
+            {
+              "name": "Training Kubernetes Security"
+            },
+            {
+              "name": "Training Microsoft 365 Security Administration (MS-500)"
+            },
+            {
+              "name": "Training Microsoft Cybersecurity Architect SC-100"
+            }
+          ]
+        },
+        {
+          "name": "Ethical Hacking & Pentesting",
+          "children": [
+            {
+              "name": "Training Burp Suite"
+            },
+            {
+              "name": "Training Certified Ethical Hacker"
+            },
+            {
+              "name": "Training Certified Ethical Hacker (CEH)"
+            },
+            {
+              "name": "Training Computer Hacking Forensics Investigator (CHFI)"
+            },
+            {
+              "name": "Training Computer Hacking Forensics Investigator CHFI"
+            },
+            {
+              "name": "Training GVM (Greenbone Vulnerability Management)"
+            },
+            {
+              "name": "Training GVM Greenbone Vulnerability Management"
+            },
+            {
+              "name": "Training Nessus Vulnerability Scanning"
+            },
+            {
+              "name": "Training OSCP - Pentesting met Kali Linux"
+            },
+            {
+              "name": "Training OSINT"
+            },
+            {
+              "name": "Training OWASP top 10 - in de praktijk"
+            },
+            {
+              "name": "Training Penetration Testing"
+            },
+            {
+              "name": "Training Security voor Developers met Kali Linux"
+            },
+            {
+              "name": "Training Zap Attack Proxy - ZAP"
+            }
+          ]
+        },
+        {
+          "name": "OT Security",
+          "children": [
+            {
+              "name": "Training CSMS - Cyber Security Management System voor OT"
+            },
+            {
+              "name": "Training ISMS naar CSMS"
+            },
+            {
+              "name": "Training OT Risk Management & NIS2 Compliance"
+            }
+          ]
+        },
+        {
+          "name": "Privacy & Compliance",
+          "children": [
+            {
+              "name": "Privacy & Dataprotectie",
+              "children": [
+                {
+                  "name": "Training Certified Information Privacy Manager (CIPM)"
+                },
+                {
+                  "name": "Training Certified Information Privacy Manager CIPM"
+                },
+                {
+                  "name": "Training Certified Information Privacy Professional Europe CIPP-E"
+                },
+                {
+                  "name": "Training Certified Information Privacy Professional/Europe (CIPP/E)"
+                },
+                {
+                  "name": "Training Certified Information Privacy Technologist (CIPT)"
+                },
+                {
+                  "name": "Training Certified Information Privacy Technologist CIPT"
+                },
+                {
+                  "name": "Training Data Protection Officer - DPO"
+                }
+              ]
+            },
+            {
+              "name": "Security Wet- & Regelgeving",
+              "children": [
+                {
+                  "name": "Training Blockchain voor juristen en accountants"
+                },
+                {
+                  "name": "Training DORA - Digital Operational Resilience Act"
+                },
+                {
+                  "name": "Training ISO 27001 Information Security fundamentals"
+                },
+                {
+                  "name": "Training NIS2 implementeren in je organisatie"
+                },
+                {
+                  "name": "Training NIS2 met GAP Analyse"
+                },
+                {
+                  "name": "Training NIST Cybersecurity Framework"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Secure Development",
+          "children": [
+            {
+              "name": "Application Security",
+              "children": [
+                {
+                  "name": "Training Cybersecurity voor developers"
+                },
+                {
+                  "name": "Training Developing and Maintaining Secure (Web)Applications"
+                },
+                {
+                  "name": "Training Developing and Maintaining Secure Applications"
+                },
+                {
+                  "name": "Training Security for Developers fundamentals"
+                },
+                {
+                  "name": "Training Security voor Developers met Kali Linux"
+                },
+                {
+                  "name": "Training SonarQube"
+                },
+                {
+                  "name": "Training Web Application Firewalls WAF"
+                }
+              ]
+            },
+            {
+              "name": "Secure Coding",
+              "children": [
+                {
+                  "name": "Training LinDDun threat modeling framework"
+                },
+                {
+                  "name": "Training Secure Coding .NET"
+                },
+                {
+                  "name": "Training Secure Coding Java"
+                },
+                {
+                  "name": "Training Secure Coding PHP"
+                },
+                {
+                  "name": "Training Secure Coding Python"
+                },
+                {
+                  "name": "Training Secure coding Javascript voor Webapplicaties"
+                },
+                {
+                  "name": "Training Threat Modeling met het STRIDE model"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Security Management & Governance",
+          "children": [
+            {
+              "name": "Cursus IT-auditing"
+            },
+            {
+              "name": "Sessie Security Awareness"
+            },
+            {
+              "name": "Training AAIA - Advanced in AI Audit"
+            },
+            {
+              "name": "Training AAISM - Advanced in AI Security Management"
+            },
+            {
+              "name": "Training CISSP"
+            },
+            {
+              "name": "Training Certificate of Cloud Auditing Knowledge CCAK"
+            },
+            {
+              "name": "Training Certified Chief Information Security Officer CCISO"
+            },
+            {
+              "name": "Training Certified Information Security Manager (CISM)"
+            },
+            {
+              "name": "Training Certified Information Security Manager CISM"
+            },
+            {
+              "name": "Training Certified Information System Auditor (CISA)"
+            },
+            {
+              "name": "Training Certified Information System Auditor CISA"
+            },
+            {
+              "name": "Training Certified in Risk and Information Systems Control (CRISC)"
+            },
+            {
+              "name": "Training Certified in Risk and Information Systems Control CRISC"
+            },
+            {
+              "name": "Training Certified in the Governance of Enterprise IT (CGEIT)"
+            },
+            {
+              "name": "Training Certified in the Governance of Enterprise IT CGEIT"
+            },
+            {
+              "name": "Training ISO 27001 Information Security fundamentals"
+            },
+            {
+              "name": "Training Information Security Management"
+            },
+            {
+              "name": "Training Information Security Management System (ISMS)"
+            },
+            {
+              "name": "Training Information Security Management System - ISMS"
+            },
+            {
+              "name": "Training Microsoft 365 Security Administration MS-500"
+            },
+            {
+              "name": "Training Microsoft Cybersecurity Architect SC-100"
+            },
+            {
+              "name": "Training NIST Cybersecurity Framework"
+            },
+            {
+              "name": "Training Security Fundamentals"
+            },
+            {
+              "name": "Training Security voor managers"
+            },
+            {
+              "name": "Training Systems Security Certified Practitioner SSCP"
+            }
+          ]
+        },
+        {
+          "name": "Security Operations",
+          "children": [
+            {
+              "name": "Endpoint & cloud",
+              "children": [
+                {
+                  "name": "Training Microsoft Copilot Security"
+                },
+                {
+                  "name": "Training Microsoft Defender for Cloud"
+                },
+                {
+                  "name": "Training Microsoft Defender for Cloud Apps"
+                },
+                {
+                  "name": "Training Microsoft Defender for Endpoint"
+                },
+                {
+                  "name": "Training Security onderzoek met Microsoft Purview, Defender en Entra"
+                }
+              ]
+            },
+            {
+              "name": "SIEM",
+              "children": [
+                {
+                  "name": "Training Elastic SIEM"
+                },
+                {
+                  "name": "Training Microsoft Sentinel"
+                },
+                {
+                  "name": "Training SIEM Security Information and Event Management"
+                },
+                {
+                  "name": "Training SIEM: Security Information and Event Management"
+                },
+                {
+                  "name": "Training Splunk Enterprise Security"
+                },
+                {
+                  "name": "Training Splunk Phantom Administrator"
+                },
+                {
+                  "name": "Training Splunk Phantom Playbook Developer"
+                }
+              ]
+            },
+            {
+              "name": "SOC",
+              "children": [
+                {
+                  "name": "Training Certified SOC Analyst"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Software Development",
+      "children": [
+        {
+          "name": "AI-Assisted Development",
+          "children": [
+            {
+              "name": "AI Coding Assistants",
+              "children": [
+                {
+                  "name": "Training Claude Code"
+                },
+                {
+                  "name": "Training Claude Code voor business professionals"
+                },
+                {
+                  "name": "Training Claude Code voor marketeers"
+                },
+                {
+                  "name": "Training Codex Coding Agent"
+                },
+                {
+                  "name": "Training Cursor"
+                },
+                {
+                  "name": "Training GitHub CoPilot en GitHub Actions"
+                },
+                {
+                  "name": "Training Junie Coding Agent"
+                },
+                {
+                  "name": "Training Manus"
+                },
+                {
+                  "name": "Training Mistral Coding"
+                },
+                {
+                  "name": "Training Roocode"
+                },
+                {
+                  "name": "Training Windsurf"
+                }
+              ]
+            },
+            {
+              "name": "Vibecoding",
+              "children": [
+                {
+                  "name": "Training Cursor"
+                },
+                {
+                  "name": "Training Lovable"
+                },
+                {
+                  "name": "Training Roocode"
+                },
+                {
+                  "name": "Training Vibecoding"
+                },
+                {
+                  "name": "Training Windsurf"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "DevOps",
+          "children": [
+            {
+              "name": "CI/CD & Pipelines",
+              "children": [
+                {
+                  "name": "Training AWS CodePipeline"
+                },
+                {
+                  "name": "Training AWS DevOps Engineering"
+                },
+                {
+                  "name": "Training Azure DevOps"
+                },
+                {
+                  "name": "Training Azure Pipelines"
+                },
+                {
+                  "name": "Training CI/CD"
+                },
+                {
+                  "name": "Training CICD"
+                }
+              ]
+            },
+            {
+              "name": "Containers & Orchestration",
+              "children": [
+                {
+                  "name": "Training Amazon EKS"
+                },
+                {
+                  "name": "Training Azure Kubernetes Service"
+                },
+                {
+                  "name": "Training Azure Kubernetes Service (AKS) voor developers"
+                },
+                {
+                  "name": "Training Azure Kubernetes Service - AKS - voor developers"
+                },
+                {
+                  "name": "Training Certified Kubernetes Administrator (CKA)"
+                },
+                {
+                  "name": "Training Certified Kubernetes Application Developer (CKAD)"
+                },
+                {
+                  "name": "Training Certified Kubernetes Application Developer CKAD"
+                },
+                {
+                  "name": "Training Docker"
+                },
+                {
+                  "name": "Training Docker Container Security"
+                },
+                {
+                  "name": "Training Kubernetes"
+                },
+                {
+                  "name": "Training Kubernetes Advanced"
+                },
+                {
+                  "name": "Training Kubernetes Security"
+                },
+                {
+                  "name": "Training Kubernetes voor platform- en cloud engineers"
+                },
+                {
+                  "name": "Training Linkerd"
+                },
+                {
+                  "name": "Training Red Hat OpenShift"
+                },
+                {
+                  "name": "Training Red Hat OpenShift voor developers"
+                }
+              ]
+            },
+            {
+              "name": "Development workflows",
+              "children": [
+                {
+                  "name": "Cursus RabbitMQ"
+                },
+                {
+                  "name": "Training DevOps"
+                }
+              ]
+            },
+            {
+              "name": "Version Control",
+              "children": [
+                {
+                  "name": "Cursus Github"
+                },
+                {
+                  "name": "Training Bitbucket Fundamentals"
+                },
+                {
+                  "name": "Training GitHub CoPilot en GitHub Actions"
+                },
+                {
+                  "name": "Training Gitlab Fundamentals"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Frontend & UI",
+          "children": [
+            {
+              "name": "Frontend Frameworks",
+              "children": [
+                {
+                  "name": "Cursus Angular"
+                },
+                {
+                  "name": "Cursus Bootstrap"
+                },
+                {
+                  "name": "Cursus D3.js"
+                },
+                {
+                  "name": "Cursus Kendo UI"
+                },
+                {
+                  "name": "Cursus jQuery"
+                },
+                {
+                  "name": "Training Jetpack Compose"
+                },
+                {
+                  "name": "Training React"
+                },
+                {
+                  "name": "Training React 360"
+                },
+                {
+                  "name": "Training React Advanced - Enterprise Applicaties"
+                },
+                {
+                  "name": "Training React Native"
+                },
+                {
+                  "name": "Training Reactive Angular met RxJS"
+                },
+                {
+                  "name": "Training Vue"
+                }
+              ]
+            },
+            {
+              "name": "UX & Design Tools",
+              "children": [
+                {
+                  "name": "Training Figma"
+                },
+                {
+                  "name": "Training UX Design"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Game, 3D & XR",
+          "children": [
+            {
+              "name": "3D Modeling & Design",
+              "children": [
+                {
+                  "name": "Cinema 4D"
+                },
+                {
+                  "name": "Cursus Blender"
+                },
+                {
+                  "name": "Cursus Cinema 4D"
+                },
+                {
+                  "name": "Cursus Vectorworks 2D/3D"
+                },
+                {
+                  "name": "Training Blender"
+                },
+                {
+                  "name": "Training Interieurdesign met Vectorworks"
+                },
+                {
+                  "name": "Training Python scripting voor Blender"
+                },
+                {
+                  "name": "Training Vectorworks BIM"
+                }
+              ]
+            },
+            {
+              "name": "Game development",
+              "children": [
+                {
+                  "name": "Cursus Unity 3D"
+                },
+                {
+                  "name": "Cursus Unreal Engine"
+                },
+                {
+                  "name": "Training C++ Programmeren in Unreal"
+                },
+                {
+                  "name": "Training Game Development in Unity 3D"
+                },
+                {
+                  "name": "Training Programmeren in Unity 3D"
+                },
+                {
+                  "name": "Training Unity 3D"
+                },
+                {
+                  "name": "Training Unreal Blueprint en Visual Scripting"
+                },
+                {
+                  "name": "Training Unreal Engine"
+                }
+              ]
+            },
+            {
+              "name": "Real-time 3D & Simulatiie",
+              "children": [
+                {
+                  "name": "Training Realtime 3D en Simulaties met Unreal"
+                },
+                {
+                  "name": "Training Realtime 3D met Unity"
+                }
+              ]
+            },
+            {
+              "name": "VR/XR",
+              "children": [
+                {
+                  "name": "Training 3D Digital Twins in Unity 3D"
+                },
+                {
+                  "name": "Training 3D Digital Twins in Unreal"
+                },
+                {
+                  "name": "Training React 360"
+                },
+                {
+                  "name": "Training VR development in Unity 3D"
+                },
+                {
+                  "name": "Training VR development in Unreal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "IoT & Embedded",
+          "children": [
+            {
+              "name": "Embedded Systems",
+              "children": [
+                {
+                  "name": "Training Embedded C"
+                },
+                {
+                  "name": "Training Embedded Java"
+                },
+                {
+                  "name": "Training Embedded Linux"
+                },
+                {
+                  "name": "Training PLC Programmeren"
+                },
+                {
+                  "name": "Training Rust Embedded"
+                }
+              ]
+            },
+            {
+              "name": "IoT Development",
+              "children": [
+                {
+                  "name": "Training Azure IoT Hub"
+                },
+                {
+                  "name": "Training IoT Foundation"
+                },
+                {
+                  "name": "Training MicroPython - CircuitPython voor Microcontrollers fundamentals"
+                },
+                {
+                  "name": "Training Node-RED"
+                }
+              ]
+            },
+            {
+              "name": "Robotica & Hardware",
+              "children": [
+                {
+                  "name": "Training Gazebo fundamentals"
+                },
+                {
+                  "name": "Training ROS Framework - Robot Operating System"
+                },
+                {
+                  "name": "Training Robotica fundamentals"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Low-code",
+          "children": [
+            {
+              "name": "Cursus Oracle Apex Fundamentals"
+            },
+            {
+              "name": "Cursus Oracle Apex Professional"
+            },
+            {
+              "name": "Training Mendix"
+            },
+            {
+              "name": "Training Mendix Advanced"
+            },
+            {
+              "name": "Training Microsoft Dynamics 365 Model driven Power Apps"
+            },
+            {
+              "name": "Training Microsoft Power Apps met Copilot AI"
+            },
+            {
+              "name": "Training OutSystems Low-code Platform"
+            },
+            {
+              "name": "Training Power Apps"
+            },
+            {
+              "name": "Training Power Apps Advanced"
+            },
+            {
+              "name": "Training Power Apps Project - Ontwikkel een Bedrijfsapp"
+            },
+            {
+              "name": "Training Power Apps Project: Ontwikkel een Bedrijfsapp"
+            },
+            {
+              "name": "Training Power Apps voor business professionals"
+            }
+          ]
+        },
+        {
+          "name": "Mobile development",
+          "children": [
+            {
+              "name": "Cursus Android Apps Development"
+            },
+            {
+              "name": "Cursus Apache Cordova"
+            },
+            {
+              "name": "Cursus App Development met Swift"
+            },
+            {
+              "name": "Cursus iPhone en iPad apps development"
+            },
+            {
+              "name": "Training .NET MAUI"
+            },
+            {
+              "name": "Training Flutter"
+            },
+            {
+              "name": "Training Jetpack Compose"
+            },
+            {
+              "name": "Training NativeScript"
+            },
+            {
+              "name": "Training React Native"
+            }
+          ]
+        },
+        {
+          "name": "Programmeertalen",
+          "children": [
+            {
+              "name": "C# & .NET",
+              "children": [
+                {
+                  "name": "Cursus Linq en Entity Framework"
+                },
+                {
+                  "name": "Cursus XAML"
+                },
+                {
+                  "name": "Masterclass C#"
+                },
+                {
+                  "name": "Opleiding C# Professional"
+                },
+                {
+                  "name": "Opleiding VB.NET Professional"
+                },
+                {
+                  "name": "Training .NET MAUI"
+                },
+                {
+                  "name": "Training Blazor - client webapps met C#"
+                },
+                {
+                  "name": "Training ML.NET"
+                },
+                {
+                  "name": "Training Secure Coding .NET"
+                }
+              ]
+            },
+            {
+              "name": "Frameworks",
+              "children": [
+                {
+                  "name": "Cursus CodeIgniter"
+                },
+                {
+                  "name": "Cursus Linq en Entity Framework"
+                },
+                {
+                  "name": "Cursus Node.js"
+                },
+                {
+                  "name": "Cursus Spring Framework"
+                },
+                {
+                  "name": "Cursus Symfony"
+                },
+                {
+                  "name": "Cursus TypeScript"
+                },
+                {
+                  "name": "Training Blazor - client webapps met C#"
+                },
+                {
+                  "name": "Training Django Web Development"
+                },
+                {
+                  "name": "Training Flask voor Python"
+                },
+                {
+                  "name": "Training Python microservices met FastAPI"
+                }
+              ]
+            },
+            {
+              "name": "Java",
+              "children": [
+                {
+                  "name": "Opleiding Java Enterprise Edition EE"
+                },
+                {
+                  "name": "Opleiding Java Professional"
+                },
+                {
+                  "name": "Training Embedded Java"
+                },
+                {
+                  "name": "Training Java met ChatGPT"
+                },
+                {
+                  "name": "Training Java voor testers"
+                },
+                {
+                  "name": "Training Kafka voor Java developers"
+                },
+                {
+                  "name": "Training Secure Coding Java"
+                },
+                {
+                  "name": "Training testautomatisering met Selenium WebDriver in Java"
+                }
+              ]
+            },
+            {
+              "name": "PHP",
+              "children": [
+                {
+                  "name": "Cursus PHP voor programmeurs"
+                },
+                {
+                  "name": "Masterclass PHP"
+                },
+                {
+                  "name": "Opleiding PHP Professional"
+                },
+                {
+                  "name": "Training PHP met ChatGPT"
+                },
+                {
+                  "name": "Training Secure Coding PHP"
+                }
+              ]
+            },
+            {
+              "name": "Python",
+              "children": [
+                {
+                  "name": "Cursus Data Science met Python"
+                },
+                {
+                  "name": "Opleiding Python"
+                },
+                {
+                  "name": "Opleiding Python Advanced"
+                },
+                {
+                  "name": "Training AI agents in Python"
+                },
+                {
+                  "name": "Training Flask voor Python"
+                },
+                {
+                  "name": "Training Kafka voor Python developers"
+                },
+                {
+                  "name": "Training Python"
+                },
+                {
+                  "name": "Training Python Deep Learning met businesscase"
+                },
+                {
+                  "name": "Training Python GIS en Geodata"
+                },
+                {
+                  "name": "Training Python met ChatGPT"
+                },
+                {
+                  "name": "Training Python microservices met FastAPI"
+                },
+                {
+                  "name": "Training Python scripting voor Blender"
+                },
+                {
+                  "name": "Training Secure Coding Python"
+                },
+                {
+                  "name": "Training Streamlit"
+                },
+                {
+                  "name": "Training Werken met Large Language Models in Python"
+                }
+              ]
+            },
+            {
+              "name": "Cursus Basisprincipes Programmeren"
+            },
+            {
+              "name": "Cursus Delphi"
+            },
+            {
+              "name": "Cursus Groovy"
+            },
+            {
+              "name": "Cursus Matlab"
+            },
+            {
+              "name": "Cursus Perl"
+            },
+            {
+              "name": "Cursus Powershell"
+            },
+            {
+              "name": "Cursus Reguliere Expressie"
+            },
+            {
+              "name": "Cursus SQL"
+            },
+            {
+              "name": "Cursus VBA"
+            },
+            {
+              "name": "Opleiding C++ professional"
+            },
+            {
+              "name": "Programmeren in R"
+            },
+            {
+              "name": "Training Advanced GoLang Microservices"
+            },
+            {
+              "name": "Training C programmeren"
+            },
+            {
+              "name": "Training C++ Programmeren in Unreal"
+            },
+            {
+              "name": "Training C++ professional"
+            },
+            {
+              "name": "Training COBOL"
+            },
+            {
+              "name": "Training GoLang"
+            },
+            {
+              "name": "Training Kotlin"
+            },
+            {
+              "name": "Training Microservices ontwikkelen met GoLang"
+            },
+            {
+              "name": "Training Mojo"
+            },
+            {
+              "name": "Training Objective C programmeren"
+            },
+            {
+              "name": "Training Rust"
+            },
+            {
+              "name": "Training Rust Advanced"
+            },
+            {
+              "name": "Training Rust Embedded"
+            }
+          ]
+        },
+        {
+          "name": "Secure development",
+          "children": [
+            {
+              "name": "Training Cybersecurity voor developers"
+            },
+            {
+              "name": "Training Developing and Maintaining Secure (Web)Applications"
+            },
+            {
+              "name": "Training Developing and Maintaining Secure Applications"
+            },
+            {
+              "name": "Training LinDDun threat modeling framework"
+            },
+            {
+              "name": "Training Secure Coding .NET"
+            },
+            {
+              "name": "Training Secure Coding Java"
+            },
+            {
+              "name": "Training Secure Coding PHP"
+            },
+            {
+              "name": "Training Secure Coding Python"
+            },
+            {
+              "name": "Training Secure coding Javascript voor Webapplicaties"
+            },
+            {
+              "name": "Training Threat Modeling met het STRIDE model"
+            }
+          ]
+        },
+        {
+          "name": "Software architectuur",
+          "children": [
+            {
+              "name": "Cursus Design Patterns"
+            },
+            {
+              "name": "Cursus JavaScript Design Patterns"
+            },
+            {
+              "name": "Cursus Software Architectuur"
+            },
+            {
+              "name": "Cursus UML"
+            },
+            {
+              "name": "Training Advanced GoLang Microservices"
+            },
+            {
+              "name": "Training Blockchain"
+            },
+            {
+              "name": "Training Domain Driven Design Foundation"
+            },
+            {
+              "name": "Training Domain Driven Design Implementatie"
+            },
+            {
+              "name": "Training Domain Driven Design voor DevOps Teams"
+            },
+            {
+              "name": "Training Event Driven Architecture (EDA)"
+            },
+            {
+              "name": "Training Event Driven Architecture (EDA) vertaald naar de praktijk"
+            },
+            {
+              "name": "Training Event Driven Architecture EDA"
+            },
+            {
+              "name": "Training Event Driven Architecture vertaald naar de praktijk"
+            },
+            {
+              "name": "Training Microservices ontwikkelen met GoLang"
+            },
+            {
+              "name": "Training Python microservices met FastAPI"
+            },
+            {
+              "name": "Training Requirements and Information Engineering"
+            },
+            {
+              "name": "Training Software Architectuur"
+            },
+            {
+              "name": "Training Software, Architectuur en Applicaties Documenteren"
+            },
+            {
+              "name": "Training Storage Architectuur"
+            },
+            {
+              "name": "Training Team Topologies"
+            }
+          ]
+        },
+        {
+          "name": "Testing & Testautomatisering",
+          "children": [
+            {
+              "name": "Test Automation tools",
+              "children": [
+                {
+                  "name": "Training Cucumber voor testers"
+                },
+                {
+                  "name": "Training Playwright testautomatisering"
+                },
+                {
+                  "name": "Training SonarQube"
+                },
+                {
+                  "name": "Training Testautomatisering met Cypress"
+                },
+                {
+                  "name": "Training Testautomatisering met Katalon"
+                },
+                {
+                  "name": "Training testautomatisering met Selenium WebDriver in Java"
+                },
+                {
+                  "name": "Training testautomatisering met het Robot Framework"
+                }
+              ]
+            },
+            {
+              "name": "Testmethoden",
+              "children": [
+                {
+                  "name": "Cursus Unit Testing"
+                },
+                {
+                  "name": "Training API testen"
+                },
+                {
+                  "name": "Training Behavior-Driven Development (BDD)"
+                },
+                {
+                  "name": "Training Behavior-Driven Development BDD"
+                },
+                {
+                  "name": "Training Java voor testers"
+                },
+                {
+                  "name": "Training Performance testen"
+                },
+                {
+                  "name": "Training Testmanagement"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Web Development",
+          "children": [
+            {
+              "name": "Cursus Bootstrap"
+            },
+            {
+              "name": "Cursus CSS"
+            },
+            {
+              "name": "Cursus HTML"
+            },
+            {
+              "name": "Cursus HTML5 en CSS3"
+            },
+            {
+              "name": "Cursus JavaScript"
+            },
+            {
+              "name": "Cursus JavaScript Design Patterns"
+            },
+            {
+              "name": "Cursus Node.js"
+            },
+            {
+              "name": "Cursus Tomcat"
+            },
+            {
+              "name": "Cursus Wordpress"
+            },
+            {
+              "name": "Cursus XML"
+            },
+            {
+              "name": "Cursus XSL"
+            },
+            {
+              "name": "Cursus jQuery"
+            },
+            {
+              "name": "Gebruikerscursus Drupal"
+            },
+            {
+              "name": "Gebruikerscursus Sitecore"
+            },
+            {
+              "name": "Gebruikerscursus Wordpress"
+            },
+            {
+              "name": "Gebruikerstraining Magento"
+            },
+            {
+              "name": "Training Django Web Development"
+            },
+            {
+              "name": "Training E-commerce"
+            },
+            {
+              "name": "Training Nginx"
+            },
+            {
+              "name": "Training Secure coding Javascript voor Webapplicaties"
+            },
+            {
+              "name": "Training TypeScript"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

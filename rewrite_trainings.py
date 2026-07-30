@@ -25,8 +25,14 @@ Gebruik:
         --besluiten besluiten.xlsx --out-dir herschreven --limit 5
 
 De Vervolgstappen komen uit `vervolgtraining.json` (779 trainingen, ~89k tokens). Die
-catalogus gaat nooit naar de API: Python maakt een shortlist van ~20 kandidaten en één
+catalogus gaat nooit naar de API: Python maakt een shortlist van ~30 kandidaten en één
 goedkope call kiest en groepeert daaruit. De code-check bewaakt dat elke titel echt bestaat.
+
+De shortlist combineert twee signalen: IDF-keywordoverlap en het vakgebied uit
+`vervolgtrainingen_tree.json` (domein > subdomein > onderwerp). Los van elkaar falen ze
+allebei -- keywords bieden XSL "Interieurdesign met Vectorworks" aan, de boom hangt LDAP
+onder Netwerken en mist Active Directory -- samen dekken ze elkaars gaten af. Het vakgebied
+gaat als label mee naar het model, dat de twee groepen langs die grenzen legt.
 """
 
 from __future__ import annotations
@@ -75,14 +81,34 @@ KLEIN_MODEL = "claude-haiku-4-5"   # keuze uit een shortlist; geen generatie
 MAX_TOKENS = 16000
 THINKING = {"type": "adaptive"}    # adaptieve thinking voor schrijf-/oordeelskwaliteit
 MAX_REVISIONS = 2                  # code-check + judge revisies vóór mens-wachtrij
-N_SHORTLIST = 20                   # kandidaten die Python uit de catalogus voorselecteert
+N_SHORTLIST = 30                   # kandidaten die Python uit de catalogus voorselecteert
 N_VERVOLG = 6                      # vervolgtrainingen die uiteindelijk in de tekst komen
+
+# Taxonomie-bonus bij de shortlist. Keyword-overlap en boomburen falen op verschillende
+# manieren -- LDAP vindt via keywords "Active Directory" (raak) maar via de boom 5G en
+# breedband (mis), XSL andersom. Daarom een unie: de bonus telt bij de IDF-score op, hoog
+# genoeg dat een vakgenoot zonder één gedeeld woord alsnog de lijst haalt.
+#
+# De IDF-score is per training niet vergelijkbaar (de hoogste treffer loopt van 15 tot 67),
+# dus een vaste bonus zou bij de ene training alles omgooien en bij de andere niets doen.
+# Daarom schalen we de keyword-score eerst naar 0..1 en drukken we de bonus uit in diezelfde
+# eenheid: 0.60 betekent "telt zwaarder dan een keyword-treffer op 60% van de beste".
+BONUS_SUBDOMEIN = 0.60             # zelfde subdomein: het naaste vakgebied
+BONUS_DOMEIN = 0.20                # zelfde domein, ander subdomein: verbredend
+BONUS_EXTRA_TAK = 0.15             # per extra tak die kandidaat en bron delen
+
+# Plekken die de boom niet mag inpikken. Een groot subdomein levert zo veel vakgenoten dat
+# ze de hele shortlist vullen: LDAP heeft er 16 en verdrong daarmee Active Directory, juist
+# de beste vervolgstap (die onder Identity hangt, niet onder Netwerken). Deze plekken gaan
+# op pure keyword-sterkte, zodat de unie ook echt een unie blijft.
+N_KEYWORD_GARANTIE = 12
 
 # specs + catalogus liggen naast dit script (resolven onafhankelijk van de CWD)
 SCHRIJFSPEC = os.path.join(_HERE, "schrijfspec_herschrijven_v1.md")
 HUMANISERING = os.path.join(_HERE, "humanisering_nl.md")
 BEOORDELINGSSPEC = os.path.join(_HERE, "beoordelingsspec_herschrijven_v1.md")
 CATALOG_PATH = os.path.join(_HERE, "vervolgtraining.json")
+TREE_PATH = os.path.join(_HERE, "vervolgtrainingen_tree.json")
 
 # statussen voor routing
 APPROVED = "approved"
@@ -127,7 +153,12 @@ def load_catalog(path: str = CATALOG_PATH) -> list[dict]:
         rijen = list(data.get("trainingen", data.values()))
     else:
         rijen = data
+    return catalog_uit_rijen(rijen)
 
+
+def catalog_uit_rijen(rijen: list[dict]) -> list[dict]:
+    """Normaliseert ruwe catalogusrijen. Los van `load_catalog` zodat tests en notebook
+    een catalogus kunnen samenstellen zonder bestand op schijf."""
     catalog = []
     for rij in rijen:
         if not isinstance(rij, dict):
@@ -148,6 +179,126 @@ def catalog_titles(catalog: list[dict]) -> set[str]:
     return {str(e.get("titel", "")).strip() for e in catalog if e.get("titel")}
 
 
+def _sleutel(titel: str) -> str:
+    """Genormaliseerde titel: kleine letters, zonder soortwoord."""
+    return sjabloon.vervolgtitel(titel).strip().lower()
+
+
+def _losse_sleutel(titel: str) -> str:
+    """Als `_sleutel`, maar zonder spaties en interpunctie.
+
+    Boom en catalogus schrijven dezelfde training soms nét anders: "Claude Co-Work" vs
+    "Claude CoWork", "Timemanagement" vs "Time management", "IT-auditing" vs "IT auditing".
+    Alles weglaten wat geen letter of cijfer is vangt die drie vormen in één regel.
+    Botst wel: "C# Professional" en "C++ Professional" worden hier allebei "cprofessional",
+    dus deze sleutel telt alleen als hij naar precies één catalogusrij wijst.
+    """
+    return re.sub(r"[^a-z0-9]+", "", _sleutel(titel))
+
+
+def _boomblaadjes(node: dict, pad: tuple[str, ...] = ()) -> Any:
+    """Loopt een tak af en levert (pad, bladnaam) per blad.
+
+    Wordt op de kinderen van de wortel aangeroepen, zodat "Trainingscatalogus" niet in
+    elk pad terugkomt: pad[0] is het domein, pad[1] het subdomein.
+    """
+    naam = str(node.get("name") or "")
+    kinderen = node.get("children")
+    if not kinderen:
+        yield pad, naam
+        return
+    for kind in kinderen:
+        if isinstance(kind, dict):
+            yield from _boomblaadjes(kind, pad + (naam,))
+
+
+def load_tree(catalog: list[dict], path: str = TREE_PATH) -> dict:
+    """Taxonomieboom -> index voor de shortlist. Geen bestand = lege index (huidig gedrag).
+
+    De boom deelt het aanbod in drie lagen in (domein > subdomein > onderwerp) en hangt een
+    training desgewenst in meerdere takken. Bladnamen zijn brontitels ("Cursus Wordpress"),
+    dus ze moeten door dezelfde normalisatie als de catalogus voordat ze matchen.
+
+    Bladeren zonder catalogusrij vallen af. Dat is geen detail maar de veiligheidsgarantie
+    van deze index: `check_vervolgstappen` rekent elke titel buiten de catalogus af als HARD
+    `titel_onbekend`, dus wat hier niet resolvet mag nooit als kandidaat naar buiten.
+
+    Levert {"paden": {titelsleutel: [pad, ...]}}: per training de takken waarin hij hangt.
+    """
+    if not catalog or not os.path.exists(path):
+        return {"paden": {}}
+    with open(path, encoding="utf-8") as f:
+        boom = json.load(f)
+
+    exact = {_sleutel(e["bron_titel"]) for e in catalog}
+    # Op de losse sleutel tellen we distinct titels, niet rijen: twee catalogusrijen die op
+    # dezelfde titel normaliseren zijn geen ambiguïteit, twee verschillende titels wel.
+    los: dict[str, set[str]] = {}
+    for sleutel in exact:
+        los.setdefault(_losse_sleutel(sleutel), set()).add(sleutel)
+
+    takken = boom.get("children") if isinstance(boom, dict) else boom
+    paden: dict[str, list[tuple[str, ...]]] = {}
+    for tak in takken or []:
+        if not isinstance(tak, dict):
+            continue
+        for pad, naam in _boomblaadjes(tak):
+            if not pad:
+                continue
+            sleutel = _sleutel(naam)
+            if sleutel not in exact:
+                kandidaten = los.get(_losse_sleutel(naam), set())
+                if len(kandidaten) != 1:   # onbekend, of ambigu (C# vs C++): overslaan
+                    continue
+                sleutel = next(iter(kandidaten))
+            if pad not in paden.setdefault(sleutel, []):
+                paden[sleutel].append(pad)
+    return {"paden": paden}
+
+
+def _tak_bonus(boom: dict, bron_sleutel: str, kandidaat_sleutel: str) -> float:
+    """Hoe dicht staat de kandidaat bij de bron in de boom?
+
+    Zelfde subdomein weegt zwaarder dan zelfde domein, en delen ze meerdere takken, dan
+    telt dat mee -- een training die in drie takken naast de bron hangt is zelden toeval.
+    """
+    bron_paden = boom["paden"].get(bron_sleutel) or []
+    kand_paden = boom["paden"].get(kandidaat_sleutel) or []
+    if not bron_paden or not kand_paden:
+        return 0.0
+    beste, gedeeld = 0.0, 0
+    for bp in bron_paden:
+        for kp in kand_paden:
+            if len(bp) >= 2 and len(kp) >= 2 and bp[:2] == kp[:2]:
+                beste = max(beste, BONUS_SUBDOMEIN)
+                gedeeld += 1
+            elif bp[:1] == kp[:1]:
+                beste = max(beste, BONUS_DOMEIN)
+                gedeeld += 1
+    return beste + BONUS_EXTRA_TAK * max(gedeeld - 1, 0) if beste else 0.0
+
+
+def taxonomie_pad(boom: dict, titel_sleutel: str, bron_sleutel: str = "") -> str:
+    """Het pad als label voor de prompt, bv. "ERP & CRM > CRM & Marketing Platforms".
+
+    Hangt de kandidaat in meerdere takken, dan wint de tak die de bron deelt: dat is het
+    vakgebied waarlangs het model straks moet groeperen.
+    """
+    paden = boom["paden"].get(titel_sleutel) or []
+    if not paden:
+        return ""
+    bron_paden = boom["paden"].get(bron_sleutel) or []
+    def rang(pad: tuple[str, ...]) -> tuple[int, int]:
+        for bp in bron_paden:
+            if len(bp) >= 2 and len(pad) >= 2 and bp[:2] == pad[:2]:
+                return (0, len(pad))
+        for bp in bron_paden:
+            if bp[:1] == pad[:1]:
+                return (1, len(pad))
+        return (2, len(pad))
+    return " > ".join(min(paden, key=rang)[:2])
+
+
 def _idf(catalog: list[dict]) -> dict[str, float]:
     """Inverse document frequency over de catalogus.
 
@@ -164,27 +315,60 @@ def _idf(catalog: list[dict]) -> dict[str, float]:
 
 def shortlist_vervolgtrainingen(catalog: list[dict], titel: str, kern: str,
                                 training_id: Any = None,
-                                n: int = N_SHORTLIST) -> list[dict]:
-    """Trap 1: IDF-gewogen keyword-overlap. Pure Python, nul API-kosten.
+                                n: int = N_SHORTLIST,
+                                boom: dict | None = None) -> list[dict]:
+    """Trap 1: IDF-gewogen keyword-overlap, verrijkt met de taxonomieboom. Nul API-kosten.
 
-    Sluit de training zelf uit op `product_id` -- elke gescoorde training staat ook
-    in de catalogus, dus zonder deze filter beveelt een training zichzelf aan.
+    Keyword-overlap alleen is puur lexicaal en gaat de mist in zodra een training zijn
+    vakgenoten geen woord deelt: XSL kreeg zo "Interieurdesign met Vectorworks" aangeboden.
+    De boom vult dat aan met echte vakgenoten. Andersom vindt de boom niet alles -- LDAP
+    hangt onder Netwerken, terwijl de beste vervolgstap (Active Directory) onder Identity
+    staat. Vandaar de unie: beide leveren kandidaten, de score bepaalt de volgorde.
+
+    Sluit de training zelf uit op `product_id` én op titel -- elke gescoorde training staat
+    ook in de catalogus, dus zonder die filter beveelt een training zichzelf aan.
     """
     if not catalog:
         return []
     idf = _idf(catalog)
     want = _tokens(titel, kern)
     eigen = str(training_id) if training_id is not None else None
-    scored = []
+    eigen_sleutel = _sleutel(titel)
+
+    ruw = []
     for entry in catalog:
         if eigen is not None and str(entry.get("product_id")) == eigen:
             continue
+        sleutel = _sleutel(entry["bron_titel"])
+        if sleutel == eigen_sleutel:
+            continue
         overlap = want & _tokens(entry["titel"], entry["omschrijving"])
         score = sum(idf.get(t, 0.0) for t in overlap)
-        if score > 0:
-            scored.append((score, entry))
+        bonus = _tak_bonus(boom, eigen_sleutel, sleutel) if boom else 0.0
+        if score > 0 or bonus > 0:
+            ruw.append((score, bonus, entry))
+
+    # Keyword-score naar 0..1 zodat de bonus in dezelfde eenheid meetelt; zonder boom is
+    # dat een monotone transformatie en blijft de volgorde exact zoals hij was.
+    hoogste = max((s for s, _, _ in ruw), default=0.0) or 1.0
+    scored = [(s / hoogste + b, s, e) for s, b, e in ruw]
     scored.sort(key=lambda t: -t[0])
-    return [entry for _, entry in scored[:n]]
+    if not boom:
+        return [e for _, _, e in scored[:n]]
+
+    # Eerst de sterkste keyword-treffers vastzetten, dan de rest op de gemengde score.
+    # Andersom zou een volle tak de shortlist monopoliseren.
+    vast = sorted(scored, key=lambda t: -t[1])[:N_KEYWORD_GARANTIE]
+    gekozen_ids = {id(e) for _, _, e in vast}
+    keuze = list(vast)
+    for treffer in scored:
+        if len(keuze) >= n:
+            break
+        if id(treffer[2]) not in gekozen_ids:
+            keuze.append(treffer)
+            gekozen_ids.add(id(treffer[2]))
+    keuze.sort(key=lambda t: -t[0])
+    return [e for _, _, e in keuze[:n]]
 
 
 SUBMIT_VERVOLGSTAPPEN = {
@@ -229,24 +413,39 @@ Verdeel ze over één of twee groepen met elk een korte inleidende zin in de 'je
 eindigt op een dubbele punt. Twee groepen alleen als er echt twee richtingen zijn
 (bijvoorbeeld verdiepen versus verbreden).
 
-Neem titels LETTERLIJK over uit de kandidatenlijst. Verzin er nooit een bij en pas ze niet
-aan. Roep tot slot het tool `submit_vervolgstappen` aan.
+Achter een kandidaat staat tussen blokhaken zijn vakgebied, bijvoorbeeld
+[ERP & CRM > CRM & Marketing Platforms]. Gebruik dat om de groepen langs échte
+vakgrenzen te leggen: kandidaten uit hetzelfde vakgebied als de training verdiepen,
+kandidaten uit een ander vakgebied verbreden. Het is een hulpmiddel, geen verplichting --
+past alles in één richting, maak dan één groep. Noem het vakgebied nooit in de intro en
+neem de blokhaken nooit in een titel over.
+
+Neem titels LETTERLIJK over uit de kandidatenlijst, zonder het deel tussen blokhaken.
+Verzin er nooit een bij en pas ze niet aan. Roep tot slot het tool
+`submit_vervolgstappen` aan.
 """
 
 
 def kies_vervolgtrainingen(client, titel: str, kern: str, persona: str,
-                           shortlist: list[dict]) -> list[dict]:
+                           shortlist: list[dict], boom: dict | None = None,
+                           oude_titel: str = "") -> list[dict]:
     """Trap 2: één goedkope call kiest en groepeert uit de shortlist.
 
-    De catalogus zelf gaat nooit naar de API -- alleen deze ~20 kandidaten. Levert
-    [{intro, titels}]; bij twijfel een lege lijst, dan valt de code terug op de shortlist.
+    De catalogus zelf gaat nooit naar de API -- alleen deze kandidaten. Staat er een boom
+    bij, dan krijgt elke kandidaat zijn vakgebied als label mee, zodat het model de twee
+    groepen langs echte vakgrenzen legt in plaats van op gevoel. Levert [{intro, titels}];
+    bij twijfel een lege lijst, dan valt de code terug op de shortlist.
     """
     if not shortlist or client is None:
         return []
     toegestaan = {e["titel"] for e in shortlist}
-    kandidaten = "\n".join(
-        f"- {e['titel']}: {(e['omschrijving'] or '(geen omschrijving)')[:220]}"
-        for e in shortlist)
+    bron_sleutel = _sleutel(oude_titel or titel)
+    regels = []
+    for e in shortlist:
+        label = taxonomie_pad(boom, _sleutel(e["bron_titel"]), bron_sleutel) if boom else ""
+        kop = f"{e['titel']} [{label}]" if label else e["titel"]
+        regels.append(f"- {kop}: {(e['omschrijving'] or '(geen omschrijving)')[:220]}")
+    kandidaten = "\n".join(regels)
     user_text = (f"Training: {titel}\nPersona: {persona}\nKern: {kern}\n\n"
                  f"Kandidaten:\n{kandidaten}")
     out = _call_tool(client, KIES_VERVOLG_SYSTEM, user_text, [SUBMIT_VERVOLGSTAPPEN],
@@ -256,13 +455,23 @@ def kies_vervolgtrainingen(client, titel: str, kern: str, persona: str,
         return []
 
     # Het model mag alleen kiezen, niet verzinnen: alles buiten de shortlist valt af.
+    # Neemt het het vakgebied-label toch mee, dan strippen we dat eerst; anders sneuvelt
+    # een verder correcte keuze stilletjes. Eerst de titel zoals gegeven, dan pas gestript,
+    # zodat een catalogustitel die zelf op blokhaken eindigt niet wordt afgeknipt.
     groepen, gezien = [], set()
     for groep in out.get("groepen") or []:
         if not isinstance(groep, dict):
             continue
-        titels = [t.strip() for t in (groep.get("titels") or [])
-                  if isinstance(t, str) and t.strip() in toegestaan and t.strip() not in gezien]
-        gezien.update(titels)
+        titels = []
+        for t in groep.get("titels") or []:
+            if not isinstance(t, str):
+                continue
+            gekozen = t.strip()
+            if gekozen not in toegestaan:
+                gekozen = re.sub(r"\s*\[[^\]]*\]$", "", gekozen).strip()
+            if gekozen in toegestaan and gekozen not in gezien:
+                titels.append(gekozen)
+                gezien.add(gekozen)
         if titels:
             groepen.append({"intro": str(groep.get("intro") or "").strip(),
                             "titels": titels[:N_VERVOLG]})
@@ -731,24 +940,29 @@ class RewriteResult:
     writer_out: dict = field(default_factory=dict)   # nodig om één kopje te hergenereren
 
 
-def bepaal_vervolgstappen(client, b: RewriteBriefing,
-                          catalog: list[dict]) -> tuple[list[str], list[dict]]:
+def bepaal_vervolgstappen(client, b: RewriteBriefing, catalog: list[dict],
+                          boom: dict | None = None) -> tuple[list[str], list[dict]]:
     """Twee trappen -> (platte titellijst voor de check, groepen voor de weergave).
 
     Trap 1 is Python en kost niets; trap 2 stuurt alleen de shortlist naar een klein model,
     nooit de hele catalogus. Levert trap 2 niets bruikbaars, dan valt het terug op de
     shortlist zelf -- dan staan er nog steeds echte catalogustitels in de tekst.
+
+    De boom zoekt op de oude titel: dat is de titel die in de catalogus en dus in de
+    taxonomie staat. De nieuwe titel gaat wel naar het model, dat is de tekst-context.
     """
-    shortlist = shortlist_vervolgtrainingen(catalog, b.titel, b.kern, b.training_id)
+    shortlist = shortlist_vervolgtrainingen(catalog, b.titel, b.kern, b.training_id, boom=boom)
     if not shortlist:
         return [], []
-    groepen = kies_vervolgtrainingen(client, b.nieuwe_titel, b.kern, b.persona, shortlist)
+    groepen = kies_vervolgtrainingen(client, b.nieuwe_titel, b.kern, b.persona, shortlist,
+                                     boom=boom, oude_titel=b.titel)
     if groepen:
         return [t for g in groepen for t in g["titels"]], groepen
     return [e["titel"] for e in shortlist[:N_VERVOLG]], []
 
 
-def rewrite_one(client, b: RewriteBriefing, catalog: list[dict]) -> RewriteResult:
+def rewrite_one(client, b: RewriteBriefing, catalog: list[dict],
+                boom: dict | None = None) -> RewriteResult:
     # harde routes eruit (onbruikbaar, of een beslissing waar de reviewer nog niet aan toe is)
     route = b.route_out
     if route:
@@ -759,7 +973,7 @@ def rewrite_one(client, b: RewriteBriefing, catalog: list[dict]) -> RewriteResul
     toegepast = [f"{x.nr}. {x.actie}" + (f" [{x.voorwaarde}]" if x.voorwaarde else "")
                  for x in b.goedgekeurd]
 
-    titels, groepen = bepaal_vervolgstappen(client, b, catalog)
+    titels, groepen = bepaal_vervolgstappen(client, b, catalog, boom)
     ctx = {"catalog_titles": catalog_titles(catalog) if catalog else None, "naam": b.nieuwe_titel}
     writer_system = build_writer_system()
     base_user = build_writer_user(b)
@@ -872,7 +1086,7 @@ def _writer_out_uit_json(resultaat: dict) -> dict:
 
 def hergenereer_kopje(client, b: RewriteBriefing, resultaat: dict, kopje: str,
                       comment: str = "", *, catalog: list[dict] | None = None,
-                      judge: bool = True) -> RewriteResult:
+                      boom: dict | None = None, judge: bool = True) -> RewriteResult:
     """Genereert één kopje opnieuw en bouwt het document opnieuw op.
 
     Zonder `comment` is dit een gewone retry. Met `comment` krijgt de schrijver de
@@ -885,7 +1099,7 @@ def hergenereer_kopje(client, b: RewriteBriefing, resultaat: dict, kopje: str,
     titels = list(vervolg.get("titels") or [])
     groepen = list(vervolg.get("groepen") or [])
     if not titels and catalog:
-        titels, groepen = bepaal_vervolgstappen(client, b, catalog)
+        titels, groepen = bepaal_vervolgstappen(client, b, catalog, boom)
 
     ctx = {"catalog_titles": catalog_titles(catalog) if catalog else None, "naam": b.nieuwe_titel}
     huidig = json.dumps(writer_out.get(kopje), ensure_ascii=False, indent=2)
@@ -1210,8 +1424,9 @@ def hergenereer_kopje_op_schijf(scored_path: str, source_path: str, training_id:
     content_bron = parse_content(src_row[cols["content"]]) if src_row is not None else {}
 
     client = make_client()
+    catalog = load_catalog()
     res = hergenereer_kopje(client, b, resultaat, kopje, comment,
-                            catalog=load_catalog(), judge=judge)
+                            catalog=catalog, boom=load_tree(catalog), judge=judge)
     content_uit = uit.document_to_content(res.document, content_bron) if res.document else {}
     schrijf_training_json(json_dir, training_id, res, content_uit)
     _werk_xlsx_rij_bij(os.path.join(out_dir, "herschreven.xlsx"), res, content_uit, verbose)
@@ -1273,6 +1488,9 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
     catalog = load_catalog()
     if verbose and not catalog:
         print(f"LET OP: {CATALOG_PATH} ontbreekt -> Vervolgstappen-titels leeg/geflagd.")
+    boom = load_tree(catalog)
+    if verbose and catalog and not boom["paden"]:
+        print(f"LET OP: {TREE_PATH} ontbreekt -> vervolgtrainingen alleen op keyword-overlap.")
     client = make_client() if len(scored) else None
 
     cms_records, review_records = [], []
@@ -1309,7 +1527,7 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
             if not naam and src_row is not None:
                 naam = str(src_row[cols["name"]])
             b = build_briefing(scored_dict, content_bron, naam, per_training.get(tid, []))
-            res = rewrite_one(client, b, catalog)
+            res = rewrite_one(client, b, catalog, boom)
 
         content_uit = uit.document_to_content(res.document, content_bron) if res.document else {}
 
