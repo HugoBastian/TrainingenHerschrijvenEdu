@@ -187,7 +187,13 @@ VOORKENNIS_FALLBACK = (
 )
 
 # Kopje 7 -- Doelen: vaste introzin boven de bullets.
-DOELEN_INTRO = "Na deze training heb je handvatten om:"
+#
+# "ben je in staat om" i.p.v. het eerdere "heb je handvatten om": stelliger, en daarmee een
+# directer causaal verband tussen de training en de opbrengst. De te-infinitief blijft precies
+# zo doorlopen ("... in staat om datasets te ontsluiten"), dus de harde doelen-check verandert
+# niet mee. Keerzijde is dat deze zin méér belooft; de schrijfspec vangt dat op met de regel
+# over vergrotende trappen bij begripsgerichte trainingen (zie schrijfspec Sectie 8).
+DOELEN_INTRO = "Na deze training ben je in staat om:"
 
 # Kopje 8 -- Vervolgstappen: drie vaste alinea's rond de catalogustitels.
 VERVOLG_ALINEA_1 = (

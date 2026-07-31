@@ -76,7 +76,7 @@ import sjabloon
 # 1. CONFIG (tune-knoppen bovenaan, net als de scorer)
 # ---------------------------------------------------------------------------
 
-MODEL = "claude-opus-4-8"          # generatie profiteert van Opus; makkelijk te wisselen
+MODEL = "claude-opus-5"          # generatie profiteert van Opus; makkelijk te wisselen
 KLEIN_MODEL = "claude-haiku-4-5"   # keuze uit een shortlist; geen generatie
 MAX_TOKENS = 16000
 THINKING = {"type": "adaptive"}    # adaptieve thinking voor schrijf-/oordeelskwaliteit
@@ -106,6 +106,7 @@ N_KEYWORD_GARANTIE = 12
 # specs + catalogus liggen naast dit script (resolven onafhankelijk van de CWD)
 SCHRIJFSPEC = os.path.join(_HERE, "schrijfspec_herschrijven_v1.md")
 HUMANISERING = os.path.join(_HERE, "humanisering_nl.md")
+STIJLREGISTER = os.path.join(_HERE, "stijlregister_nl.md")
 BEOORDELINGSSPEC = os.path.join(_HERE, "beoordelingsspec_herschrijven_v1.md")
 CATALOG_PATH = os.path.join(_HERE, "vervolgtraining.json")
 TREE_PATH = os.path.join(_HERE, "vervolgtrainingen_tree.json")
@@ -636,9 +637,10 @@ SUBMIT_REWRITE = {
                 "description": "Kopje Aanpak. Alleen de [.....]-invulling: één woord of enkele woorden."},
             "doelen": {"type": "array", "items": {"type": "string"},
                 "description": "Kopje Doelen. 4-5 doelen in de infinitief MET 'te', aansluitend op de "
-                               "vaste introzin 'Na deze training heb je handvatten om:' — dus "
+                               "vaste introzin 'Na deze training ben je in staat om:' — dus "
                                "'Dashboards te bouwen die de juiste vraag beantwoorden', niet "
-                               "'Dashboards bouwen'. Hoofdletter aan het begin, zonder de introzin."},
+                               "'Dashboards bouwen'. Herhaal 'in staat' niet; dat staat al in de "
+                               "introzin. Hoofdletter aan het begin, zonder de introzin."},
             "kortste_omschrijving": {"type": "string",
                 "description": "Kopje Kortste omschrijving. Max 200 tekens, begint met 'Wil je …'. Ingedikte versie van Overzicht."},
             "nieuwe_titel": {"type": "string",
@@ -702,6 +704,17 @@ GOUD_VOORBEELDEN = (2730, 3046, 3101, 3125)
 GOUD_DIR = os.path.join(_HERE, "herschreven", "goud")
 
 
+# Het goud dateert van vóór de huidige introzin: 47 van de 78 trainingen openen hun doelen met
+# "Na deze training heb je handvatten om:". Als few-shot demonstreert dat precies de zin die de
+# schrijfspec verbiedt. De bullets eronder zijn al te-infinitief en lopen ongewijzigd door op de
+# nieuwe zin, dus alleen de introregel hoeft om.
+_GOUD_DOELEN_INTRO_RE = re.compile(r"^Na deze training[^\n]*", re.I)
+
+
+def _actualiseer_doelen_intro(tekst: str) -> str:
+    return _GOUD_DOELEN_INTRO_RE.sub(sjabloon.DOELEN_INTRO, tekst, count=1)
+
+
 def goud_voorbeelden(n: int = 2, goud_dir: str = GOUD_DIR) -> str:
     """Twee voorbeelden uit het goud, als tekstblok voor de gecachete system-prefix.
 
@@ -720,6 +733,8 @@ def goud_voorbeelden(n: int = 2, goud_dir: str = GOUD_DIR) -> str:
         for kop, sleutel in (("Overzicht", "summary"), ("Modules", "modules"),
                              ("Doelen", "objectives")):
             tekst = clean_text(c.get(sleutel, ""), d.get("titel", ""))
+            if sleutel == "objectives":
+                tekst = _actualiseer_doelen_intro(tekst)
             if tekst:
                 blok.append(f"**{kop}**\n{tekst}")
         delen.append("\n\n".join(blok))
@@ -730,7 +745,7 @@ def goud_voorbeelden(n: int = 2, goud_dir: str = GOUD_DIR) -> str:
 
 
 def build_writer_system() -> list[dict]:
-    prefix = (_read(SCHRIJFSPEC) + "\n\n---\n\n" + _read(HUMANISERING))
+    prefix = "\n\n---\n\n".join([_read(SCHRIJFSPEC), _read(HUMANISERING), _read(STIJLREGISTER)])
     voorbeelden = goud_voorbeelden()
     if voorbeelden:
         prefix += "\n\n---\n\n" + voorbeelden
@@ -743,7 +758,15 @@ def build_writer_system() -> list[dict]:
 
 
 def build_judge_system() -> list[dict]:
-    prefix = _read(BEOORDELINGSSPEC)
+    """Beoordelingsspec + dezelfde stijlbestanden als de schrijver.
+
+    De beoordelingsspec verwees al naar `humanisering_nl.md` zonder dat de judge dat bestand
+    ooit te zien kreeg -- hij kon LLM-frasen en verboden woorden dus niet handhaven. Schrijver
+    en judge horen tegen dezelfde definitie van "goed" te oordelen, dus krijgen ze hier
+    letterlijk dezelfde stijlteksten. Het goud gaat níét mee: dat is schrijfmateriaal.
+    """
+    prefix = "\n\n---\n\n".join([_read(BEOORDELINGSSPEC), _read(HUMANISERING),
+                                 _read(STIJLREGISTER)])
     return [{"type": "text", "text": prefix, "cache_control": {"type": "ephemeral"}}]
 
 

@@ -11,6 +11,10 @@ oordeelt tegen de schrijfspec; hij bedenkt geen nieuwe regels.
 > al gedraaid; harde lengte-/format-fouten zijn er dus in principe uit. Jouw taak is het
 > *inhoudelijke* oordeel dat code niet kan geven. Roep tot slot `submit_judgment` aan.
 
+> Onder deze spec staan `humanisering_nl.md` en `stijlregister_nl.md` — dezelfde twee
+> bestanden die de schrijver kreeg. Waar deze spec ernaar verwijst, kun je ze dus echt
+> nalezen in plaats van gokken.
+
 ---
 
 ## 1. Per-sectie oordeel (pass/fail + reden)
@@ -18,13 +22,14 @@ oordeelt tegen de schrijfspec; hij bedenkt geen nieuwe regels.
 Beoordeel elk generatief kopje tegen de schrijfspec. Geef `pass` of `fail` + één zin waarom.
 Let per kopje op de *inhoudelijke* kern (niet de lengte — dat deed de code al):
 
-- **Overzicht (1):** echte "Wil je …"-haak? voordelen i.p.v. losse features? persona-toon? geen marketing?
-- **Inleiding (2):** verdiepend t.o.v. (1), geen herhaling? praktijkgericht? tools ondergeschikt aan wat de deelnemer leert?
-- **Modules (3):** modules niet-overlappend en dekkend voor het aantal dagen/niveau? actief geformuleerd? sub-bullets vormen een sluitend verhaal?
+- **Overzicht (1):** echte "Wil je …"-haak? voordelen i.p.v. losse features? persona-toon? geen marketing? Staat er "kunnen" waar wij handvatten bieden maar de deelnemer het resultaat levert ("je eigen website *kunnen* bouwen")?
+- **Inleiding (2):** verdiepend t.o.v. (1), geen herhaling? praktijkgericht? tools ondergeschikt aan wat de deelnemer leert? Landen de USP's in één van de twee registers uit `stijlregister_nl.md` §A ("wat wij bieden" / "wat jij mag verwachten"), met "we" of "je" als onderwerp?
+- **Modules (3):** modules niet-overlappend en dekkend voor het aantal dagen/niveau? actief geformuleerd? sub-bullets parallel en samen een sluitend verhaal?
 - **Doelgroep (5):** op *bereiken* gericht, geen functietitels/"professionals"?
 - **Voorkennis (6):** juiste keuze wel/niet-voorkennis gezien niveau/programma?
-- **Doelen (7):** staat elke bullet in de infinitief mét "te", zodat hij doorloopt op "Na deze training heb je handvatten om:"? Concreet en realistisch, geen vage "inzicht toepassen"?
-- **Kortste omschrijving (9):** dezelfde belofte als (1), ingedikt, echte "Wil je …"-haak?
+- **Doelen (7):** staat elke bullet in de infinitief mét "te", zodat hij doorloopt op "Na deze training ben je in staat om:"? Concreet en realistisch, geen vage "inzicht toepassen"?
+  **Let extra op stelligheid.** Die introzin is stellig en maakt overpromising makkelijk. Past de belofte bij het niveau, het aantal dagen en de persona, of had hier een vergrotende trap gemoeten ("gerichter mee te praten" i.p.v. "te beheersen", zie `stijlregister_nl.md` §E)? Bij begripsgerichte en brede overzichtstrainingen is die vergrotende trap de eerlijke vorm; bij persona A en concrete vaardigheden mag de belofte juist direct zijn. Dit is een oordeel dat de code niet kan geven — het is expliciet jouw taak.
+- **Kortste omschrijving (9):** dezelfde belofte als (1), ingedikt, echte "Wil je …"-haak? Dezelfde "kunnen"-afweging als bij (1).
 
 De vaste secties (Aanpak 6, Vervolgstappen 8, het bedrijfstrainingblok onder Inleiding en
 Certificatie 10) beoordeel je niet op schrijfkwaliteit — die plaatst de code. Check bij
@@ -67,7 +72,9 @@ Rapporteer per twijfelgeval het specifieke citaat en waarom het wel/niet gegrond
 ## 3. Persona- en toon-check
 
 - Klopt de toon met de opgegeven persona (A zakelijk/technisch · B toegankelijk/geruststellend · C strategisch/verbindend)?
-- "je"-vorm consequent? Geen marketingtaal/superlatieven? Geen LLM-frasen (zie `humanisering_nl.md`)?
+- "je"-vorm consequent? Geen marketingtaal/superlatieven? Geen LLM-frasen (zie `humanisering_nl.md`, hieronder meegeleverd)?
+- **Actief boven passief?** Is "we" of "je" het onderwerp, of staat er een passieve constructie zonder onderwerp ("er wordt aandacht besteed aan …")?
+- **Verboden woorden** (`humanisering_nl.md` §D): "professional(s)", "je houdt je bezig met", "meeting". De code-check vangt deze af, maar hij kent alleen letterlijke vormen — een omschrijving die hetzelfde doet ("je bent dagelijks bezig met …") is óók fout.
 - Consistente kern door alle kopjes heen (geen tegenstrijdig onderwerp tussen 1, 2 en 3)?
 
 ---

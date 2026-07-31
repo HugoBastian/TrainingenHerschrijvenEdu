@@ -29,13 +29,14 @@ het model.
 | `sjabloon.py` | Datzelfde template als code. **Enige plek** voor vaste teksten en kopstructuur. |
 | `schrijfspec_herschrijven_v1.md` | Systeem-prompt van de schrijver: imperatieve regels per kopje. |
 | `beoordelingsspec_herschrijven_v1.md` | Judge-spec, afgeleid uit dezelfde bron zodat judge en schrijver convergeren. |
-| `humanisering_nl.md` | NL LLM-taal regels + machine-leesbare `BANNED_PATTERNS`. |
+| `humanisering_nl.md` | Wat je níét schrijft: NL LLM-taal, verboden woorden (§D) + machine-leesbare `BANNED_PATTERNS`. |
+| `stijlregister_nl.md` | Wat je wél schrijft: registers, causale constructies, actieve werkwoorden, vergrotende trappen. Van de schrijfstijl-eigenaar. |
 | `besluiten.py` | De besluitenlaag: `actie_besluit` → expliciete doen/niet/mits per actie. |
 | `rewrite_checks.py` | Deterministische code-check: `Issue`-lijsten, hard-fail vs flag. |
 | `rewrite_output.py` | Document → CMS-`content`-JSON (HTML) en → markdown met kop 1/2/3. |
 | `rewrite_trainings.py` | Hybride schrijver + orchestratie + I/O. |
 | `herschrijven.ipynb` | Notebook om de pijplijn stap voor stap te draaien en te inspecteren. |
-| `test_rewrite.py` | 69 offline tests (geen API-key nodig). |
+| `test_rewrite.py` | 80 offline tests (geen API-key nodig). |
 
 ## Setup
 
@@ -158,6 +159,26 @@ few-shot mee in de gecachete system-prefix van de schrijver. De rest is meetlat:
 bij meer dan de helft van het corpus om, dan is de regel verdacht en niet de training (59 van
 de 78 falen bijvoorbeeld de Inleiding-lengte). Verander je een check, draai dit dan opnieuw en
 werk `GOUD_VOORBEELDEN` bij.
+
+Het goud dateert van vóór de huidige Doelen-introzin: 47 van de 78 openen nog met "Na deze
+training heb je handvatten om:". `goud_voorbeelden()` vervangt die regel bij het opbouwen van
+de few-shot door `sjabloon.DOELEN_INTRO`, zodat het voorbeeld niet de zin demonstreert die de
+schrijfspec verbiedt. De bullets eronder staan al in de te-infinitief en lopen ongewijzigd door.
+
+### De stijl-lagen
+
+Stijl zit bewust in drie soorten lagen, met een strikte werkverdeling:
+
+| Laag | Waar | Voor |
+| --- | --- | --- |
+| Vaste tekst | `sjabloon.py` | Zinnen die de code invoegt; de schrijver raakt ze niet aan. |
+| Prompt | `schrijfspec` (regels) · `humanisering_nl.md` (verboden) · `stijlregister_nl.md` (register) | Alles wat oordeel vraagt. Gaat naar schrijver én judge. |
+| Check | `rewrite_checks.py` | Alleen wat deterministisch te betrappen is. |
+
+Positieve stijlvoorkeur ("gebruik een vergrotende trap waar het doel begrip is") hoort per
+definitie in de promptlaag: code kan niet zien of een woord raak gekozen is. Een verbodslijst
+hoort in beide — de tekst in `humanisering_nl.md`, de regex in `rewrite_checks.py`. Die twee
+zijn een handmatige spiegel; wijk je in de één af, dan lopen schrijver en check uiteen.
 
 ### Notebook
 

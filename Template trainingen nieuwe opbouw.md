@@ -34,7 +34,7 @@ De training wordt verzorgd door trainers uit de praktijk, die ervaring hebben in
 
 ## Doelen
 
-Na deze training heb je handvatten om:
+Na deze training ben je in staat om:
 
 * 
 

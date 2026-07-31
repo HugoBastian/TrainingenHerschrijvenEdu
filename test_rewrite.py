@@ -116,6 +116,49 @@ def test_doelgroep_professionals():
     assert "professionals" in _codes(check_rewrite(rw, _CTX), HARD)
 
 
+# ---------------------------------------------------------------------------
+# Verboden woorden (humanisering_nl.md Sectie D)
+# ---------------------------------------------------------------------------
+
+def test_professionals_is_hard_in_elk_kopje():
+    """Het verbod gold alleen in doelgroep; het geldt nu overal."""
+    rw = _good_rewrite()
+    rw["inleiding"] = rw["inleiding"].replace("onderwerp", "professionals", 1)
+    assert "professionals" in _codes(check_rewrite(rw, _CTX), HARD)
+
+
+def test_professionals_in_de_titel_blijft_toegestaan():
+    """"Training PHP Professional" bestaat echt; die training moet zichzelf kunnen noemen."""
+    rw = _good_rewrite()
+    rw["nieuwe_titel"] = "Training PHP Professional"
+    ctx = dict(_CTX, naam="Training PHP Professional")
+    assert "professionals" not in _codes(check_rewrite(rw, ctx), HARD)
+
+
+def test_professionals_degradeert_naar_flag_bij_professional_titel():
+    rw = _good_rewrite()
+    rw["doelgroep"] = "Deze training is voor iedereen die de PHP Professional-stof wil beheersen."
+    ctx = dict(_CTX, naam="Training PHP Professional")
+    codes = _codes(check_rewrite(rw, ctx))
+    assert "professionals" in codes
+    assert "professionals" not in _codes(check_rewrite(rw, ctx), HARD)
+
+
+def test_bezig_met_is_hard():
+    rw = _good_rewrite()
+    rw["overzicht"] = rw["overzicht"].replace(
+        "Wil je", "Wil je weten waarmee je houdt je bezig met data en", 1)
+    assert "bezig_met" in _codes(check_rewrite(rw, _CTX), HARD)
+
+
+def test_meeting_is_flag_geen_hard_fail():
+    """Vakterm in Scrum/Agile/Teams-trainingen, dus signaleren en niet blokkeren."""
+    rw = _good_rewrite()
+    rw["doelgroep"] = "Deze training is voor iedereen die elke meeting beter wil voorbereiden."
+    assert "meeting" in _codes(check_rewrite(rw, _CTX), FLAG)
+    assert "meeting" not in _codes(check_rewrite(rw, _CTX), HARD)
+
+
 def test_doelgroep_verkeerde_opening():
     rw = _good_rewrite()
     rw["doelgroep"] = "Voor iedereen die met data werkt."
@@ -156,6 +199,31 @@ def test_doelen_onregelmatige_infinitief_is_goed():
     rw["doelen"][0] = "Data te zien als basis voor besluitvorming"
     rw["doelen"][1] = "Om te gaan met tegenstrijdige belangen in het team"
     assert "geen_te_infinitief" not in _codes(check_rewrite(rw, _CTX), HARD)
+
+
+def test_doelen_herhalen_in_staat_niet():
+    """De introzin zegt al "ben je in staat om"; een bullet mag dat niet dubbelen."""
+    rw = _good_rewrite()
+    rw["doelen"][0] = "In staat te zijn om heldere dashboards te bouwen"
+    assert "dubbel_in_staat" in _codes(check_rewrite(rw, _CTX), FLAG)
+
+
+def test_doelen_inzicht_constructie_is_goed():
+    """"Inzicht te krijgen in ..." is een aanbevolen causale constructie, geen fout."""
+    rw = _good_rewrite()
+    rw["doelen"][0] = "Inzicht te krijgen in de kosten van je datamodel"
+    codes = _codes(check_rewrite(rw, _CTX))
+    assert "geen_te_infinitief" not in codes
+    assert "dubbel_in_staat" not in codes
+
+
+def test_doelen_lopen_door_op_de_vaste_introzin():
+    """Elke bullet moet als één zin achter sjabloon.DOELEN_INTRO te lezen zijn."""
+    rw = _good_rewrite()
+    assert sjabloon.DOELEN_INTRO.endswith("om:")
+    for bullet in rw["doelen"]:
+        zin = f"{sjabloon.DOELEN_INTRO[:-1]} {bullet[0].lower()}{bullet[1:]}"
+        assert " te " in zin, zin
 
 
 def test_kortste_te_lang():

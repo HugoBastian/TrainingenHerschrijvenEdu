@@ -39,19 +39,34 @@ talloze, diverse (zonder specificatie).
 - **Slot-aanmoediging** ("Zet vandaag nog de eerste stap!", "Waar wacht je nog op?").
 - **Overmatig bijwoord-gebruik** ("echt", "gewoon", "simpelweg", "daadwerkelijk").
 
-## D. Toon-correcties (herschrijven, geen harde flag)
+## D. Woorden die we niet gebruiken (hard, behalve waar vermeld)
+
+Aangeleverd door de schrijfstijl-eigenaar. Anders dan §B is dit geen smaakkwestie: deze
+woorden gaan er altijd uit.
+
+- **"professional(s)"** — schrijf waar iemand naartoe wil, niet wat iemand ís. [hard]
+  Uitzondering: staat het woord in de trainingstitel zelf ("Training PHP Professional"), dan
+  mag de tekst die titel gewoon noemen; dat wordt een flag, geen fout.
+- **"je houdt je bezig met"** — vult een zin zonder iets te zeggen; noem de handeling. [hard]
+- **"meeting"** — gebruik "overleg", "sessie" of "bijeenkomst". [flag] Het blijft een flag
+  omdat het in Scrum-, Agile- en Teams-trainingen een vakterm kan zijn.
+
+## E. Toon-correcties (herschrijven, geen harde flag)
 
 - Vervang abstracties door concrete werksituaties (stijlgids: vermijd "realistische werksituaties").
-- Actief boven passief; werkwoord vooraan waar mogelijk.
+- Actief boven passief; werkwoord vooraan waar mogelijk. Maak "we" of "je" het onderwerp,
+  nooit een passieve constructie zonder onderwerp ("er wordt aandacht besteed aan …").
 - Één idee per zin; knip lange samengestelde zinnen.
 - Nederlands, geen onnodige Engelse buzzwords (tenzij vakterm).
 
 ---
 
-## E. `BANNED_PATTERNS` (machine-leesbaar, voor `rewrite_checks.py`)
+## F. `BANNED_PATTERNS` (machine-leesbaar, voor `rewrite_checks.py`)
 
 Regex-fragmenten, hoofdletter-ongevoelig, als **flag** (niet hard-fail). De lijst is
-bewust conservatief: liever een terechte flag dan een valse hard-fail.
+bewust conservatief: liever een terechte flag dan een valse hard-fail. De harde verboden uit
+§D staan hier bewust niet in; die hebben hun eigen check (`check_verboden_woorden`) omdat ze
+een uitzondering op de trainingstitel nodig hebben.
 
 ```
 in de (snel veranderende|hedendaagse|moderne|dynamische) wereld van

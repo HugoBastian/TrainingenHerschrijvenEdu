@@ -110,11 +110,16 @@ _SOORTWOORD_RE = re.compile(
     r"\b(?:cursus(?:sen|se)?|opleiding(?:en)?|gebruikerscursus|examencursus|leergang(?:en)?)\b",
     re.I)
 
-# Doelen staan in de te-infinitief, aansluitend op "Na deze training heb je handvatten om:".
+# Doelen staan in de te-infinitief, aansluitend op "Na deze training ben je in staat om:".
 # Twee vormen: aaneengesloten ("te formuleren") en gesplitst ("voor te bereiden"). De meeste
 # infinitieven eindigen op -en; de onregelmatige korte vormen staan er expliciet bij.
 _TE_INFINITIEF_RE = re.compile(
     r"\bte\s+(?:\w+en|zijn|doen|gaan|staan|slaan|zien|hebben)\b", re.I)
+
+# "In staat zijn om ..." is een van de aanbevolen causale constructies, maar hij zit al in de
+# introzin: als bullet levert hij "ben je in staat om in staat te zijn om ...". Flag, geen hard
+# fail -- de zin is niet fout, alleen dubbel.
+_IN_STAAT_RE = re.compile(r"\bin staat\b", re.I)
 
 
 def word_count(text: str) -> int:
@@ -292,9 +297,8 @@ def check_doelgroep(rw: dict) -> list[Issue]:
     if not _startswith_ci(t, "deze training is voor"):
         issues.append(Issue("doelgroep", HARD, "opening",
                             'moet beginnen met "Deze training is voor …".'))
-    if re.search(r"\bprofessionals?\b", t, re.I):
-        issues.append(Issue("doelgroep", HARD, "professionals",
-                            'gebruik het woord "professionals" niet.'))
+    # "professionals" stond hier als losse doelgroep-regel; die geldt inmiddels voor élk
+    # kopje en zit in check_verboden_woorden, inclusief de uitzondering op de trainingstitel.
     if sentence_count(t) > 1:
         issues.append(Issue("doelgroep", FLAG, "een_zin", "moet één compacte zin zijn."))
     return issues
@@ -322,10 +326,14 @@ def check_doelen(rw: dict) -> list[Issue]:
         if not _TE_INFINITIEF_RE.search(b):
             issues.append(Issue("doelen", HARD, "geen_te_infinitief",
                                 f"doel {idx} staat niet in de infinitief met 'te'; het moet "
-                                f"aansluiten op \"Na deze training heb je handvatten om:\" "
+                                f"aansluiten op \"Na deze training ben je in staat om:\" "
                                 f"(bv. 'Dashboards te bouwen die de juiste vraag beantwoorden')."))
         if re.search(r"\binzicht toepassen\b", b, re.I):
             issues.append(Issue("doelen", FLAG, "vaag", f"doel {idx} is vaag ('inzicht toepassen')."))
+        if _IN_STAAT_RE.search(b):
+            issues.append(Issue("doelen", FLAG, "dubbel_in_staat",
+                                f"doel {idx} herhaalt 'in staat'; dat staat al in de introzin "
+                                f"(\"... ben je in staat om in staat te zijn om ...\")."))
     return issues
 
 
@@ -358,6 +366,34 @@ def check_vervolgstappen(rw: dict, ctx: dict | None) -> list[Issue]:
         if titel.strip().lower() not in catalog_norm:
             issues.append(Issue("vervolgstappen", HARD, "titel_onbekend",
                                 f"'{titel}' staat niet in de catalogus; verzin geen titels."))
+    return issues
+
+
+def check_verboden_woorden(rw: dict, ctx: dict | None = None) -> list[Issue]:
+    """De verbodslijst uit humanisering_nl.md Sectie D.
+
+    Draait bewust alléén over de prozavelden, dus zonder `nieuwe_titel`: 18 van de 779
+    catalogustitels bevatten "Professional" ("Training PHP Professional", "Training C#
+    Professional"). Een harde titelcheck zou die trainingen onherstelbaar laten falen.
+
+    Om dezelfde reden degradeert het verbod naar een flag zodra de trainingsnaam zelf het
+    woord bevat: zo'n training moet zichzelf in de lopende tekst kunnen noemen.
+    """
+    naam = (ctx or {}).get("naam") or ""
+    prof_severity = FLAG if re.search(r"professional", naam, re.I) else HARD
+    regels = (
+        (re.compile(r"\bprofessionals?\b", re.I), prof_severity, "professionals",
+         'gebruik het woord "professional(s)" niet; schrijf waar iemand naartoe wil.'),
+        (re.compile(r"\bje\s+hou[dt]t?\s+je\s+bezig\s+met\b", re.I), HARD, "bezig_met",
+         '"je houdt je bezig met" zegt niets; noem de handeling zelf.'),
+        (re.compile(r"\bmeetings?\b", re.I), FLAG, "meeting",
+         'vermijd "meeting"; gebruik "overleg", "sessie" of "bijeenkomst".'),
+    )
+    issues = []
+    for section, text in _all_text_fields(rw):
+        for rx, severity, code, boodschap in regels:
+            if rx.search(text):
+                issues.append(Issue(section, severity, code, boodschap))
     return issues
 
 
@@ -395,6 +431,7 @@ def check_rewrite(rewrite: dict, ctx: dict | None = None) -> list[Issue]:
     issues += check_kortste_omschrijving(rw)
     issues += check_vervolgstappen(rw, ctx)
     issues += check_soortwoorden(rw)
+    issues += check_verboden_woorden(rw, ctx)
     issues += check_generic(rw)
     return issues
 
@@ -410,7 +447,7 @@ if __name__ == "__main__":
             {"titel": "M3", "bullets": ["a", "b", "c"]},
             {"titel": "M4", "bullets": ["a", "b", "c", "d", "e"]},
         ]},
-        "doelgroep": "Deze training is voor iedereen die data beter wil benutten.",
+        "doelgroep": "Deze training is voor professionals die data beter willen benutten.",
         "voorkennis": "Specifieke voorkennis voor het volgen van deze training is niet noodzakelijk.",
         "doelen": ["Dashboards te bouwen die de juiste vraag beantwoorden",
                    "Datasets op te schonen en samen te voegen voor analyse",
@@ -420,6 +457,13 @@ if __name__ == "__main__":
         "kortste_omschrijving": "Wil je slimmer met data werken en betere keuzes maken?",
         "nieuwe_titel": "Training Data",
     }
-    for issue in check_rewrite(demo, {"catalog_titles": {"Training Power BI"}, "naam": "Data"}):
+    ctx = {"catalog_titles": {"Training Power BI"}, "naam": "Training Data"}
+    for issue in check_rewrite(demo, ctx):
         print(issue)
-    print("hard fails:", len(hard_fails(check_rewrite(demo))))
+    print("hard fails:", len(hard_fails(check_rewrite(demo, ctx))))
+
+    # Dezelfde tekst, maar nu heet de training zelf "Professional": het verbod degradeert
+    # naar een flag, zodat de training zichzelf mag noemen.
+    ctx_prof = dict(ctx, naam="Training PHP Professional")
+    print("hard fails met 'Professional' in de titel:",
+          len(hard_fails(check_rewrite(demo, ctx_prof))))

@@ -5,6 +5,9 @@ beoordelingsspec (`beoordelingsspec_herschrijven_v1.md`) is afgeleid: schrijver 
 delen bewust dezelfde definitie van "goed". Gedistilleerd uit
 `Format_Specificatie_Herschrijven.md` tot imperatieve, checkbare regels per kopje.
 
+Twee bestanden horen erbij en worden samen met deze spec ingeladen: `humanisering_nl.md`
+(wat je níét schrijft) en `stijlregister_nl.md` (het register waaruit je wél put).
+
 > Je herschrijft een bestaande training naar de nieuwe stijl in **tien kopjes**. Je krijgt:
 > de brontekst, de kern, het aantal dagen, de gekozen persona, de feiten
 > (`bruikbaar` / `strippen` / `gaten`), de goedgekeurde actualiteit-acties en
@@ -20,7 +23,7 @@ Checkbaar, hard tenzij anders vermeld:
 0. **Alles heet een "training".** Nooit "cursus", "opleiding" of "leergang" — ook niet als de brontekst die woorden overal gebruikt, en ook niet in de titel. "Examentraining", "Masterclass" en "Workshop" mogen wel. De code levert een titel in de nieuwe stijl aan ("Cursus XML" → "Training XML"); neem die over. [hard]
 1. **"je"-vorm, nooit "u".** De bron mag in de u-vorm staan; jij zet alles om naar je/jouw/jij.
 2. **Geen marketingtaal, superlatieven of beloftes.** Geen "de beste", "uniek", "gegarandeerd", "in no-time", "moeiteloos".
-3. **Actief en concreet.** Actieve werkwoorden; geen vage termen ("realistische werksituaties", "diverse aspecten", "in de wereld van …").
+3. **Actief en concreet.** Actieve werkwoorden; geen vage termen ("realistische werksituaties", "diverse aspecten", "in de wereld van …"). **Vermijd passieve constructies**: maak óf onszelf ("we") óf de klant ("je") het onderwerp. "Er wordt aandacht besteed aan datakwaliteit" haalt de partij weg die de waarde levert; "We nemen jouw datakwaliteitsvraagstukken als uitgangspunt" niet.
 4. **Zinnen ≤ ±20 woorden.** Vermijd herhaling en overbodige uitleg.
 5. **USP's impliciet verwerken, nooit als losse claim of opsomming.** De drie Eduvision-USP's zijn het *fundament*, geen bulletpoints:
    - trainingen sluiten aan op jouw doelen;
@@ -30,7 +33,10 @@ Checkbaar, hard tenzij anders vermeld:
 7. **Feitgetrouw.** Elke inhoudelijke claim is herleidbaar tot `bruikbaar` of de brontekst. Verzin **geen** feiten over versies, vendors, features of cijfers. Zie §12.
 8. **Kopstructuur** (zie `Template trainingen nieuwe opbouw.md`): de trainingstitel is kop 1, elk kopje is kop 2, en het bedrijfstrainingblok onder Inleiding is kop 3. De code plaatst die koppen; jij levert alleen de tekst eronder.
 9. **Output = alleen de gevraagde tekst** per kopje. Geen toelichting, geen meta-uitleg, geen koppen mee-genereren die de code al plaatst.
-10. **Volg de NL-humaniseerregels** in `humanisering_nl.md` (verboden LLM-frasen).
+10. **Volg de NL-humaniseerregels** in `humanisering_nl.md` (verboden LLM-frasen én de verboden woorden in §D: "professional(s)", "je houdt je bezig met", "meeting").
+11. **Put uit het stijlregister** in `stijlregister_nl.md`: registers voor "wat wij bieden" versus "wat jij mag verwachten", causale constructies, actieve werkwoorden en vergrotende trappen. Dat is een voorraadkast, geen afvinklijst — twee rake keuzes zijn beter dan tien afgevinkte woorden.
+12. **Maak het causale verband zichtbaar** tussen wat wij doen en wat jij daarna kunt. Niet "het onderwerp is belangrijk", maar "doordat we X doen, kun jij Y". Dit is de rode draad door alle kopjes.
+13. **Elk element van een opsomming loopt zelfstandig door op de introzin.** Herhaal het voorzetsel ("te", "om", "van") en houd de constructie parallel, zodat elk element los gelezen kan worden. Geldt voor bullets én voor opsommingen in lopende tekst: "Je kunt datavraagstukken gestructureerd analyseren, beleid vertalen naar de praktijk, adviseren over datakwaliteit en governance, en bijdragen aan de professionalisering van Data Stewardship" — elk deel hangt daar zelfstandig aan "je kunt".
 
 ---
 
@@ -56,6 +62,7 @@ De persona is meegegeven (default van de scorer, kan door een mens overschreven 
 - Benoem het concrete resultaat na afloop (wat kan de deelnemer beter/anders?).
 - Nadruk op: slimmer werken, kwaliteit verhogen, meer grip op het werk.
 - Focus op vaardigheden en impact, niet op losse tools/functionaliteiten — **maar** als de training draait om een specifieke tool/taal/software, benoem die expliciet.
+- **Voeg "kunnen" in waar wij handvatten bieden maar het resultaat niet leveren.** Wij trainen; de deelnemer bouwt. "Wil je je eigen website *kunnen* bouwen?" belooft wat we waarmaken, "Wil je je eigen website bouwen?" niet. Leidt onze input wél direct tot het resultaat, laat "kunnen" dan juist weg — het verzwakt de zin.
 
 **Goed (begin):** "Wil je datagedreven beslissingen nemen zonder te verdrinken in spreadsheets? …"
 **Fout:** "Deze unieke training neemt je mee in de wereld van data en biedt talloze mogelijkheden." (marketingtaal, geen vraag, vaag)
@@ -71,6 +78,7 @@ De persona is meegegeven (default van de scorer, kan door een mens overschreven 
 - Verdiepend t.o.v. het Overzicht; geen herhaling ervan.
 - Schrijf **niet** het blok "Deze training bieden we ook als bedrijfstraining …"; dat plaatst de code als kop 3 onder dit kopje. [hard]
 - Dek in de tekst: (a) wat je leert/ontwikkelt vertaald naar concrete voordelen; (b) hoe de training is opgebouwd (praktijkgericht, voorbeelden, trainers uit de praktijk); (c) mogelijkheid tot afstemming op organisatie/team (zonder het woord "maatwerk").
+- **Schrijf (b) en (c) in één van de twee registers uit `stijlregister_nl.md` §A**: "wat wij bieden" (onderwerp: we) of "wat jij mag verwachten" (onderwerp: je). Wissel ze af, zodat de tekst niet eenzijdig wordt. Zo landen de USP's als concrete belofte in plaats van als losse claim.
 - Tools alleen noemen waar relevant en **ondergeschikt** aan wat de deelnemer leert.
 - USP's als impliciet fundament.
 
@@ -91,7 +99,8 @@ De persona is meegegeven (default van de scorer, kan door een mens overschreven 
 - **Geen HTML.** Modules = hoofd-bullets, inhoud = sub-bullets. [hard]
 - Passend bij het **aantal dagen** en **niveau/type** (foundations vs professional): een compleet programma dat de dagen vult, niet dun of overlappend.
 - Neem het bron-programma ("modules") als uitgangspunt; splits/verdiep waar nodig; geen overlap tussen modules.
-- Actieve formuleringen (wat leert/doet de deelnemer). Geen herhaling van intro/opzet/leerdoelen, geen marketing.
+- Actieve formuleringen (wat leert/doet de deelnemer). Geen herhaling van intro/opzet/leerdoelen, geen marketing. Put voor de werkwoorden uit `stijlregister_nl.md` §C.
+- Sub-bullets binnen één module zijn parallel geformuleerd (§0.13): dezelfde constructie, voorzetsel en hulpwerkwoord herhaald waar dat de bullet zelfstandig leesbaar maakt.
 - Sub-bullets vormen samen een sluitend verhaal voor die module.
 
 ---
@@ -143,19 +152,22 @@ De code voegt onderstaande **twee vaste alinea's** in. Het enige wat jij levert 
 **Doel:** in één oogopslag wat deelnemers na afloop kennen en kunnen.
 
 **Regels (checkbaar):**
-- **Begint met exact: "Na deze training heb je handvatten om:".** [hard] (plaatst de code)
+- **Begint met exact: "Na deze training ben je in staat om:".** [hard] (plaatst de code)
 - **4–5 bullets.** [hard]
-- **Elke bullet staat in de infinitief mét "te" en loopt door op die introzin.** [hard] Lees het altijd hardop als één zin: "Na deze training heb je handvatten om … dashboards **te bouwen**". Zowel de aaneengesloten vorm ("te formuleren") als de gesplitste vorm ("voor **te** bereiden", "uit **te** oefenen") is goed.
+- **Elke bullet staat in de infinitief mét "te" en loopt door op die introzin.** [hard] Lees het altijd hardop als één zin: "Na deze training ben je in staat om … dashboards **te bouwen**". Zowel de aaneengesloten vorm ("te formuleren") als de gesplitste vorm ("voor **te** bereiden", "uit **te** oefenen") is goed.
+- **Herhaal "in staat" niet in een bullet.** [flag] Dat staat al in de introzin; "in staat om in staat te zijn om" is dubbel. De andere causale constructies uit `stijlregister_nl.md` §B mogen wél: "Inzicht te krijgen in …", "Inzicht te ontwikkelen in …".
 - **Elke bullet begint met een hoofdletter.** [hard]
-- Concreet en realistisch (geen overpromising, niet absoluut); praktijkgericht.
+- **Concreet en realistisch; geen overpromising, niet absoluut.** Let hier scherp op: "ben je in staat om" is een stellige introzin. Beloof alleen wat de training in het aantal dagen echt oplevert.
+- **Vergrotende trappen waar het doel begrip is.** Gebruik "beter, sneller, effectiever, gerichter, scherper …" (zie `stijlregister_nl.md` §E) wanneer het doel meer inzicht of meer begrip is, en bij brede overzichtstrainingen gericht op samenwerken buiten het eigen werkveld. Zo'n vergrotende trap belooft een verbetering ten opzichte van hoe iemand het nu doet — eerlijker dan "beheersen". Levert de training juist een concrete, harde vaardigheid op (vaak persona A, zie §1), beloof die dan gewoon direct; een vergrotende trap verzwakt hem daar onnodig. Dit is een afweging per training, geen woord dat overal in moet.
 - **Vermijd vage formuleringen** zoals "Inzicht toepassen". [flag]
 - Baseer de doelen op de omschrijving + het programma.
 
 **Goed:**
 - "Datasets op te schonen en samen te voegen voor analyse"
 - "Jezelf voor te bereiden op onderhandelingen door doelen en grenzen helder te formuleren"
+- "Gerichter mee te praten over de architectuurkeuzes in je organisatie" (begripsdoel, vergrotende trap)
 
-**Fout:** "Dashboards bouwen die de juiste vraag beantwoorden" — dit is de kale infinitief zonder "te"; achter "…handvatten om:" loopt die zin niet.
+**Fout:** "Dashboards bouwen die de juiste vraag beantwoorden" — dit is de kale infinitief zonder "te"; achter "…in staat om:" loopt die zin niet.
 
 ---
 
@@ -190,6 +202,7 @@ Vaste boilerplate (code plaatst dit; titels ingevuld vanuit retrieval):
 - **Wordt afgeleid ván kopje 1 (Overzicht)** (dezelfde kern/belofte, ingedikt). Genereer dit kopje **ná** het Overzicht.
 - **Maximaal 200 tekens inclusief spaties — langer mag écht niet.** [hard]
 - **Begint met een vraag die start met "Wil je …".** [hard]
+- Dezelfde "kunnen"-afweging als bij kopje 1 (§2): wij bieden de handvatten, de deelnemer levert het resultaat.
 - Persona-toon; actief; geen marketingtaal.
 
 ---
