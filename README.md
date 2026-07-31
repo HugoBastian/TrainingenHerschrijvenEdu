@@ -112,6 +112,9 @@ Output in `--out-dir`:
 
 - `trainingen/<id>.json` — lossless: `document`, `content` (CMS-JSON), `judgment`,
   `toegepaste_acties`, flags en `writer_out` (wat de schrijver letterlijk leverde);
+- `trainingen/<id>.md` — hetzelfde document als leesbare markdown (de kopstructuur van het
+  template), om terug te lezen zonder de JSON open te klappen. Een training zonder document
+  (`error`/`rejected`) krijgt geen `.md`;
 - `herschreven.xlsx`, tabblad **cms** — `id` / `name` / `content`, met dezelfde
   JSON-structuur als het bronsheet, zodat het zo terug het CMS in kan;
 - `herschreven.xlsx`, tabblad **review** — status, flags en elk kopje in platte tekst, met een

@@ -735,6 +735,46 @@ def test_markdown_heeft_kop_1_2_en_3():
 
 
 # ---------------------------------------------------------------------------
+# Artefacten op schijf: <id>.json + <id>.md
+# ---------------------------------------------------------------------------
+
+def _resultaat(document=None) -> rw.RewriteResult:
+    return rw.RewriteResult(5, "Training XML", rw.APPROVED, document=document)
+
+
+def test_artefacten_schrijven_json_en_markdown_naast_elkaar():
+    doc = _document()
+    with tempfile.TemporaryDirectory() as d:
+        paden = rw.schrijf_training_artefacten(d, 5, _resultaat(doc), {"days": 3})
+        assert sorted(os.listdir(d)) == ["5.json", "5.md"]
+        with open(paden["md"], encoding="utf-8") as f:
+            md = f.read()
+        # identiek aan wat het notebook onder de cel toont
+        assert md == uit.render_markdown(doc, "Training XML")
+        with open(paden["json"], encoding="utf-8") as f:
+            assert json.load(f)["content"] == {"days": 3}
+
+
+def test_zonder_document_geen_markdown_en_een_oude_md_gaat_weg():
+    """Een .md van een vorige run mag niet bij een nieuwere JSON blijven liggen."""
+    with tempfile.TemporaryDirectory() as d:
+        rw.schrijf_training_artefacten(d, 5, _resultaat(_document()), {})
+        res = rw.RewriteResult(5, "Training XML", "error", reden="schrijver faalde")
+        paden = rw.schrijf_training_artefacten(d, 5, res, {})
+        assert paden["md"] is None
+        assert os.listdir(d) == ["5.json"]
+
+
+def test_bewaar_training_zet_de_artefacten_in_trainingen():
+    with tempfile.TemporaryDirectory() as d:
+        paden = rw.bewaar_training(d, _resultaat(_document()), {"days": 7})
+        assert paden["json"] == os.path.join(d, "trainingen", "5.json")
+        with open(paden["json"], encoding="utf-8") as f:
+            # dezelfde CMS-content als de batch schrijft, inclusief `days` uit de bron
+            assert json.load(f)["content"]["days"] == 7
+
+
+# ---------------------------------------------------------------------------
 # Runner (zonder pytest)
 # ---------------------------------------------------------------------------
 

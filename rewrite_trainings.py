@@ -1362,10 +1362,21 @@ def neem_over(tid: Any, naam: str, content_bron: dict) -> tuple[RewriteResult, d
     return res, content
 
 
-def schrijf_training_json(json_dir: str, tid: Any, res: RewriteResult, content_uit: dict):
-    """Het lossless artefact per training. Eén plek, zodat batch en hergeneratie gelijk blijven."""
+def schrijf_training_artefacten(json_dir: str, tid: Any, res: RewriteResult,
+                                content_uit: dict) -> dict[str, str | None]:
+    """De twee artefacten per training: de lossless JSON en het leesbare markdown-document.
+
+    Eén plek, zodat batch, hergeneratie en de losse notebook-cel hetzelfde wegschrijven.
+    De markdown is exact de weergave die de judge beoordeelt en die het notebook onder de
+    cel toont -- om terug te lezen zonder de JSON open te klappen. Zonder document
+    (`error`/`rejected`) is er niets te renderen; een oudere .md van dezelfde training zou
+    dan bij een nieuwere JSON gaan liggen, dus die gaat weg.
+
+    Geeft de paden terug ({"json": ..., "md": ... of None}).
+    """
     os.makedirs(json_dir, exist_ok=True)
-    with open(os.path.join(json_dir, f"{tid}.json"), "w", encoding="utf-8") as f:
+    json_pad = os.path.join(json_dir, f"{tid}.json")
+    with open(json_pad, "w", encoding="utf-8") as f:
         json.dump({
             "training_id": tid, "titel": res.titel, "oude_titel": res.oude_titel,
             "status": res.status, "reden": res.reden, "thin": res.thin, "flags": res.flags,
@@ -1376,6 +1387,30 @@ def schrijf_training_json(json_dir: str, tid: Any, res: RewriteResult, content_u
             "document": res.document, "content": content_uit,
             "judgment": res.judgment,
         }, f, ensure_ascii=False, indent=2)
+
+    md_pad = os.path.join(json_dir, f"{tid}.md")
+    if res.document:
+        with open(md_pad, "w", encoding="utf-8") as f:
+            f.write(uit.render_markdown(res.document, res.titel))
+    else:
+        if os.path.exists(md_pad):
+            os.remove(md_pad)
+        md_pad = None
+    return {"json": json_pad, "md": md_pad}
+
+
+def bewaar_training(out_dir: str, res: RewriteResult,
+                    content_bron: dict | None = None) -> dict[str, str | None]:
+    """Eén los resultaat wegschrijven naar `<out_dir>/trainingen/`.
+
+    Voor de notebook-cel die één training herschrijft: zonder dit blijft dat resultaat in
+    het geheugen en staat de markdown die je onder de cel leest nergens op schijf.
+    `herschreven.xlsx` blijft ongemoeid -- dat sheet vullen de batch (sectie 6) en
+    `hergenereer_kopje_op_schijf` (sectie 8).
+    """
+    content_uit = uit.document_to_content(res.document, content_bron or {}) if res.document else {}
+    return schrijf_training_artefacten(os.path.join(out_dir, "trainingen"),
+                                       res.training_id, res, content_uit)
 
 
 def _werk_xlsx_rij_bij(out_path: str, res: RewriteResult, content_uit: dict, verbose=True):
@@ -1407,8 +1442,8 @@ def hergenereer_kopje_op_schijf(scored_path: str, source_path: str, training_id:
     """Hergenereert één kopje van een al herschreven training en slaat het resultaat op.
 
     Zonder `comment` is het een gewone retry; met `comment` stuur je gericht bij
-    ("de modules overlappen, voeg 2 en 4 samen"). Werkt zowel de per-training-JSON als de
-    rij in `herschreven.xlsx` bij.
+    ("de modules overlappen, voeg 2 en 4 samen"). Werkt de per-training-artefacten
+    (JSON + markdown) en de rij in `herschreven.xlsx` bij.
     """
     json_dir = os.path.join(out_dir, "trainingen")
     pad = os.path.join(json_dir, f"{training_id}.json")
@@ -1428,7 +1463,7 @@ def hergenereer_kopje_op_schijf(scored_path: str, source_path: str, training_id:
     res = hergenereer_kopje(client, b, resultaat, kopje, comment,
                             catalog=catalog, boom=load_tree(catalog), judge=judge)
     content_uit = uit.document_to_content(res.document, content_bron) if res.document else {}
-    schrijf_training_json(json_dir, training_id, res, content_uit)
+    schrijf_training_artefacten(json_dir, training_id, res, content_uit)
     _werk_xlsx_rij_bij(os.path.join(out_dir, "herschreven.xlsx"), res, content_uit, verbose)
     if verbose:
         print(f"{res.titel} — kopje '{kopje}' opnieuw gegenereerd -> {res.status}"
@@ -1440,9 +1475,10 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
                  besluiten_path: str | None = None, start: int = 0,
                  limit: int | None = None, skip_herschreven: bool = True,
                  append: bool = True, skip_existing: bool = True, verbose: bool = True):
-    """Herschrijft de trainingen en schrijft drie artefacten in `out_dir`.
+    """Herschrijft de trainingen en schrijft de artefacten in `out_dir`.
 
     - trainingen/<id>.json   lossless: document + CMS-content + oordeel
+    - trainingen/<id>.md     het leesbare document (kopstructuur van het template)
     - herschreven.xlsx       tabblad `cms` (id/name/content) + tabblad `review`
     """
     import pandas as pd
@@ -1531,7 +1567,7 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
 
         content_uit = uit.document_to_content(res.document, content_bron) if res.document else {}
 
-        schrijf_training_json(json_dir, tid, res, content_uit)
+        schrijf_training_artefacten(json_dir, tid, res, content_uit)
 
         if res.status == APPROVED and content_uit:
             cms_records.append({"id": tid, "name": res.titel,
@@ -1555,7 +1591,7 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
         review.to_excel(writer, sheet_name="review", index=False)
     if verbose:
         print(f"\nGeschreven: {out_path} — cms {len(cms)} rijen, review {len(review)} rijen; "
-              f"JSON in {json_dir}/")
+              f"JSON + markdown in {json_dir}/")
     return review
 
 
