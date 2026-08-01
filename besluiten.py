@@ -286,10 +286,48 @@ class Besluit:
 # 5. STAP C -- OPBOUWEN EN NORMALISEREN
 # ---------------------------------------------------------------------------
 
+# Kolomnamen die "het id" of "de titel" kunnen heten, in volgorde van voorkeur. Bewust een
+# eigen lijstje en niet `_find_col` uit score_trainings.py: die module leeft in de zusterrepo
+# en besluiten.py is verder volledig standalone (alleen re/dataclasses/typing).
+_ID_KOLOMMEN = ("training_id", "id", "trainingid")
+_TITEL_KOLOMMEN = ("titel", "name", "naam", "title")
+
+
+def _eerste_kolom(df, kandidaten: Iterable[str]) -> str | None:
+    per_kleine_letter = {str(c).lower().strip(): c for c in df.columns}
+    for kandidaat in kandidaten:
+        if kandidaat in per_kleine_letter:
+            return per_kleine_letter[kandidaat]
+    return None
+
+
+def normaliseer_scored_kolommen(df):
+    """Hernoemt de id- en titelkolom naar de namen die de scorer schrijft.
+
+    De scorer levert `training_id` en `titel`. Een prioriteitslijst die met de hand uit de
+    bronlijst is samengesteld houdt de bronnamen `id` en `name` -- inhoudelijk hetzelfde sheet,
+    alleen anders gelabeld. Beide zijn geldig; de rest van de code rekent op de scorer-namen.
+
+    Staat de kanonieke naam er al, dan blijft alles ongemoeid, ook als er daarnaast nog een
+    `id`-kolom bestaat.
+    """
+    hernoem = {}
+    if "training_id" not in df.columns:
+        kolom = _eerste_kolom(df, _ID_KOLOMMEN)
+        if kolom:
+            hernoem[kolom] = "training_id"
+    if "titel" not in df.columns:
+        kolom = _eerste_kolom(df, _TITEL_KOLOMMEN)
+        if kolom:
+            hernoem[kolom] = "titel"
+    return df.rename(columns=hernoem) if hernoem else df
+
+
 def _load_scored(path: str):
     import pandas as pd
     df = pd.read_excel(path)
     df.columns = [str(c).strip() for c in df.columns]
+    df = normaliseer_scored_kolommen(df)
     for kolom in ("training_id", "actualiteit_actie", "actie_besluit"):
         if kolom not in df.columns:
             raise ValueError(f"kolom {kolom!r} ontbreekt in {path}")
@@ -407,9 +445,33 @@ def _bestaande_handmatig(out_path: str) -> dict[tuple[Any, int], Besluit]:
     return bewaard
 
 
+def _rijen_van_andere_trainingen(out_path: str, eigen_ids: set):
+    """Bestaande regels van trainingen die niet in dit scoresheet staan.
+
+    Zo kun je op één besluitensheet met meerdere batches werken: een prioriteitslijst van 15
+    trainingen wist de besluiten van de andere 47 niet. De pijplijn zoekt besluiten op
+    training_id op (`load_besluiten` -> dict, `rewrite_file` doet `per_training.get(tid)`),
+    dus regels die niet bij de batch horen worden simpelweg nooit geraadpleegd.
+    """
+    import os
+    import pandas as pd
+    if not os.path.exists(out_path):
+        return None
+    df = pd.read_excel(out_path)
+    df.columns = [str(c).strip() for c in df.columns]
+    if "training_id" not in df.columns:
+        return None
+    return df[~df["training_id"].isin(eigen_ids)]
+
+
 def write_besluiten_sheet(scored_path: str, out_path: str, client=None,
                           verbose: bool = True):
-    """Genereert besluiten.xlsx. Handmatige correcties uit een bestaand sheet blijven staan."""
+    """Genereert besluiten.xlsx. Handmatige correcties uit een bestaand sheet blijven staan.
+
+    Trainingen die al in het sheet stonden maar niet in dit scoresheet zitten blijven ook
+    staan; de trainingen die er wél in zitten worden vers weggeschreven. Opnieuw draaien op
+    hetzelfde scoresheet is dus idempotent en werkt een gewijzigde actietekst netjes bij.
+    """
     import pandas as pd
     handmatig = _bestaande_handmatig(out_path)
     records = build_besluiten(scored_path, client=client, verbose=verbose)
@@ -426,11 +488,20 @@ def write_besluiten_sheet(scored_path: str, out_path: str, client=None,
             samengevoegd.append(r)
 
     df = pd.DataFrame([{k: getattr(r, k) for k in KOLOMMEN} for r in samengevoegd])
+    # De ids uit het scoresheet, niet uit de records: een training die geen acties (meer) heeft
+    # levert geen records op, maar zijn oude regels moeten wél verdwijnen.
+    eigen_ids = set(_load_scored(scored_path)["training_id"])
+    behouden = _rijen_van_andere_trainingen(out_path, eigen_ids)
+    n_behouden = 0 if behouden is None else len(behouden)
+    if n_behouden:
+        df = pd.concat([behouden.reindex(columns=KOLOMMEN), df], ignore_index=True)
     df.to_excel(out_path, index=False)
     if verbose:
         n_na = sum(1 for r in samengevoegd if r.bron == BRON_LLM)
         print(f"\nGeschreven: {out_path} ({len(df)} regels). "
               f"Controleer de {n_na} regels met bron=llm.")
+        if n_behouden:
+            print(f"{n_behouden} regels van trainingen buiten dit scoresheet behouden.")
         if handmatig:
             print(f"{len(handmatig)} handmatige correcties behouden.")
     return df

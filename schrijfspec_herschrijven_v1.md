@@ -37,6 +37,7 @@ Checkbaar, hard tenzij anders vermeld:
 11. **Put uit het stijlregister** in `stijlregister_nl.md`: registers voor "wat wij bieden" versus "wat jij mag verwachten", causale constructies, actieve werkwoorden en vergrotende trappen. Dat is een voorraadkast, geen afvinklijst — twee rake keuzes zijn beter dan tien afgevinkte woorden.
 12. **Maak het causale verband zichtbaar** tussen wat wij doen en wat jij daarna kunt. Niet "het onderwerp is belangrijk", maar "doordat we X doen, kun jij Y". Dit is de rode draad door alle kopjes.
 13. **Elk element van een opsomming loopt zelfstandig door op de introzin.** Herhaal het voorzetsel ("te", "om", "van") en houd de constructie parallel, zodat elk element los gelezen kan worden. Geldt voor bullets én voor opsommingen in lopende tekst: "Je kunt datavraagstukken gestructureerd analyseren, beleid vertalen naar de praktijk, adviseren over datakwaliteit en governance, en bijdragen aan de professionalisering van Data Stewardship" — elk deel hangt daar zelfstandig aan "je kunt".
+14. **Lengtes zijn richtlijnen, geen quota.** De woordaantallen per kopje zeggen hoe lang een kopje ongeveer hoort te zijn — mik erop, maar schrijf de zin af. Kom je een paar woorden boven de richtlijn uit omdat de formulering dat nodig heeft, dan is dat goed: de code laat een ruime marge en meldt de afwijking alleen bij de menselijke review. **Wat níét mag: een zin afknijpen, een bijzin schrappen of een precies woord weglaten om het aantal te halen.** Dat kost de tekst meer dan de afwijking oplevert. Blijf je juist ver ónder de richtlijn, dan is dat wél een signaal — er ontbreekt inhoud, en die vul je aan met een gedachte die er nog niet staat, niet met vulwoorden. **Eén uitzondering: de 200 tekens van de Kortste omschrijving (§10) zijn wél hard**; die grens komt van Edudex, niet van ons. [richtlijn]
 
 ---
 
@@ -55,7 +56,7 @@ De persona is meegegeven (default van de scorer, kan door een mens overschreven 
 **Doel:** overtuigende intro die direct duidelijk maakt waarom de training relevant is en wat de deelnemer eraan heeft.
 
 **Regels (checkbaar):**
-- **Lengte: één compacte alinea van 55–65 woorden.** [hard]
+- **Lengte: één compacte alinea, richtlijn 55–65 woorden.** Zie §0.14: de richtlijn wijkt voor de formulering, niet andersom. [richtlijn]
 - **Begint met een vraag die start met "Wil je …".** [hard]
 - Geen opsommingen/bullets. [hard]
 - Vertaal leerdoelen naar *voordelen* voor de deelnemer (niet letterlijk overnemen); benoem meerdere praktische toepassingen, natuurlijk verweven.
@@ -74,7 +75,7 @@ De persona is meegegeven (default van de scorer, kan door een mens overschreven 
 **Doel:** verdieping op kopje 1: wat je leert, hoe je leert, hoe het aansluit op de praktijk.
 
 **Regels (checkbaar):**
-- **Lengte: 180–210 woorden in totaal** (mag één of meerdere vloeiende alinea's zijn — meerdere alleen als het overzicht dat vraagt). [hard]
+- **Lengte: richtlijn 180–210 woorden in totaal** (mag één of meerdere vloeiende alinea's zijn — meerdere alleen als het overzicht dat vraagt). De richtlijn schuift mee met de omvang van de training: bij één dag mag hij korter (±170–200), bij vier dagen of meer langer (±190–230) — een langere training heeft simpelweg meer te vertellen. Zie §0.14. [richtlijn]
 - Verdiepend t.o.v. het Overzicht; geen herhaling ervan.
 - Schrijf **niet** het blok "Deze training bieden we ook als bedrijfstraining …"; dat plaatst de code als kop 3 onder dit kopje. [hard]
 - Dek in de tekst: (a) wat je leert/ontwikkelt vertaald naar concrete voordelen; (b) hoe de training is opgebouwd (praktijkgericht, voorbeelden, trainers uit de praktijk); (c) mogelijkheid tot afstemming op organisatie/team (zonder het woord "maatwerk").
@@ -200,7 +201,7 @@ Vaste boilerplate (code plaatst dit; titels ingevuld vanuit retrieval):
 
 **Regels (checkbaar):**
 - **Wordt afgeleid ván kopje 1 (Overzicht)** (dezelfde kern/belofte, ingedikt). Genereer dit kopje **ná** het Overzicht.
-- **Maximaal 200 tekens inclusief spaties — langer mag écht niet.** [hard]
+- **Maximaal 200 tekens inclusief spaties — langer mag écht niet.** Dit is de enige lengte in deze spec zonder marge: Edudex kapt langere tekst af, dus een overschrijding verdwijnt letterlijk uit beeld. Past je zin niet, laat dan een hele gedachte vallen in plaats van de zin af te knijpen. [hard]
 - **Begint met een vraag die start met "Wil je …".** [hard]
 - Dezelfde "kunnen"-afweging als bij kopje 1 (§2): wij bieden de handvatten, de deelnemer levert het resultaat.
 - Persona-toon; actief; geen marketingtaal.

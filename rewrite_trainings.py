@@ -607,9 +607,13 @@ SUBMIT_REWRITE = {
         "type": "object",
         "properties": {
             "overzicht": {"type": "string",
-                "description": "Kopje Overzicht. Één alinea, 55-65 woorden, begint met 'Wil je …'. Geen bullets."},
+                "description": "Kopje Overzicht. Één alinea, richtlijn 55-65 woorden, begint met "
+                               "'Wil je …'. Geen bullets. De richtlijn is een streeflengte, geen "
+                               "quotum: een paar woorden eroverheen is prima, afgeknepen zinnen niet."},
             "inleiding": {"type": "string",
-                "description": "Kopje Inleiding. 180-210 woorden, verdiepend op Overzicht. "
+                "description": "Kopje Inleiding. Richtlijn 180-210 woorden (bij een training van "
+                               "4 dagen of meer mag het richting 230), verdiepend op Overzicht. "
+                               "Ook hier telt de formulering zwaarder dan het exacte aantal. "
                                "Schrijf NIET het bedrijfstrainingblok; dat plaatst de code."},
             "modules": {
                 "type": "object",
@@ -642,7 +646,9 @@ SUBMIT_REWRITE = {
                                "'Dashboards bouwen'. Herhaal 'in staat' niet; dat staat al in de "
                                "introzin. Hoofdletter aan het begin, zonder de introzin."},
             "kortste_omschrijving": {"type": "string",
-                "description": "Kopje Kortste omschrijving. Max 200 tekens, begint met 'Wil je …'. Ingedikte versie van Overzicht."},
+                "description": "Kopje Kortste omschrijving. Maximaal 200 tekens — als enige lengte "
+                               "een harde grens (Edudex kapt langere tekst af). Begint met "
+                               "'Wil je …'. Ingedikte versie van Overzicht."},
             "nieuwe_titel": {"type": "string",
                 "description": "Optioneel. De code maakt zelf al een titel in de nieuwe stijl "
                                "('Cursus XML' -> 'Training XML'). Lever hier alleen iets als dat "
@@ -696,9 +702,11 @@ def _read(path: str) -> str:
         return f.read().strip()
 
 
-# De vier trainingen uit het goud-corpus die élke harde check halen (lengtes, openingszinnen,
-# doelen in te-infinitief). De andere 74 zijn historisch materiaal van wisselende kwaliteit --
-# 59 falen de Inleiding-lengte, 50 het Overzicht -- en zijn dus geen voorbeeld.
+# Vier trainingen uit het goud-corpus die élke harde check halen (lengte binnen de vangrail,
+# openingszinnen, doelen in te-infinitief). Sinds de lengtebanden een marge hebben, halen er
+# 23 alles -- ruim genoeg keus; deze vier blijven staan omdat een wisselende few-shot de
+# prompt-cache waardeloos maakt. Wat overblijft is historisch materiaal van wisselende
+# kwaliteit: 22 vallen buiten de Inleiding-vangrail, 18 buiten die van het Overzicht.
 # Draai `checks_over_goud()` opnieuw als je een regel verandert; die meting levert deze lijst.
 GOUD_VOORBEELDEN = (2730, 3046, 3101, 3125)
 GOUD_DIR = os.path.join(_HERE, "herschreven", "goud")
@@ -750,9 +758,13 @@ def build_writer_system() -> list[dict]:
     if voorbeelden:
         prefix += "\n\n---\n\n" + voorbeelden
     instr = ("Je herschrijft één training naar de nieuwe stijl. Volg de schrijfspec hierboven "
-             "letterlijk (lengtes, verplichte openingszinnen, persona-toon, 'je'-vorm). Schrijf "
-             "ALLEEN de generatieve kopjes en roep tot slot het tool `submit_rewrite` aan. Verzin "
-             "geen feiten (versies/vendors/cijfers) die niet in de bron of de feiten staan.")
+             "letterlijk (verplichte openingszinnen, persona-toon, 'je'-vorm). De opgegeven "
+             "lengtes zijn richtlijnen: mik erop, maar schrijf de zin af. Een zin inkorten, een "
+             "bijzin schrappen of een woord weglaten om precies binnen het aantal te landen kost "
+             "de tekst meer dan de afwijking oplevert. Alleen de 200 tekens van de Kortste "
+             "omschrijving zijn hard. Schrijf ALLEEN de generatieve kopjes en roep tot slot het "
+             "tool `submit_rewrite` aan. Verzin geen feiten (versies/vendors/cijfers) die niet in "
+             "de bron of de feiten staan.")
     return [{"type": "text", "text": instr + "\n\n---\n\n" + prefix,
              "cache_control": {"type": "ephemeral"}}]
 
@@ -997,7 +1009,8 @@ def rewrite_one(client, b: RewriteBriefing, catalog: list[dict],
                  for x in b.goedgekeurd]
 
     titels, groepen = bepaal_vervolgstappen(client, b, catalog, boom)
-    ctx = {"catalog_titles": catalog_titles(catalog) if catalog else None, "naam": b.nieuwe_titel}
+    ctx = {"catalog_titles": catalog_titles(catalog) if catalog else None,
+           "naam": b.nieuwe_titel, "dagen": b.dagen}
     writer_system = build_writer_system()
     base_user = build_writer_user(b)
 
@@ -1124,7 +1137,8 @@ def hergenereer_kopje(client, b: RewriteBriefing, resultaat: dict, kopje: str,
     if not titels and catalog:
         titels, groepen = bepaal_vervolgstappen(client, b, catalog, boom)
 
-    ctx = {"catalog_titles": catalog_titles(catalog) if catalog else None, "naam": b.nieuwe_titel}
+    ctx = {"catalog_titles": catalog_titles(catalog) if catalog else None,
+           "naam": b.nieuwe_titel, "dagen": b.dagen}
     huidig = json.dumps(writer_out.get(kopje), ensure_ascii=False, indent=2)
     opdracht = [
         f"Schrijf ALLEEN het kopje '{kopje}' opnieuw. Alle andere kopjes blijven zoals ze zijn;",
@@ -1150,7 +1164,7 @@ def hergenereer_kopje(client, b: RewriteBriefing, resultaat: dict, kopje: str,
 
         kandidaat = dict(writer_out, **{kopje: out[kopje]})
         titel = bepaal_titel(kandidaat, b)
-        issues = (check(kandidaat) if check else []) + checks.check_soortwoorden(
+        issues = (check(kandidaat, ctx) if check else []) + checks.check_soortwoorden(
             {kopje: out[kopje], "nieuwe_titel": titel})
         hard = checks.hard_fails(issues)
         if hard:
@@ -1195,7 +1209,9 @@ def _load_scored(path: str):
     import pandas as pd
     df = pd.read_excel(path)
     df.columns = [str(c).strip() for c in df.columns]
-    return df
+    # Zelfde normalisatie als de besluitenlaag, zodat een handgemaakt prioriteitssheet met
+    # `id`/`name` in beide stappen werkt en niet halverwege de pijplijn omvalt.
+    return bes.normaliseer_scored_kolommen(df)
 
 
 def load_source(source_path: str) -> tuple[dict, dict]:
@@ -1250,10 +1266,12 @@ def export_goud_corpus(source_path: str, out_dir: str, verbose: bool = True) -> 
     n = 0
     for _, row in src_df[src_df["herschreven"] == 1].iterrows():
         tid = row[cols["id"]]
-        with open(os.path.join(goud_dir, f"{tid}.json"), "w", encoding="utf-8") as f:
-            json.dump({"training_id": tid, "titel": str(row[cols["name"]]),
-                       "content": parse_content(row[cols["content"]])},
-                      f, ensure_ascii=False, indent=2)
+        _schrijf_atomisch(
+            os.path.join(goud_dir, f"{tid}.json"),
+            lambda f, row=row, tid=tid: json.dump(
+                {"training_id": tid, "titel": str(row[cols["name"]]),
+                 "content": parse_content(row[cols["content"]])},
+                f, ensure_ascii=False, indent=2, default=_json_default))
         n += 1
     if verbose:
         print(f"Goud-corpus: {n} trainingen in {goud_dir}/")
@@ -1318,6 +1336,49 @@ def checks_over_goud(goud_dir: str = GOUD_DIR, verbose: bool = True) -> dict:
         for tid, titel in schoon:
             print(f"  {tid:6} {titel}")
     return {"tellingen": dict(tellingen), "schoon": schoon, "totaal": len(bestanden)}
+
+
+def lengtes_over_goud(goud_dir: str = GOUD_DIR, verbose: bool = True) -> dict:
+    """Kalibratie van de lengtebanden: hoe lang is het goud écht?
+
+    Levert de verdeling per kopje plus hoeveel trainingen binnen de doelband en binnen de
+    vangrail vallen (`checks.BANDEN`). Hiermee zijn de banden gekozen: het goud haalt de
+    doelband van Overzicht en Inleiding in ~35% van de gevallen, dus een harde doelband zou
+    de schrijver wegduwen van de vorm die hij hoort te imiteren. Draai dit opnieuw voordat
+    je een band verschuift -- niet op gevoel.
+    """
+    import glob
+    metingen: dict[str, list[int]] = {"overzicht": [], "inleiding": [], "kortste_omschrijving": []}
+    for pad in sorted(glob.glob(os.path.join(goud_dir, "*.json"))):
+        with open(pad, encoding="utf-8") as f:
+            d = json.load(f)
+        rw = goud_naar_check_input(d.get("content") or {}, d.get("titel", ""))
+        for kopje in metingen:
+            tekst = (rw.get(kopje) or "").strip()
+            if not tekst:
+                continue
+            metingen[kopje].append(len(tekst) if kopje == "kortste_omschrijving"
+                                   else checks.word_count(tekst))
+    if verbose:
+        for kopje, waarden in metingen.items():
+            if not waarden:
+                continue
+            v = sorted(waarden)
+            eenheid = "tekens" if kopje == "kortste_omschrijving" else "woorden"
+            band = checks.BANDEN.get(kopje)
+            print(f"\n{kopje} ({eenheid}, n={len(v)})")
+            print(f"  min {v[0]}  mediaan {v[len(v) // 2]}  max {v[-1]}")
+            if band:
+                doel = sum(1 for x in v if band.doel_lo <= x <= band.doel_hi)
+                rail = sum(1 for x in v if band.rail_lo <= x <= band.rail_hi)
+                print(f"  binnen doelband {band.doel_lo}-{band.doel_hi}: "
+                      f"{doel}/{len(v)} ({100 * doel // len(v)}%)")
+                print(f"  binnen vangrail {band.rail_lo}-{band.rail_hi}: "
+                      f"{rail}/{len(v)} ({100 * rail // len(v)}%)")
+            else:
+                boven = sum(1 for x in v if x > 200)
+                print(f"  boven de harde 200 tekens: {boven}/{len(v)}")
+    return metingen
 
 
 def _review_rij(res: RewriteResult, content: dict) -> dict:
@@ -1385,6 +1446,38 @@ def neem_over(tid: Any, naam: str, content_bron: dict) -> tuple[RewriteResult, d
     return res, content
 
 
+def _json_default(o):
+    """numpy-scalars uit pandas naar Python-types.
+
+    `training_id` komt uit een DataFrame en is dus `numpy.int64`; `thin` kan `numpy.bool_`
+    zijn. De stdlib `json` kent die typen niet en gooit er een TypeError over. Elk scalair
+    numpy-object heeft `.item()`, dus een numpy-import is hier niet nodig -- de repo heeft
+    die dependency verder nergens.
+    """
+    if hasattr(o, "item"):
+        return o.item()
+    raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
+
+
+def _schrijf_atomisch(pad: str, schrijf) -> None:
+    """Schrijft via een tijdelijk bestand en hernoemt pas als de inhoud compleet is.
+
+    `open(pad, "w")` gooit de bestaande inhoud weg vóór er iets geschreven is. Faalt het
+    schrijven daarna, dan ligt er een half artefact op de plek van een versie die het wél
+    deed -- en de inspectiecel kan het niet meer inlezen. Het tmp-bestand staat in dezelfde
+    map, dus `os.replace` is een atomaire rename.
+    """
+    tmp = f"{pad}.tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            schrijf(f)
+        os.replace(tmp, pad)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        raise
+
+
 def schrijf_training_artefacten(json_dir: str, tid: Any, res: RewriteResult,
                                 content_uit: dict) -> dict[str, str | None]:
     """De twee artefacten per training: de lossless JSON en het leesbare markdown-document.
@@ -1399,22 +1492,20 @@ def schrijf_training_artefacten(json_dir: str, tid: Any, res: RewriteResult,
     """
     os.makedirs(json_dir, exist_ok=True)
     json_pad = os.path.join(json_dir, f"{tid}.json")
-    with open(json_pad, "w", encoding="utf-8") as f:
-        json.dump({
-            "training_id": tid, "titel": res.titel, "oude_titel": res.oude_titel,
-            "status": res.status, "reden": res.reden, "thin": res.thin, "flags": res.flags,
-            "toegepaste_acties": res.toegepaste_acties,
-            # writer_out is wat de schrijver letterlijk leverde; nodig om later één kopje te
-            # hergenereren (aanpak_invulling zit ingebakken in de vaste Aanpak-alinea).
-            "writer_out": res.writer_out,
-            "document": res.document, "content": content_uit,
-            "judgment": res.judgment,
-        }, f, ensure_ascii=False, indent=2)
+    _schrijf_atomisch(json_pad, lambda f: json.dump({
+        "training_id": tid, "titel": res.titel, "oude_titel": res.oude_titel,
+        "status": res.status, "reden": res.reden, "thin": res.thin, "flags": res.flags,
+        "toegepaste_acties": res.toegepaste_acties,
+        # writer_out is wat de schrijver letterlijk leverde; nodig om later één kopje te
+        # hergenereren (aanpak_invulling zit ingebakken in de vaste Aanpak-alinea).
+        "writer_out": res.writer_out,
+        "document": res.document, "content": content_uit,
+        "judgment": res.judgment,
+    }, f, ensure_ascii=False, indent=2, default=_json_default))
 
     md_pad = os.path.join(json_dir, f"{tid}.md")
     if res.document:
-        with open(md_pad, "w", encoding="utf-8") as f:
-            f.write(uit.render_markdown(res.document, res.titel))
+        _schrijf_atomisch(md_pad, lambda f: f.write(uit.render_markdown(res.document, res.titel)))
     else:
         if os.path.exists(md_pad):
             os.remove(md_pad)
@@ -1448,7 +1539,7 @@ def _werk_xlsx_rij_bij(out_path: str, res: RewriteResult, content_uit: dict, ver
     review = vorige.get("review", pd.DataFrame())
     if res.status == APPROVED and content_uit:
         nieuw = pd.DataFrame([{"id": res.training_id, "name": res.titel,
-                               "content": json.dumps(content_uit, ensure_ascii=False)}])
+                               "content": json.dumps(content_uit, ensure_ascii=False, default=_json_default)}])
         cms = pd.concat([cms, nieuw], ignore_index=True).drop_duplicates(
             subset="id", keep="last")
     review = pd.concat([review, pd.DataFrame([_review_rij(res, content_uit)])],
@@ -1565,7 +1656,7 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
         naam = str(srow.get("titel") or src_row[cols["name"]] or "")
         res, content_uit = neem_over(tid, naam, parse_content(src_row[cols["content"]]))
         cms_records.append({"id": tid, "name": res.titel,
-                            "content": json.dumps(content_uit, ensure_ascii=False)})
+                            "content": json.dumps(content_uit, ensure_ascii=False, default=_json_default)})
         review_records.append(_review_rij(res, content_uit))
     if verbose and len(overnemen):
         print(f"{len(overnemen)} trainingen met herschreven=1 ongewijzigd overgenomen")
@@ -1594,7 +1685,7 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
 
         if res.status == APPROVED and content_uit:
             cms_records.append({"id": tid, "name": res.titel,
-                                "content": json.dumps(content_uit, ensure_ascii=False)})
+                                "content": json.dumps(content_uit, ensure_ascii=False, default=_json_default)})
         review_records.append(_review_rij(res, content_uit))
         if verbose:
             print(f"[{n}/{len(scored)}] {naam[:45]:45} -> {res.status}"

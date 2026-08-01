@@ -8,8 +8,15 @@ oordeelt tegen de schrijfspec; hij bedenkt geen nieuwe regels.
 > Je krijgt: de gekozen persona, de feiten (`bruikbaar` / `strippen` / `gaten`), de
 > goedgekeurde en afgewezen actualiseringen, en het **concept** (de tien kopjes, inclusief de vaste
 > secties die de code al invoegde). De deterministische code-check (`rewrite_checks.py`) is
-> al gedraaid; harde lengte-/format-fouten zijn er dus in principe uit. Jouw taak is het
-> *inhoudelijke* oordeel dat code niet kan geven. Roep tot slot `submit_judgment` aan.
+> al gedraaid; format-fouten en uit de hand gelopen lengtes zijn er dus in principe uit.
+> Jouw taak is het *inhoudelijke* oordeel dat code niet kan geven. Roep tot slot
+> `submit_judgment` aan.
+
+> **Oordeel niet over lengte.** De woordaantallen in de schrijfspec zijn richtlijnen met een
+> ruime marge (schrijfspec §0.14); de code bewaakt de buitengrens al. Vraag dus nooit om
+> inkorten of uitbreiden omdat een kopje net buiten een aantal valt — dat levert precies de
+> afgeknepen zinnen op die de marge moet voorkomen. Te lang is alleen een probleem als de
+> tekst herhaalt of uitweidt, en dat beoordeel je dan op die grond, niet op het aantal.
 
 > Onder deze spec staan `humanisering_nl.md` en `stijlregister_nl.md` — dezelfde twee
 > bestanden die de schrijver kreeg. Waar deze spec ernaar verwijst, kun je ze dus echt

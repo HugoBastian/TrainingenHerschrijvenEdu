@@ -151,14 +151,17 @@ referentiemateriaal om spec en judge aan te kalibreren — géén voorschrift; h
 schrijfspec zijn leidend. Het corpus heeft twee toepassingen:
 
 ```python
-rw.checks_over_goud()   # hoe vaak faalt elke harde regel op de 78 trainingen?
+rw.checks_over_goud()    # hoe vaak faalt elke harde regel op de 78 trainingen?
+rw.lengtes_over_goud()   # hoe lang zijn de kopjes werkelijk? -> kalibratie van de lengtebanden
 ```
 
-Van de 78 halen er **4** élke harde check; die vier staan in `GOUD_VOORBEELDEN` en gaan als
-few-shot mee in de gecachete system-prefix van de schrijver. De rest is meetlat: valt een regel
-bij meer dan de helft van het corpus om, dan is de regel verdacht en niet de training (59 van
-de 78 falen bijvoorbeeld de Inleiding-lengte). Verander je een check, draai dit dan opnieuw en
-werk `GOUD_VOORBEELDEN` bij.
+Van de 78 halen er **23** élke harde check; vier daarvan staan in `GOUD_VOORBEELDEN` en gaan
+als few-shot mee in de gecachete system-prefix van de schrijver (een wisselende selectie zou
+die cache waardeloos maken). De rest is meetlat: valt een regel bij meer dan de helft van het
+corpus om, dan is de regel verdacht en niet de training. Zo is de lengte-check ontstaan — met
+één hard venster van 55–65 woorden viel 65% van het goud om op het Overzicht, dus is die
+lengte nu een richtlijn met een vangrail eromheen (zie hieronder). Verander je een check, draai
+dit dan opnieuw en werk `GOUD_VOORBEELDEN` bij.
 
 Het goud dateert van vóór de huidige Doelen-introzin: 47 van de 78 openen nog met "Na deze
 training heb je handvatten om:". `goud_voorbeelden()` vervangt die regel bij het opbouwen van
@@ -207,10 +210,31 @@ veld in de CMS-`content`:
 
 `days` wordt ongewijzigd uit de bron overgenomen.
 
+### Lengtes: richtlijn met vangrail
+
+Elk lengte-kopje heeft twee banden (`checks.BANDEN`). De **doelband** is de lengte uit de
+schrijfspec; erbuiten levert het een FLAG op — zichtbaar bij review, maar de schrijver gaat er
+niet voor terug. De **vangrail** is de buitengrens; pas daarbuiten is het een hard fail en
+schrijft hij het kopje opnieuw.
+
+| Kopje | Doelband | Vangrail |
+| --- | --- | --- |
+| Overzicht | 55–65 woorden | 45–90 |
+| Inleiding | 180–210 woorden (1 dag: 170–200 · 4+ dagen: 190–230) | 150–260 (4+ dagen: 150–280) |
+| Kortste omschrijving | — | **max. 200 tekens, hard** |
+
+De reden voor de marge: met één hard venster moest de schrijver op het laatste woord inkorten,
+en dat kostte de zin zijn ritme en precisie — precies wat de spec elders probeert op te bouwen.
+De banden liggen rond p85 van het goud (`lengtes_over_goud()`), dus ruim genoeg om een
+goedgeschreven kopje niet terug te sturen en strak genoeg om een ontspoorde tekst te vangen.
+Alleen de 200 tekens van de Kortste omschrijving zijn absoluut: die grens komt van Edudex, die
+langere tekst afkapt. De schrijfspec (§0.14) en de judge weten dit ook — de judge oordeelt
+bewust niet over lengte.
+
 ## Tests
 
 ```bash
-python test_rewrite.py     # 69 offline checks, geen API-key nodig
+python test_rewrite.py     # 95 offline checks, geen API-key nodig
 ```
 
 Getest wordt de deterministische laag: de code-check, de structurele splitsing van

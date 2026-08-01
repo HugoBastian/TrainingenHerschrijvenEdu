@@ -9,20 +9,24 @@ de code beslist deterministisch, het model schrijft alleen.
 
 Verwachte input `rewrite` (de gestructureerde schrijver-output, `submit_rewrite`):
     {
-      "overzicht":  "Wil je ... (55-65 woorden, 1 alinea)",
-      "inleiding":  "... (180-210 woorden)",
+      "overzicht":  "Wil je ... (richtlijn 55-65 woorden, 1 alinea)",
+      "inleiding":  "... (richtlijn 180-210 woorden, schuift mee met het aantal dagen)",
       "modules":   { "modules": [ {"titel": "...", "bullets": ["...", "..."]}, ... ] },
       "aanpak_invulling":        "... (alleen de [....]-invulling)",
       "doelgroep":              "Deze training is voor ...",
       "voorkennis":             "... (1 zin) of de vaste fallbackzin",
       "doelen":                 ["... te ...en", "... te ...en", ...],    # 4-5 bullets, te-infinitief
       "vervolgstappen_titels": ["Titel A", "Titel B", ...],              # uit de catalogus
-      "kortste_omschrijving":   "Wil je ... (<=200 tekens)",
+      "kortste_omschrijving":   "Wil je ... (<=200 tekens; harde grens)",
       "nieuwe_titel":           "Training ...",                          # nooit cursus/opleiding
     }
 
+Lengtes zijn richtlijnen met een vangrail eromheen: buiten de richtlijn is het een FLAG,
+pas buiten de vangrail een HARD-FAIL. Zie "Lengtebanden" verderop. De 200 tekens van de
+Kortste omschrijving zijn de uitzondering -- die grens komt van Edudex en is wél hard.
+
 Context `ctx` (optioneel):
-    { "catalog_titles": {"Titel A", ...}, "naam": "Trainingsnaam" }
+    { "catalog_titles": {"Titel A", ...}, "naam": "Trainingsnaam", "dagen": 3 }
 
 Gebruik:
     issues = check_rewrite(rewrite, ctx)
@@ -220,8 +224,89 @@ def _titels(rw: dict) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Lengtebanden: richtlijn met vangrail
+# ---------------------------------------------------------------------------
+#
+# Elk lengte-kopje heeft twee banden. De DOELBAND is de lengte uit de schrijfspec: haalt de
+# tekst die, dan is hij zo lang als bedoeld. Erbuiten -> FLAG: zichtbaar bij review, maar de
+# schrijver gaat er niet voor terug. De VANGRAIL is de buitengrens; pas daarbuiten is de
+# tekst echt uit de hand gelopen en moet hij opnieuw -> HARD.
+#
+# Waarom niet één harde band: op het goudcorpus haalt 35% van de 78 trainingen de doelband
+# van het Overzicht en 23% die van de Inleiding (meet dit met `lengtes_over_goud()` in
+# rewrite_trainings.py; mediaan 63 resp. 220 woorden). De vorm die we imiteren past dus zelf
+# niet in een strak venster. Een harde grens dwingt de schrijver dan tot inkorten op het
+# laatste woord, en dat kost de zin precies zijn ritme en precisie -- de reden dat deze
+# band bestaat.
+#
+# De vangrails liggen rond p85 van het goud: ruim genoeg om een goedgeschreven kopje niet
+# terug te sturen, strak genoeg om een tekst die ontspoort wél te vangen. Ze zijn
+# asymmetrisch. Te lang is een stijlkwestie die een mens bij review ziet; te kort betekent
+# dat er inhoud ontbreekt, en dat repareert alleen de schrijver.
+#
+# Uitzondering: de Kortste omschrijving heeft géén doelband maar een echte harde grens van
+# 200 tekens -- die komt van Edudex en niet van ons.
+
+
+@dataclass(frozen=True)
+class Band:
+    doel_lo: int      # richtlijn uit de schrijfspec
+    doel_hi: int
+    rail_lo: int      # buitengrens; daarbuiten terug naar de schrijver
+    rail_hi: int
+
+
+BANDEN: dict[str, Band] = {
+    "overzicht": Band(55, 65, 45, 90),
+    "inleiding": Band(180, 210, 150, 260),
+}
+
+# Meer dagen = meer inhoud om te beschrijven, dus schuift de doelband van de Inleiding mee.
+# Het Overzicht niet: dat is de aanhaakalinea, geen inhoudsopgave -- die blijft even lang,
+# of de training nu één dag duurt of vijf.
+_INLEIDING_PER_DAGEN: tuple[tuple[int, Band], ...] = (
+    (1, Band(170, 200, 150, 260)),      # 1 dag of korter
+    (3, Band(180, 210, 150, 260)),      # 2-3 dagen: zoals voorgeschreven
+    (99, Band(190, 230, 150, 280)),     # 4 dagen of meer
+)
+
+
+def lengteband(kopje: str, dagen: int | None = None) -> Band:
+    """De band voor dit kopje, eventueel bijgesteld op het aantal trainingsdagen."""
+    if kopje == "inleiding" and dagen:
+        for grens, band in _INLEIDING_PER_DAGEN:
+            if dagen <= grens:
+                return band
+    return BANDEN[kopje]
+
+
+def _lengte_issues(section: str, aantal: int, band: Band) -> list[Issue]:
+    """Woordaantal -> hooguit één issue: HARD buiten de vangrail, FLAG buiten de doelband."""
+    richtlijn = f"richtlijn is {band.doel_lo}-{band.doel_hi} woorden"
+    if aantal < band.rail_lo:
+        return [Issue(section, HARD, "lengte_woorden",
+                      f"{aantal} woorden is te kort ({richtlijn}); er ontbreekt inhoud. "
+                      f"Vul aan met een gedachte die er nog niet staat, niet met vulwoorden.")]
+    if aantal > band.rail_hi:
+        return [Issue(section, HARD, "lengte_woorden",
+                      f"{aantal} woorden is te lang ({richtlijn}). Schrap een hele gedachte "
+                      f"of zin; knip geen zinnen af en gooi geen bijzinnen weg die de "
+                      f"formulering precies maken.")]
+    if not (band.doel_lo <= aantal <= band.doel_hi):
+        return [Issue(section, FLAG, "lengte_richtlijn",
+                      f"{aantal} woorden; {richtlijn}. Binnen de marge -- alleen bijstellen "
+                      f"als de tekst er beter van wordt.")]
+    return []
+
+
+# ---------------------------------------------------------------------------
 # Per-kopje checks
 # ---------------------------------------------------------------------------
+
+# Alle per-kopje checks hebben dezelfde signatuur `(rw, ctx=None)`, ook waar `ctx` niet
+# gebruikt wordt. Zo kan elke aanroeper (check_rewrite, CHECKS_PER_KOPJE in
+# rewrite_trainings.py) de context blind doorgeven zonder per kopje uit te zoeken of hij
+# hem nodig heeft -- en werkt de Inleiding-band op dagen ook bij een losse hergeneratie.
 
 # voorkennis staat hier bewust NIET in: een lege voorkennis is geldig -> de code
 # voegt dan de vaste fallbackzin in (zie assemble_document / sjabloon.VOORKENNIS_FALLBACK).
@@ -240,15 +325,11 @@ def check_presence(rw: dict) -> list[Issue]:
     return issues
 
 
-def check_overzicht(rw: dict) -> list[Issue]:
+def check_overzicht(rw: dict, ctx: dict | None = None) -> list[Issue]:
     t = _norm(rw.get("overzicht"))
     if not t:
         return []
-    issues = []
-    wc = word_count(t)
-    if not (55 <= wc <= 65):
-        issues.append(Issue("overzicht", HARD, "lengte_woorden",
-                            f"{wc} woorden; moet 55-65 zijn."))
+    issues = _lengte_issues("overzicht", word_count(t), lengteband("overzicht"))
     if not _startswith_ci(t, "wil je"):
         issues.append(Issue("overzicht", HARD, "opening",
                             'moet beginnen met een vraag die start met "Wil je …".'))
@@ -258,18 +339,15 @@ def check_overzicht(rw: dict) -> list[Issue]:
     return issues
 
 
-def check_inleiding(rw: dict) -> list[Issue]:
+def check_inleiding(rw: dict, ctx: dict | None = None) -> list[Issue]:
     t = _norm(rw.get("inleiding"))
     if not t:
         return []
-    wc = word_count(t)
-    if not (180 <= wc <= 210):
-        return [Issue("inleiding", HARD, "lengte_woorden",
-                      f"{wc} woorden; moet 180-210 zijn.")]
-    return []
+    band = lengteband("inleiding", (ctx or {}).get("dagen"))
+    return _lengte_issues("inleiding", word_count(t), band)
 
 
-def check_modules(rw: dict) -> list[Issue]:
+def check_modules(rw: dict, ctx: dict | None = None) -> list[Issue]:
     mods = _modules(rw)
     issues = []
     if not (4 <= len(mods) <= 6):
@@ -289,7 +367,7 @@ def check_modules(rw: dict) -> list[Issue]:
     return issues
 
 
-def check_doelgroep(rw: dict) -> list[Issue]:
+def check_doelgroep(rw: dict, ctx: dict | None = None) -> list[Issue]:
     t = _norm(rw.get("doelgroep"))
     if not t:
         return []
@@ -304,7 +382,7 @@ def check_doelgroep(rw: dict) -> list[Issue]:
     return issues
 
 
-def check_voorkennis(rw: dict) -> list[Issue]:
+def check_voorkennis(rw: dict, ctx: dict | None = None) -> list[Issue]:
     t = _norm(rw.get("voorkennis"))
     if not t:
         return []
@@ -313,7 +391,7 @@ def check_voorkennis(rw: dict) -> list[Issue]:
     return []
 
 
-def check_doelen(rw: dict) -> list[Issue]:
+def check_doelen(rw: dict, ctx: dict | None = None) -> list[Issue]:
     bullets = _doelen(rw)
     issues = []
     if not (4 <= len(bullets) <= 5):
@@ -337,22 +415,23 @@ def check_doelen(rw: dict) -> list[Issue]:
     return issues
 
 
-def check_kortste_omschrijving(rw: dict) -> list[Issue]:
+def check_kortste_omschrijving(rw: dict, ctx: dict | None = None) -> list[Issue]:
     t = _norm(rw.get("kortste_omschrijving"))
     if not t:
         return []
     issues = []
     n = len(t)
+    # Het enige echte plafond in de spec: Edudex kapt langere tekst af. Geen marge dus.
     if n > 200:
         issues.append(Issue("kortste_omschrijving", HARD, "lengte_tekens",
-                            f"{n} tekens; mag maximaal 200 zijn."))
+                            f"{n} tekens; mag maximaal 200 zijn (harde grens van Edudex)."))
     if not _startswith_ci(t, "wil je"):
         issues.append(Issue("kortste_omschrijving", HARD, "opening",
                             'moet beginnen met een vraag die start met "Wil je …".'))
     return issues
 
 
-def check_vervolgstappen(rw: dict, ctx: dict | None) -> list[Issue]:
+def check_vervolgstappen(rw: dict, ctx: dict | None = None) -> list[Issue]:
     titels = _titels(rw)
     catalog = (ctx or {}).get("catalog_titles")
     if catalog is None:
@@ -422,13 +501,13 @@ def check_rewrite(rewrite: dict, ctx: dict | None = None) -> list[Issue]:
     rw = rewrite or {}
     issues: list[Issue] = []
     issues += check_presence(rw)
-    issues += check_overzicht(rw)
-    issues += check_inleiding(rw)
-    issues += check_modules(rw)
-    issues += check_doelgroep(rw)
-    issues += check_voorkennis(rw)
-    issues += check_doelen(rw)
-    issues += check_kortste_omschrijving(rw)
+    issues += check_overzicht(rw, ctx)
+    issues += check_inleiding(rw, ctx)
+    issues += check_modules(rw, ctx)
+    issues += check_doelgroep(rw, ctx)
+    issues += check_voorkennis(rw, ctx)
+    issues += check_doelen(rw, ctx)
+    issues += check_kortste_omschrijving(rw, ctx)
     issues += check_vervolgstappen(rw, ctx)
     issues += check_soortwoorden(rw)
     issues += check_verboden_woorden(rw, ctx)

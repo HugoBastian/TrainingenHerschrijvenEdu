@@ -87,8 +87,56 @@ def test_korte_verkeerde_opening():
 
 def test_algemene_te_lang():
     rw = _good_rewrite()
-    rw["inleiding"] = " ".join(["onderwerp"] * 260)
+    rw["inleiding"] = " ".join(["onderwerp"] * 280)
     assert "lengte_woorden" in _codes(check_rewrite(rw, _CTX), HARD)
+
+
+# ---------------------------------------------------------------------------
+# Lengte is een richtlijn met een vangrail: net eroverheen mag, ver eroverheen niet
+# ---------------------------------------------------------------------------
+
+def test_korte_net_buiten_richtlijn_is_flag():
+    rw = _good_rewrite()
+    rw["overzicht"] = "Wil je " + " ".join(["data"] * 70) + "?"   # 72 woorden
+    issues = check_rewrite(rw, _CTX)
+    assert "lengte_woorden" not in _codes(issues, HARD)
+    assert "lengte_richtlijn" in _codes(issues, FLAG)
+
+
+def test_korte_buiten_vangrail_is_hard():
+    rw = _good_rewrite()
+    rw["overzicht"] = "Wil je " + " ".join(["data"] * 100) + "?"
+    assert "lengte_woorden" in _codes(check_rewrite(rw, _CTX), HARD)
+
+
+def test_algemene_net_buiten_richtlijn_is_flag():
+    rw = _good_rewrite()
+    rw["inleiding"] = " ".join(["onderwerp"] * 228)
+    issues = check_rewrite(rw, _CTX)
+    assert "lengte_woorden" not in _codes(issues, HARD)
+    assert "lengte_richtlijn" in _codes(issues, FLAG)
+
+
+def test_inleidingsband_schuift_met_dagen():
+    """Een training van vijf dagen mag een langere Inleiding hebben dan een van één dag."""
+    rw = _good_rewrite()
+    rw["inleiding"] = " ".join(["onderwerp"] * 228)
+    lang = check_rewrite(rw, dict(_CTX, dagen=5))
+    kort = check_rewrite(rw, dict(_CTX, dagen=1))
+    assert "lengte_richtlijn" not in _codes(lang, FLAG)   # binnen de band voor 5 dagen
+    assert "lengte_richtlijn" in _codes(kort, FLAG)       # te lang voor een eendaagse
+    # de vangrail schuift mee, maar niet oneindig
+    rw["inleiding"] = " ".join(["onderwerp"] * 265)
+    assert "lengte_woorden" not in _codes(check_rewrite(rw, dict(_CTX, dagen=5)), HARD)
+    assert "lengte_woorden" in _codes(check_rewrite(rw, dict(_CTX, dagen=2)), HARD)
+
+
+def test_overzichtsband_negeert_dagen():
+    """Het Overzicht is de aanhaakalinea; die blijft even lang, hoe lang de training ook duurt."""
+    rw = _good_rewrite()
+    rw["overzicht"] = "Wil je " + " ".join(["data"] * 70) + "?"
+    for dagen in (1, 5):
+        assert "lengte_richtlijn" in _codes(check_rewrite(rw, dict(_CTX, dagen=dagen)), FLAG)
 
 
 def test_programma_te_weinig_modules():
@@ -635,6 +683,93 @@ def test_cijfer_in_vrije_tekst_wordt_geen_actienummer():
     assert [nr for nr, _ in items] == [1, 2]
 
 
+# ---------------------------------------------------------------------------
+# Scoresheet-kolomnamen: handgemaakte lijsten houden vaak `id`/`name`
+# ---------------------------------------------------------------------------
+
+def _scored_df(**kolommen):
+    import pandas as pd
+    basis = {"actualiteit_actie": ["1. refresh: eerste"], "actie_besluit": ["1 prima"]}
+    return pd.DataFrame({**basis, **kolommen})
+
+
+def test_normaliseer_hernoemt_bronkolomnamen():
+    df = bes.normaliseer_scored_kolommen(_scored_df(id=[42], name=["Training XML"]))
+    assert "training_id" in df.columns and "titel" in df.columns
+    assert df["training_id"].iloc[0] == 42
+    assert df["titel"].iloc[0] == "Training XML"
+
+
+def test_normaliseer_laat_een_scorersheet_met_rust():
+    """Staat `training_id` er al, dan wint die -- ook naast een losse `id`-kolom."""
+    df = bes.normaliseer_scored_kolommen(
+        _scored_df(training_id=[42], titel=["Training XML"], id=[999], name=["iets anders"]))
+    assert df["training_id"].iloc[0] == 42
+    assert df["titel"].iloc[0] == "Training XML"
+
+
+def test_load_scored_accepteert_id_en_name():
+    with tempfile.TemporaryDirectory() as d:
+        pad = os.path.join(d, "prio.xlsx")
+        _scored_df(id=[42], name=["Training XML"]).to_excel(pad, index=False)
+        assert bes._load_scored(pad)["training_id"].iloc[0] == 42
+        assert rw._load_scored(pad)["training_id"].iloc[0] == 42
+
+
+def test_load_scored_faalt_nog_steeds_zonder_id_kolom():
+    with tempfile.TemporaryDirectory() as d:
+        pad = os.path.join(d, "zonder_id.xlsx")
+        _scored_df(willekeurig=["x"]).to_excel(pad, index=False)
+        try:
+            bes._load_scored(pad)
+        except ValueError as e:
+            assert "training_id" in str(e)
+            return
+    raise AssertionError("verwachtte ValueError bij een sheet zonder id-kolom")
+
+
+# ---------------------------------------------------------------------------
+# besluiten.xlsx: meerdere batches naast elkaar
+# ---------------------------------------------------------------------------
+
+def test_besluiten_sheet_behoudt_trainingen_buiten_het_scoresheet():
+    """Een prioriteitslijst mag de besluiten van de rest van de catalogus niet wissen."""
+    import pandas as pd
+    with tempfile.TemporaryDirectory() as d:
+        besluiten_pad = os.path.join(d, "besluiten.xlsx")
+        eerste = os.path.join(d, "batch_a.xlsx")
+        tweede = os.path.join(d, "batch_b.xlsx")
+        _scored_df(training_id=[1], titel=["Training A"]).to_excel(eerste, index=False)
+        _scored_df(id=[2], name=["Training B"]).to_excel(tweede, index=False)
+
+        bes.write_besluiten_sheet(eerste, besluiten_pad, verbose=False)
+        bes.write_besluiten_sheet(tweede, besluiten_pad, verbose=False)
+
+        df = pd.read_excel(besluiten_pad)
+        assert set(df["training_id"]) == {1, 2}
+        assert list(df.columns) == bes.KOLOMMEN
+        assert set(bes.load_besluiten(besluiten_pad)) == {1, 2}
+
+
+def test_besluiten_sheet_ververst_de_eigen_trainingen():
+    """Opnieuw draaien op hetzelfde sheet dupliceert niet en neemt de nieuwe actietekst mee."""
+    import pandas as pd
+    with tempfile.TemporaryDirectory() as d:
+        besluiten_pad = os.path.join(d, "besluiten.xlsx")
+        scored = os.path.join(d, "batch.xlsx")
+        _scored_df(training_id=[1], titel=["Training A"]).to_excel(scored, index=False)
+        bes.write_besluiten_sheet(scored, besluiten_pad, verbose=False)
+
+        gewijzigd = _scored_df(training_id=[1], titel=["Training A"])
+        gewijzigd["actualiteit_actie"] = ["1. refresh: herzien"]
+        gewijzigd.to_excel(scored, index=False)
+        bes.write_besluiten_sheet(scored, besluiten_pad, verbose=False)
+
+        df = pd.read_excel(besluiten_pad)
+        assert len(df) == 1
+        assert df["actie"].iloc[0] == "refresh: herzien"
+
+
 def test_parse_acties_nummert_de_scorerlijst():
     acties = bes.parse_acties("1. refresh: eerste\n2. refresh: tweede\n3. refresh: derde")
     assert acties == {1: "refresh: eerste", 2: "refresh: tweede", 3: "refresh: derde"}
@@ -831,6 +966,61 @@ def test_zonder_document_geen_markdown_en_een_oude_md_gaat_weg():
         paden = rw.schrijf_training_artefacten(d, 5, res, {})
         assert paden["md"] is None
         assert os.listdir(d) == ["5.json"]
+
+
+def test_json_default_zet_numpy_scalars_om():
+    import numpy as np
+    assert rw._json_default(np.int64(2347)) == 2347
+    assert isinstance(rw._json_default(np.int64(2347)), int)
+    assert rw._json_default(np.bool_(True)) is True
+
+
+def test_json_default_laat_echt_onserialiseerbare_objecten_falen():
+    try:
+        rw._json_default(object())
+    except TypeError as e:
+        assert "not JSON serializable" in str(e)
+        return
+    raise AssertionError("verwachtte TypeError voor een gewoon object")
+
+
+def test_artefacten_verdragen_een_numpy_training_id():
+    """Regressie: training_id komt uit een DataFrame en is dus numpy.int64, geen int."""
+    import numpy as np
+    res = rw.RewriteResult(np.int64(2347), "Training XML", rw.APPROVED, document=_document())
+    res.thin = np.bool_(True)
+    with tempfile.TemporaryDirectory() as d:
+        paden = rw.schrijf_training_artefacten(d, res.training_id, res, {"days": np.int64(3)})
+        assert sorted(os.listdir(d)) == ["2347.json", "2347.md"]
+        with open(paden["json"], encoding="utf-8") as f:
+            opgeslagen = json.load(f)
+        assert opgeslagen["training_id"] == 2347
+        assert type(opgeslagen["training_id"]) is int
+        assert opgeslagen["thin"] is True
+        assert opgeslagen["content"]["days"] == 3
+
+
+def test_mislukt_schrijven_laat_de_vorige_versie_staan():
+    """Een fout halverwege mag geen half artefact achterlaten (dat was de crash van cel 5)."""
+    with tempfile.TemporaryDirectory() as d:
+        pad = os.path.join(d, "5.json")
+        with open(pad, "w", encoding="utf-8") as f:
+            f.write('{"heel": "bestand"}')
+
+        def stuk(f):
+            f.write('{"half":')
+            raise ValueError("simuleert een serialisatiefout")
+
+        try:
+            rw._schrijf_atomisch(pad, stuk)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("verwachtte dat de fout doorgegeven werd")
+
+        with open(pad, encoding="utf-8") as f:
+            assert json.load(f) == {"heel": "bestand"}
+        assert os.listdir(d) == ["5.json"], "tmp-bestand niet opgeruimd"
 
 
 def test_bewaar_training_zet_de_artefacten_in_trainingen():
