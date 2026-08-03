@@ -142,6 +142,16 @@ def sentence_count(text: str) -> int:
     return n if n > 0 else 1  # tekst zonder eindteken telt als 1 zin
 
 
+def zinnen(text: str) -> list[str]:
+    """Tekst -> losse zinnen. Ruw: splitst op eindteken, kent geen afkortingen.
+
+    "bijv." of "3.11" splitst dus ten onrechte, maar dat maakt een zin alleen kórter dan hij
+    is. Voor waar we dit voor gebruiken -- een uitschieter naar boven signaleren -- valt de
+    fout dus de goede kant op.
+    """
+    return [z.strip() for z in _SENTENCE_END_RE.split((text or "").strip()) if z.strip()]
+
+
 def _norm(text) -> str:
     return (text or "").strip() if isinstance(text, str) else ""
 
@@ -189,6 +199,36 @@ def check_generic(rw: dict) -> list[Issue]:
         for w in MARKETING_WORDS:
             if w in low:
                 issues.append(Issue(section, FLAG, "marketing", f"marketingtaal: '{w}'."))
+    return issues
+
+
+# De schrijfspec noemt ±20 woorden per zin. Dat is een gemiddelde, geen plafond: op het goud
+# is de mediane zin 19 woorden, maar 41% zit erboven en p90 ligt op 27. Een harde grens zou
+# dus de bijzin wegsnijden die de gedachte compleet maakt -- en juist de causale constructie
+# uit schrijfspec §0.12 ("doordat we X doen, kun jij Y") maakt zinnen langer.
+#
+# Daarom staat hier geen grens maar een signaal, en pas ver voorbij de richtlijn. Boven de 35
+# woorden zit 1% van het goud; daar gaat het bijna altijd om twee gedachten in één zin. FLAG,
+# nooit HARD: dit gaat naar de menselijke review en nooit terug naar de schrijver.
+ZIN_RICHTLIJN = 20
+ZIN_SIGNAAL = 35
+
+# Kopjes met lopende tekst. Bullets en de [....]-invulling zijn geen zinnen en tellen niet mee.
+_PROZA_VELDEN = ("overzicht", "inleiding", "doelgroep", "voorkennis")
+
+
+def check_zinlengte(rw: dict, ctx: dict | None = None) -> list[Issue]:
+    issues: list[Issue] = []
+    for key in _PROZA_VELDEN:
+        for zin in zinnen(_norm(rw.get(key))):
+            n = word_count(zin)
+            if n > ZIN_SIGNAAL:
+                fragment = zin if len(zin) <= 60 else zin[:57].rstrip() + "…"
+                issues.append(Issue(key, FLAG, "zin_lang",
+                                    f"zin van {n} woorden (richtlijn ±{ZIN_RICHTLIJN}): "
+                                    f"\"{fragment}\". Meestal zitten hier twee gedachten in "
+                                    f"één zin. Splitsen mag, maar alleen als de zin daar "
+                                    f"beter van wordt -- niet om het aantal te halen."))
     return issues
 
 
@@ -512,6 +552,7 @@ def check_rewrite(rewrite: dict, ctx: dict | None = None) -> list[Issue]:
     issues += check_soortwoorden(rw)
     issues += check_verboden_woorden(rw, ctx)
     issues += check_generic(rw)
+    issues += check_zinlengte(rw, ctx)
     return issues
 
 

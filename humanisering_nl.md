@@ -8,7 +8,9 @@ Deze regels dienen twee doelen:
 2. **Achteraf** — de `BANNED_PATTERNS`-lijst hieronder wordt door `rewrite_checks.py` deterministisch geflagd, en een lichte opschoon-pass ruimt residu op.
 
 De harde regels van de stijlgids gelden onverkort: geen marketingtaal, geen superlatieven,
-zinnen ≤ ±20 woorden, "je"-vorm.
+"je"-vorm. Zinslengte hoort daar níét bij: ±20 woorden is een gemiddelde om op te mikken,
+geen plafond (schrijfspec §0.4). Afwisseling telt hier zwaarder dan het getal — een rij
+zinnen van gelijke lengte is zélf een LLM-signaal, net als de patronen hieronder.
 
 ---
 

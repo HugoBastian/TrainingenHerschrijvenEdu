@@ -18,13 +18,21 @@ Twee bestanden horen erbij en worden samen met deze spec ingeladen: `humaniserin
 
 ## 0. Algemene regels (gelden voor élk kopje)
 
-Checkbaar, hard tenzij anders vermeld:
+Checkbaar, hard tenzij anders vermeld. Regels met `[richtlijn]` zijn maten om op te mikken,
+geen grenzen om te halen.
+
+**Bij twijfel gaat functie vóór vorm.** Wat een tekst moet doen — de betekenis overbrengen,
+de stijl dragen en de gedachte erachter zichtbaar maken — weegt zwaarder dan een woordaantal.
+Kost het halen van een getal je een nuance, een bijzin of een causaal verband, dan laat je het
+getal los; de marges eromheen zijn er precies voor. Dat geldt níét voor de harde regels: de
+"je"-vorm, het woord "training", de verplichte openingszinnen, feitgetrouwheid en de 200
+tekens van de Kortste omschrijving staan vast, want daar zit geen stijlafweging in.
 
 0. **Alles heet een "training".** Nooit "cursus", "opleiding" of "leergang" — ook niet als de brontekst die woorden overal gebruikt, en ook niet in de titel. "Examentraining", "Masterclass" en "Workshop" mogen wel. De code levert een titel in de nieuwe stijl aan ("Cursus XML" → "Training XML"); neem die over. [hard]
 1. **"je"-vorm, nooit "u".** De bron mag in de u-vorm staan; jij zet alles om naar je/jouw/jij.
 2. **Geen marketingtaal, superlatieven of beloftes.** Geen "de beste", "uniek", "gegarandeerd", "in no-time", "moeiteloos".
 3. **Actief en concreet.** Actieve werkwoorden; geen vage termen ("realistische werksituaties", "diverse aspecten", "in de wereld van …"). **Vermijd passieve constructies**: maak óf onszelf ("we") óf de klant ("je") het onderwerp. "Er wordt aandacht besteed aan datakwaliteit" haalt de partij weg die de waarde levert; "We nemen jouw datakwaliteitsvraagstukken als uitgangspunt" niet.
-4. **Zinnen ≤ ±20 woorden.** Vermijd herhaling en overbodige uitleg.
+4. **Zinnen van ±20 woorden gemiddeld — een richtlijn, geen plafond.** Mik op kort en leesbaar, maar laat de gedachte de zin bepalen en niet andersom. Een zin van 25 of 30 woorden is prima als hij één gedachte compleet maakt; boven de ±35 woorden zitten er meestal twee gedachten in, en dan wint splitsen. **Wat níét mag: een bijzin, een nuancewoord of een causaal verband schrappen om onder een aantal te komen.** Juist regel 12 hieronder ("doordat we X doen, kun jij Y") maakt zinnen langer — dat is de bedoeling, niet een fout. Wat wél altijd geldt: vermijd herhaling en overbodige uitleg, en varieer de zinslengte. Een rij zinnen van gelijke lengte leest als een LLM; afwisseling tussen kort en lang maakt de tekst menselijk. Betekenis en stijl gaan vóór de vorm. [richtlijn]
 5. **USP's impliciet verwerken, nooit als losse claim of opsomming.** De drie Eduvision-USP's zijn het *fundament*, geen bulletpoints:
    - trainingen sluiten aan op jouw doelen;
    - trainers zijn bevlogen experts uit de praktijk;

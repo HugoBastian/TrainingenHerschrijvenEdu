@@ -36,7 +36,7 @@ het model.
 | `rewrite_output.py` | Document → CMS-`content`-JSON (HTML) en → markdown met kop 1/2/3. |
 | `rewrite_trainings.py` | Hybride schrijver + orchestratie + I/O. |
 | `herschrijven.ipynb` | Notebook om de pijplijn stap voor stap te draaien en te inspecteren. |
-| `test_rewrite.py` | 80 offline tests (geen API-key nodig). |
+| `test_rewrite.py` | 98 offline tests (geen API-key nodig). |
 
 ## Setup
 
@@ -221,20 +221,31 @@ schrijft hij het kopje opnieuw.
 | --- | --- | --- |
 | Overzicht | 55–65 woorden | 45–90 |
 | Inleiding | 180–210 woorden (1 dag: 170–200 · 4+ dagen: 190–230) | 150–260 (4+ dagen: 150–280) |
+| Zin (lopende tekst) | ±20 woorden gemiddeld | geen — alleen een FLAG boven 35 |
 | Kortste omschrijving | — | **max. 200 tekens, hard** |
 
 De reden voor de marge: met één hard venster moest de schrijver op het laatste woord inkorten,
 en dat kostte de zin zijn ritme en precisie — precies wat de spec elders probeert op te bouwen.
 De banden liggen rond p85 van het goud (`lengtes_over_goud()`), dus ruim genoeg om een
 goedgeschreven kopje niet terug te sturen en strak genoeg om een ontspoorde tekst te vangen.
+
+**Zinslengte is nóg zachter.** De ±20 woorden uit de schrijfspec zijn een gemiddelde, geen
+plafond: op het goud is de mediane zin 19 woorden, maar 41% zit erboven en p90 ligt op 27. Een
+grens daar zou de bijzin wegsnijden die de gedachte compleet maakt — en de causale constructie
+uit §0.12 ("doordat we X doen, kun jij Y") maakt zinnen juist langer. Er is daarom geen
+vangrail, alleen een FLAG boven de 35 woorden (1% van het goud), waar het meestal om twee
+gedachten in één zin gaat. Bullets tellen niet mee; dat zijn geen zinnen.
+
 Alleen de 200 tekens van de Kortste omschrijving zijn absoluut: die grens komt van Edudex, die
-langere tekst afkapt. De schrijfspec (§0.14) en de judge weten dit ook — de judge oordeelt
-bewust niet over lengte.
+langere tekst afkapt. De schrijfspec (§0.4 en §0.14) en de judge weten dit ook — de judge
+oordeelt bewust niet over lengte. Het onderliggende principe staat boven aan §0 van de
+schrijfspec: **bij twijfel gaat functie vóór vorm**, behalve bij de harde regels, want daar zit
+geen stijlafweging in.
 
 ## Tests
 
 ```bash
-python test_rewrite.py     # 95 offline checks, geen API-key nodig
+python test_rewrite.py     # 98 offline checks, geen API-key nodig
 ```
 
 Getest wordt de deterministische laag: de code-check, de structurele splitsing van

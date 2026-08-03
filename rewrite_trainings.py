@@ -758,13 +758,14 @@ def build_writer_system() -> list[dict]:
     if voorbeelden:
         prefix += "\n\n---\n\n" + voorbeelden
     instr = ("Je herschrijft één training naar de nieuwe stijl. Volg de schrijfspec hierboven "
-             "letterlijk (verplichte openingszinnen, persona-toon, 'je'-vorm). De opgegeven "
-             "lengtes zijn richtlijnen: mik erop, maar schrijf de zin af. Een zin inkorten, een "
-             "bijzin schrappen of een woord weglaten om precies binnen het aantal te landen kost "
-             "de tekst meer dan de afwijking oplevert. Alleen de 200 tekens van de Kortste "
-             "omschrijving zijn hard. Schrijf ALLEEN de generatieve kopjes en roep tot slot het "
-             "tool `submit_rewrite` aan. Verzin geen feiten (versies/vendors/cijfers) die niet in "
-             "de bron of de feiten staan.")
+             "letterlijk (verplichte openingszinnen, persona-toon, 'je'-vorm). Alle aantallen "
+             "woorden -- per kopje én per zin -- zijn richtlijnen: mik erop, maar laat de "
+             "gedachte de zin bepalen. Een bijzin schrappen, een nuance weglaten of een causaal "
+             "verband inslikken om binnen een aantal te landen kost de tekst meer dan de "
+             "afwijking oplevert; bij twijfel gaat betekenis en stijl vóór de vorm. Alleen de "
+             "200 tekens van de Kortste omschrijving zijn hard. Schrijf ALLEEN de generatieve "
+             "kopjes en roep tot slot het tool `submit_rewrite` aan. Verzin geen feiten "
+             "(versies/vendors/cijfers) die niet in de bron of de feiten staan.")
     return [{"type": "text", "text": instr + "\n\n---\n\n" + prefix,
              "cache_control": {"type": "ephemeral"}}]
 
@@ -1342,13 +1343,15 @@ def lengtes_over_goud(goud_dir: str = GOUD_DIR, verbose: bool = True) -> dict:
     """Kalibratie van de lengtebanden: hoe lang is het goud écht?
 
     Levert de verdeling per kopje plus hoeveel trainingen binnen de doelband en binnen de
-    vangrail vallen (`checks.BANDEN`). Hiermee zijn de banden gekozen: het goud haalt de
-    doelband van Overzicht en Inleiding in ~35% van de gevallen, dus een harde doelband zou
-    de schrijver wegduwen van de vorm die hij hoort te imiteren. Draai dit opnieuw voordat
-    je een band verschuift -- niet op gevoel.
+    vangrail vallen (`checks.BANDEN`), en daarnaast de verdeling van de zinslengte. Hiermee
+    zijn de banden gekozen: het goud haalt de doelband van Overzicht en Inleiding in ~35%
+    resp. ~23% van de gevallen, en 41% van de zinnen is langer dan de richtlijn van ±20
+    woorden. Een harde grens zou de schrijver dus wegduwen van de vorm die hij hoort te
+    imiteren. Draai dit opnieuw voordat je een band of richtlijn verschuift -- niet op gevoel.
     """
     import glob
     metingen: dict[str, list[int]] = {"overzicht": [], "inleiding": [], "kortste_omschrijving": []}
+    zinnen: list[int] = []
     for pad in sorted(glob.glob(os.path.join(goud_dir, "*.json"))):
         with open(pad, encoding="utf-8") as f:
             d = json.load(f)
@@ -1359,9 +1362,13 @@ def lengtes_over_goud(goud_dir: str = GOUD_DIR, verbose: bool = True) -> dict:
                 continue
             metingen[kopje].append(len(tekst) if kopje == "kortste_omschrijving"
                                    else checks.word_count(tekst))
+        for kopje in ("overzicht", "inleiding"):
+            zinnen += [n for n in (checks.word_count(z)
+                                   for z in checks.zinnen(rw.get(kopje) or "")) if n >= 3]
+    metingen["zinnen"] = zinnen
     if verbose:
         for kopje, waarden in metingen.items():
-            if not waarden:
+            if not waarden or kopje == "zinnen":
                 continue
             v = sorted(waarden)
             eenheid = "tekens" if kopje == "kortste_omschrijving" else "woorden"
@@ -1378,6 +1385,14 @@ def lengtes_over_goud(goud_dir: str = GOUD_DIR, verbose: bool = True) -> dict:
             else:
                 boven = sum(1 for x in v if x > 200)
                 print(f"  boven de harde 200 tekens: {boven}/{len(v)}")
+        if zinnen:
+            v = sorted(zinnen)
+            n = len(v)
+            print(f"\nzinslengte in Overzicht + Inleiding (woorden, n={n})")
+            print(f"  mediaan {v[n // 2]}  p90 {v[int(.90 * n)]}  max {v[-1]}")
+            for grens in (checks.ZIN_RICHTLIJN, checks.ZIN_SIGNAAL):
+                boven = sum(1 for x in v if x > grens)
+                print(f"  langer dan {grens} woorden: {boven}/{n} ({100 * boven // n}%)")
     return metingen
 
 

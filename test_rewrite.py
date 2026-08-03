@@ -59,6 +59,13 @@ def _codes(issues, severity=None):
     return {i.code for i in issues if severity is None or i.severity == severity}
 
 
+def _codes_in(issues, section, severity=None):
+    """Codes van één kopje. Nodig waar de fixture elders al hetzelfde signaal geeft --
+    `_good_rewrite` bestaat uit herhaalde woorden zonder interpunctie, dus de Inleiding is
+    formeel één zin van 195 woorden."""
+    return _codes([i for i in issues if i.section == section], severity)
+
+
 # ---------------------------------------------------------------------------
 # Baseline: het goede concept haalt alle harde checks
 # ---------------------------------------------------------------------------
@@ -129,6 +136,30 @@ def test_inleidingsband_schuift_met_dagen():
     rw["inleiding"] = " ".join(["onderwerp"] * 265)
     assert "lengte_woorden" not in _codes(check_rewrite(rw, dict(_CTX, dagen=5)), HARD)
     assert "lengte_woorden" in _codes(check_rewrite(rw, dict(_CTX, dagen=2)), HARD)
+
+
+def test_lange_zin_is_flag_geen_hardfail():
+    rw = _good_rewrite()
+    # 40 woorden in één zin: ver boven de richtlijn van ±20, dus een signaal -- maar de
+    # schrijver hoort er niet voor terug te moeten.
+    rw["doelgroep"] = "Deze training is voor " + " ".join(["iedereen"] * 37) + "."
+    issues = check_rewrite(rw, _CTX)
+    assert "zin_lang" in _codes_in(issues, "doelgroep", FLAG)
+    assert "zin_lang" not in _codes(issues, HARD)
+
+
+def test_zin_boven_de_richtlijn_is_geen_flag():
+    """25 woorden is langer dan ±20 en moet gewoon mogen: de richtlijn is geen plafond."""
+    rw = _good_rewrite()
+    rw["voorkennis"] = "Je werkt " + " ".join(["dagelijks"] * 23) + "."
+    assert "zin_lang" not in _codes_in(check_rewrite(rw, _CTX), "voorkennis", FLAG)
+
+
+def test_zinlengte_kijkt_niet_naar_bullets():
+    """Bullets zijn geen zinnen; een lange module-bullet is geen zinlengte-signaal."""
+    rw = _good_rewrite()
+    rw["modules"]["modules"][0]["bullets"][0] = " ".join(["onderdeel"] * 45)
+    assert "zin_lang" not in _codes_in(check_rewrite(rw, _CTX), "modules", FLAG)
 
 
 def test_overzichtsband_negeert_dagen():

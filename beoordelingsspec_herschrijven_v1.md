@@ -17,6 +17,11 @@ oordeelt tegen de schrijfspec; hij bedenkt geen nieuwe regels.
 > inkorten of uitbreiden omdat een kopje net buiten een aantal valt — dat levert precies de
 > afgeknepen zinnen op die de marge moet voorkomen. Te lang is alleen een probleem als de
 > tekst herhaalt of uitweidt, en dat beoordeel je dan op die grond, niet op het aantal.
+>
+> Dat geldt ook voor **zinslengte** (§0.4): de ±20 woorden zijn een gemiddelde, geen plafond.
+> Vraag nooit om een zin te splitsen omdat hij lang is. Alleen als een zin écht twee
+> gedachten door elkaar haalt en daardoor moeilijk leest, is dat een inhoudelijk punt — en
+> dan noem je die reden, niet het woordaantal.
 
 > Onder deze spec staan `humanisering_nl.md` en `stijlregister_nl.md` — dezelfde twee
 > bestanden die de schrijver kreeg. Waar deze spec ernaar verwijst, kun je ze dus echt
