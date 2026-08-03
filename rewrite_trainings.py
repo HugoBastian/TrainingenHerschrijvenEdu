@@ -483,6 +483,19 @@ def kies_vervolgtrainingen(client, titel: str, kern: str, persona: str,
 # 4. INFO-PASSING: scorer-rij + brontekst -> RewriteBriefing
 # ---------------------------------------------------------------------------
 
+def _cel(val: Any) -> str:
+    """Excel-cel -> tekst, met een lege cel als lege string.
+
+    `str(val or "")` volstaat hier niet: pandas levert een lege cel als `float('nan')`, en dat
+    is truthy -- je houdt dan de tekst "nan" over. Voor `kern_reviewer` is dat het verschil
+    tussen "geen reviewer heeft hiernaar gekeken" en "een mens heeft dit vastgesteld".
+    """
+    if val is None or (isinstance(val, float) and val != val):
+        return ""
+    tekst = str(val).strip()
+    return "" if tekst.lower() == "nan" else tekst
+
+
 def _split_pipe(val: Any) -> list[str]:
     if isinstance(val, list):
         return [str(x).strip() for x in val if str(x).strip()]
@@ -525,10 +538,27 @@ class RewriteBriefing:
     afgewezen: list[bes.Besluit] = field(default_factory=list)
     rewrite_guidance: str = ""
     menselijke_input_nodig: bool = False
+    kern_reviewer: str = ""
 
     @property
     def thin(self) -> bool:
         return self.verdict in ("dun", "redelijk")
+
+    @property
+    def kern_van_reviewer(self) -> bool:
+        """Heeft een mens de kern zelf geschreven of bijgesteld?"""
+        return bool(self.kern_reviewer.strip())
+
+    @property
+    def kern_definitief(self) -> str:
+        """De kern die de schrijver krijgt: die van de reviewer als die er is.
+
+        De kern is het enige veld dat het niveau van de training vastlegt (introducerend,
+        toepassend, verdiepend), en dus het veld waar de reviewer op bijstuurt. De scorer-kern
+        blijft ernaast staan, zodat een herscoring hem mag verversen zonder het oordeel van de
+        mens te overschrijven -- zie `_behoud_kern_reviewer` in score_trainings.py.
+        """
+        return self.kern_reviewer.strip() or self.kern
 
     @property
     def nieuwe_titel(self) -> str:
@@ -590,6 +620,7 @@ def build_briefing(scored: dict, source_content: dict, naam: str,
         afgewezen=afgewezen,
         rewrite_guidance=str(scored.get("rewrite_guidance", "") or ""),
         menselijke_input_nodig=bool(scored.get("menselijke_input_nodig")),
+        kern_reviewer=_cel(scored.get("kern_reviewer")),
     )
 
 
@@ -654,7 +685,10 @@ SUBMIT_REWRITE = {
                                "('Cursus XML' -> 'Training XML'). Lever hier alleen iets als dat "
                                "mechanische resultaat krom loopt. Nooit 'cursus' of 'opleiding'."},
             "notities": {"type": "string",
-                "description": "Optioneel: signaleer 'thin' (dunne bron, veel geconstrueerd) of een structurele twijfel."},
+                "description": "Optioneel: signaleer 'thin' (dunne bron, veel geconstrueerd) of een "
+                               "structurele twijfel. Meld hier ook wanneer de kern en de brontekst "
+                               "elkaar tegenspreken over wat de training doet of op welk niveau — "
+                               "begin die melding met 'kern-conflict:' en zeg wat elk van beide zegt."},
         },
         "required": ["overzicht", "inleiding", "modules", "doelgroep",
                      "aanpak_invulling", "doelen", "kortste_omschrijving"],
@@ -799,14 +833,83 @@ BESLISSING_UITLEG = (
 )
 
 
+# De kern legt het niveau van de training vast en stuurt daarmee elk kopje. Wie hem schreef
+# bepaalt hoeveel gezag hij heeft: een reviewer-kern is een besluit, een scorer-kern een
+# lezing. Zonder dit onderscheid wint de kern altijd -- en dat is precies hoe een tweedaagse
+# introductietraining een tekst kreeg waarin de deelnemer modellen in productie neemt.
+KERN_GEZAG_REVIEWER = (
+    "De kern hierboven is door een mens vastgesteld. Hij is leidend: schrijf de training zoals\n"
+    "de kern hem beschrijft, ook waar de brontekst iets anders suggereert."
+)
+KERN_GEZAG_SCORER = (
+    "De kern hierboven is een lezing van de scorer, geen besluit van een mens. Botst hij met de\n"
+    "brontekst over wat de training feitelijk doet of op welk niveau — dan wint de BRONTEKST.\n"
+    "Meld die botsing in `notities`, zodat een mens ernaar kan kijken."
+)
+
+# Zonder deze regel is de brontekst het enige blok in de prompt zonder opdracht eromheen, en
+# leest het model hem als achtergrond bij de scorer-velden in plaats van als de training zelf.
+BRONTEKST_UITLEG = (
+    "BRONTEKST — de bestaande trainingsbeschrijving, ongewijzigd en onafgekapt. Dit is wat de\n"
+    "training feitelijk is: welke onderwerpen erin zitten, en wat de deelnemer ermee doet. De\n"
+    "velden hierboven zijn een samenvatting ervan; deze tekst is het origineel. Let vooral op\n"
+    "de werkwoorden — \"maak je kennis met\", \"we introduceren\", \"we geven een overzicht\"\n"
+    "beschrijven een ander niveau dan \"je bouwt\", \"je richt in\", \"je optimaliseert\".\n"
+    "Beloof nooit meer dan hier staat.\n\n"
+    "Eén uitzondering, en die gaat vóór: de GOEDGEKEURDE ACTUALISERINGEN hierboven. Die voer\n"
+    "je uit, ook al staan ze niet in deze brontekst — dat is precies waarom ze bestaan. Deze\n"
+    "alinea is geen reden om er één te laten liggen."
+)
+
+# De judge kreeg de brontekst niet, terwijl de beoordelingsspec §2 hem opdraagt elke claim te
+# herleiden tot "`bruikbaar` of de brontekst". Hij toetste feitgetrouwheid dus tegen de
+# samenvatting van de scorer: een claim die de bron tegensprak maar `bruikbaar` niet, kwam er
+# ongehinderd doorheen. Sinds de kern het niveau draagt weegt dat zwaarder -- zwijgt de kern
+# over een aspect, dan had de judge niets om op terug te vallen.
+#
+# De uitleg wijkt bewust af van die voor de schrijver: de valkuil is omgekeerd. De schrijver
+# moet de bron niet overtreffen; de judge moet hem niet napluizen op vorm. Zonder die laatste
+# alinea gaat hij het concept afrekenen op het niet volgen van de bronstructuur -- en juist
+# afwijken van die structuur is het hele punt van herschrijven.
+#
+# De uitzondering voor actualiseringen is geen detail maar de tegenhanger van de hele regel.
+# Een goedgekeurde actie voegt per definitie iets toe dat niet in de bron staat -- dat is
+# waarom hij bestaat. Met de bron als enige maatstaf is elke actualisering een "verzonnen
+# feit", en draait de judge precies het werk terug dat de reviewer in de sessie deed.
+BRONTEKST_UITLEG_JUDGE = (
+    "BRONTEKST — de bestaande trainingsbeschrijving, ongewijzigd en onafgekapt. De velden\n"
+    "hierboven zijn een samenvatting ervan door de scorer; dit is het origineel. Gebruik hem\n"
+    "als maatstaf voor precies twee dingen:\n"
+    "1. FEITGETROUWHEID — elke inhoudelijke claim (versie, vendor, tool, feature, cijfer,\n"
+    "   jaartal, certificering) moet herleidbaar zijn tot deze tekst, tot de feiten hierboven\n"
+    "   of tot een goedgekeurde actualisering. Staat hij nergens, dan is het een feitfout.\n"
+    "2. NIVEAU — lees de werkwoorden. \"Maak je kennis met\", \"we introduceren\", \"we geven\n"
+    "   een overzicht\" beschrijven iets anders dan \"je bouwt\", \"je richt in\", \"je\n"
+    "   optimaliseert\". Belooft het concept meer dan hier staat, dan is dat een fail.\n\n"
+    "UITZONDERING, en die gaat vóór allebei: wat een GOEDGEKEURDE ACTUALISERING hierboven\n"
+    "voorschrijft hoort in de tekst, ook al staat het niet in deze brontekst en verschuift het\n"
+    "waar de training over gaat. De reviewer heeft daarvoor getekend en de bron is juist het\n"
+    "verouderde deel. Reken zo'n passage nooit af als ongegrond of als een te hoge belofte;\n"
+    "twijfel je of iets onder een goedgekeurde actie valt, dan valt het eronder. De enige grens\n"
+    "is de VOORWAARDE die de reviewer eraan hing.\n\n"
+    "Reken het concept NIET af op vorm. Een andere volgorde, andere indeling, andere\n"
+    "formulering, samengevoegde of gesplitste modules, geschrapte ruis: dat is herschrijven,\n"
+    "geen fout. Ontbrekende broninhoud is alleen een punt als er iets wezenlijks verdween."
+)
+
+
 def build_writer_user(b: RewriteBriefing) -> str:
     dagen = str(b.dagen) if b.dagen is not None else "ONBEKEND (schat plausibel)"
+    kern_gezag = KERN_GEZAG_REVIEWER if b.kern_van_reviewer else KERN_GEZAG_SCORER
+    herkomst = "vastgesteld door reviewer" if b.kern_van_reviewer else "lezing van de scorer"
     return (
         f"Titel: {b.nieuwe_titel}\n"
         f"Persona: {b.persona}\n"
         f"Aantal dagen: {dagen}\n"
-        f"Verdict scorer: {b.verdict}{'  (THIN: markeer constructie)' if b.thin else ''}\n"
-        f"Kern: {b.kern}\n\n"
+        f"Verdict scorer: {b.verdict}{'  (THIN: markeer constructie)' if b.thin else ''}\n\n"
+        f"KERN ({herkomst}) — hierin staat het NIVEAU van de training; schrijf nooit boven dat\n"
+        f"niveau, ook niet als een kopje om meer tekst vraagt:\n{b.kern_definitief}\n\n"
+        f"{kern_gezag}\n\n"
         f"Te verwerken feiten (bruikbaar):\n{_opsomming(b.bruikbaar)}\n\n"
         f"Weglaten (strippen):\n{_opsomming(b.strippen)}\n\n"
         f"Gaten (vul plausibel waar afleidbaar):\n{_opsomming(b.gaten)}\n\n"
@@ -818,20 +921,30 @@ def build_writer_user(b: RewriteBriefing) -> str:
         "brontekst er aanleiding toe geeft:\n"
         f"{_opsomming(x.als_instructie() for x in b.afgewezen)}\n\n"
         f"Rewrite-guidance: {b.rewrite_guidance or '(geen)'}\n\n"
-        f"Brontekst:\n{b.source_text}"
+        f"{BRONTEKST_UITLEG}\n\n{b.source_text}"
     )
 
 
 def build_judge_user(b: RewriteBriefing, document: dict) -> str:
+    herkomst = "vastgesteld door reviewer" if b.kern_van_reviewer else "lezing van de scorer"
     return (
         f"Persona: {b.persona}\n"
-        f"Feiten (bruikbaar): " + (" | ".join(b.bruikbaar) or "(geen)") + "\n\n"
+        f"Aantal dagen: {b.dagen if b.dagen is not None else 'onbekend'}\n\n"
+        f"KERN ({herkomst}) — hierin staat het niveau waarop de training hoort te liggen:\n"
+        f"{b.kern_definitief}\n\n"
+        f"Feiten (bruikbaar):\n{_opsomming(b.bruikbaar)}\n\n"
+        "Weggelaten (strippen) — deze mogen niet terug zijn in het concept:\n"
+        f"{_opsomming(b.strippen)}\n\n"
+        "Gaten — hierover zweeg de bron. Wat het concept hier invult is constructie: geen\n"
+        "feitfout, wél reden om de output als thin te markeren:\n"
+        f"{_opsomming(b.gaten)}\n\n"
         f"{BESLISSING_UITLEG}\n\n"
         "Goedgekeurde actualiseringen (moeten verwerkt zijn):\n"
         f"{_opsomming(x.als_instructie() for x in b.goedgekeurd)}\n\n"
         "Afgewezen actualiseringen (mogen NIET terugkomen):\n"
         f"{_opsomming(x.actie for x in b.afgewezen)}\n\n"
-        f"CONCEPT:\n{uit.render_markdown(document, b.nieuwe_titel)}"
+        f"{BRONTEKST_UITLEG_JUDGE}\n\n{b.source_text}\n\n"
+        f"CONCEPT — dit is wat je beoordeelt:\n{uit.render_markdown(document, b.nieuwe_titel)}"
     )
 
 
@@ -1194,11 +1307,25 @@ def hergenereer_kopje(client, b: RewriteBriefing, resultaat: dict, kopje: str,
 
 
 def judge_document(client, b: RewriteBriefing, document: dict) -> dict:
+    """Eén judge-oordeel, met de vorm van het antwoord afgedwongen.
+
+    Het tool-schema garandeert de vorm niet: bij het meten van de spreiding leverde één van
+    de runs `feitgetrouw` als string in plaats van als object. Ongefilterd loopt dat
+    verderop stuk op `judgment["feitgetrouw"].get("thin")` -- midden in een batch, ná de
+    dure schrijfcall. Een verkeerd gevormd blok maken we daarom leeg; de rest van het
+    oordeel blijft bruikbaar en `judge_vorm` maakt zichtbaar dat er iets misging.
+    """
     system = build_judge_system()
     user_text = build_judge_user(b, document)
     out = _call_tool(client, system, user_text, [SUBMIT_JUDGMENT], "submit_judgment")
     if not isinstance(out, dict) or "verdict" not in out:
         return {"verdict": HUMAN_QUEUE, "human_reden": "judge leverde geen bruikbaar oordeel"}
+    afwijkend = [k for k in ("feitgetrouw", "persona_toon", "secties")
+                 if k in out and not isinstance(out[k], dict)]
+    for k in afwijkend:
+        out[k] = {}
+    if afwijkend:
+        out["judge_vorm"] = f"niet-conform veld vervangen door leeg object: {', '.join(afwijkend)}"
     return out
 
 
@@ -1396,8 +1523,14 @@ def lengtes_over_goud(goud_dir: str = GOUD_DIR, verbose: bool = True) -> dict:
     return metingen
 
 
-def _review_rij(res: RewriteResult, content: dict) -> dict:
-    """Eén rij voor het review-tabblad: status + elk kopje in platte tekst."""
+def _review_rij(res: RewriteResult, content: dict, content_bron: dict | None = None) -> dict:
+    """Eén rij voor het review-tabblad: status + elk kopje in platte tekst.
+
+    De brontekst staat er als laatste kolom bij. Zonder die kolom leest de reviewer alleen
+    de nieuwe tekst en kan hij een claim of een opgeschoven niveau niet zien -- dat is de
+    fout die de tekst overleeft nadat de judge hem heeft goedgekeurd. Dezelfde reden waarom
+    `build_judge_user` de bron meestuurt; hier alleen voor een mens in plaats van een model.
+    """
     rij = {
         "training_id": res.training_id, "titel": res.titel,
         "oude_titel": res.oude_titel, "status": res.status,
@@ -1410,6 +1543,8 @@ def _review_rij(res: RewriteResult, content: dict) -> dict:
     plat = uit.content_naar_platte_tekst(content, res.titel) if content else {}
     for kopje in sjabloon.KOPJES:
         rij[kopje.kop] = plat.get(kopje.cms, "")
+    rij["brontekst"] = (build_source_text(content_bron, res.oude_titel or res.titel)
+                        if content_bron else "")
     return rij
 
 
@@ -1542,7 +1677,8 @@ def bewaar_training(out_dir: str, res: RewriteResult,
                                        res.training_id, res, content_uit)
 
 
-def _werk_xlsx_rij_bij(out_path: str, res: RewriteResult, content_uit: dict, verbose=True):
+def _werk_xlsx_rij_bij(out_path: str, res: RewriteResult, content_uit: dict, verbose=True,
+                       content_bron: dict | None = None):
     """Vervangt één rij in `herschreven.xlsx` (beide tabbladen) na een hergeneratie."""
     import pandas as pd
     if not os.path.exists(out_path):
@@ -1557,7 +1693,7 @@ def _werk_xlsx_rij_bij(out_path: str, res: RewriteResult, content_uit: dict, ver
                                "content": json.dumps(content_uit, ensure_ascii=False, default=_json_default)}])
         cms = pd.concat([cms, nieuw], ignore_index=True).drop_duplicates(
             subset="id", keep="last")
-    review = pd.concat([review, pd.DataFrame([_review_rij(res, content_uit)])],
+    review = pd.concat([review, pd.DataFrame([_review_rij(res, content_uit, content_bron)])],
                        ignore_index=True).drop_duplicates(subset="training_id", keep="last")
     with pd.ExcelWriter(out_path) as writer:
         cms.to_excel(writer, sheet_name="cms", index=False)
@@ -1593,7 +1729,8 @@ def hergenereer_kopje_op_schijf(scored_path: str, source_path: str, training_id:
                             catalog=catalog, boom=load_tree(catalog), judge=judge)
     content_uit = uit.document_to_content(res.document, content_bron) if res.document else {}
     schrijf_training_artefacten(json_dir, training_id, res, content_uit)
-    _werk_xlsx_rij_bij(os.path.join(out_dir, "herschreven.xlsx"), res, content_uit, verbose)
+    _werk_xlsx_rij_bij(os.path.join(out_dir, "herschreven.xlsx"), res, content_uit, verbose,
+                       content_bron)
     if verbose:
         print(f"{res.titel} — kopje '{kopje}' opnieuw gegenereerd -> {res.status}"
               + (f" ({res.reden})" if res.reden else ""))
@@ -1669,10 +1806,11 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
                 print(f"  (id {tid} staat op herschreven=1 maar heeft geen bron; overgeslagen)")
             continue
         naam = str(srow.get("titel") or src_row[cols["name"]] or "")
-        res, content_uit = neem_over(tid, naam, parse_content(src_row[cols["content"]]))
+        content_bron = parse_content(src_row[cols["content"]])
+        res, content_uit = neem_over(tid, naam, content_bron)
         cms_records.append({"id": tid, "name": res.titel,
                             "content": json.dumps(content_uit, ensure_ascii=False, default=_json_default)})
-        review_records.append(_review_rij(res, content_uit))
+        review_records.append(_review_rij(res, content_uit, content_bron))
     if verbose and len(overnemen):
         print(f"{len(overnemen)} trainingen met herschreven=1 ongewijzigd overgenomen")
 
@@ -1701,7 +1839,7 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
         if res.status == APPROVED and content_uit:
             cms_records.append({"id": tid, "name": res.titel,
                                 "content": json.dumps(content_uit, ensure_ascii=False, default=_json_default)})
-        review_records.append(_review_rij(res, content_uit))
+        review_records.append(_review_rij(res, content_uit, content_bron))
         if verbose:
             print(f"[{n}/{len(scored)}] {naam[:45]:45} -> {res.status}"
                   + (f" ({res.reden})" if res.reden else ""))

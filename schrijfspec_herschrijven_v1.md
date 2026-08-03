@@ -53,9 +53,33 @@ tekens van de Kortste omschrijving staan vast, want daar zit geen stijlafweging 
 
 De persona is meegegeven (default van de scorer, kan door een mens overschreven zijn). Schrijf consistent in die toon:
 
-- **Persona A — Diepgaande IT-professional.** Zakelijk, technisch, to-the-point. Technische diepgang, best practices, realistische use cases. **Vermijd** algemene introducties en drempel-wegnemende uitleg.
+- **Persona A — Diepgaande IT-professional.** Zakelijk, technisch, to-the-point. Technische diepgang, best practices, realistische use cases. **Vermijd** drempel-wegnemende uitleg en uitweidingen die de lezer niet nodig heeft. Let op: dit is een instructie over *toon*, niet over niveau. Is de training introducerend (zie §1a), dan blijft hij dat ook voor persona A — je schrijft dan een introductie in zakelijke, technische taal, niet ineens een verdiepingstraining.
 - **Persona B — Praktische IT-gebruiker (niet-technisch).** Toegankelijk, helder, geruststellend. Leg begrippen eventueel kort uit, neem drempels weg. Nadruk op *toepassen*, niet op *bouwen*.
 - **Persona C — Business professional / veranderaar.** Strategisch, reflectief, verbindend. Vertaal inzichten naar keuzes, impact en organisatiecontext.
+
+**Persona is niet hetzelfde als niveau.** De persona zegt vóór wie je schrijft; het niveau zegt wat de deelnemer met het onderwerp gaat doen. Ze staan los van elkaar: een introductietraining voor doorgewinterde technici is persona A én introducerend.
+
+---
+
+## 1a. Het niveau uit de kern
+
+De kern die je meekrijgt bevat het **niveau** van de training: wat de deelnemer met het onderwerp doet. Er is geen apart niveau-veld — dit is de plek waar het staat, en de kern is daarom het eerste dat je leest. Bij de kern staat wie hem schreef:
+
+- **"vastgesteld door reviewer"** — een mens heeft dit niveau bepaald. Leidend, ook waar de brontekst iets anders suggereert.
+- **"lezing van de scorer"** — een samenvatting, geen besluit. Botst hij met de brontekst over wat de training doet of op welk niveau, dan **wint de brontekst**; meld dat in `notities`.
+
+**Lees het niveau af aan de werkwoorden**, in de kern én in de brontekst. Schrijf in het register dat daarbij hoort:
+
+| Niveau | Werkwoorden in de bron | Jouw register |
+| --- | --- | --- |
+| Introducerend | "maak je kennis met", "we introduceren", "we geven een overzicht", "je leert hoe X is opgebouwd"; titelwoorden als *Foundation*, *Basis* | kennismaken met, herkennen, benoemen, plaatsen, overzicht krijgen van, weten wanneer je iets inzet, de opbouw van X doorgronden |
+| Toepassend | "je past toe", "je voert uit", "je werkt met", "je stelt op" | toepassen, opzetten, uitvoeren, beoordelen, kiezen, opstellen |
+| Verdiepend | "je ontwerpt", "je richt in", "je optimaliseert", "je automatiseert"; titelwoorden als *Advanced*, *Professional*, *Expert* | ontwerpen, inrichten, optimaliseren, automatiseren, afwegen tussen alternatieven |
+
+**Schrijf nooit boven het niveau van de kern.** [hard] Dit geldt in élk kopje, en het weegt zwaarder dan de wens om een kopje vol te krijgen. Vraagt het format om meer modules of bullets dan de bron draagt, dan vul je aan **in de breedte** — meer onderwerpen op hetzelfde niveau — en nooit in de diepte. Een introducerende training over een methode laat de deelnemer die methode *herkennen en plaatsen*; hij gaat hem niet zelf inrichten, implementeren of in productie nemen.
+
+**Fout (tweedaagse introductietraining):** "Een model in gebruik nemen en het beheer en de monitoring inrichten" — de bron zegt dat je leert *hoe het proces is opgebouwd*.
+**Goed:** "Herkennen welke stappen een analyseproces doorloopt en waarom die volgorde werkt."
 
 ---
 
@@ -106,8 +130,9 @@ De persona is meegegeven (default van de scorer, kan door een mens overschreven 
 - **4–6 modules.** [hard]
 - **Per module 3–6 sub-bullets, en het aantal moet variëren tussen modules** (niet elke module evenveel). [hard]
 - **Geen HTML.** Modules = hoofd-bullets, inhoud = sub-bullets. [hard]
-- Passend bij het **aantal dagen** en **niveau/type** (foundations vs professional): een compleet programma dat de dagen vult, niet dun of overlappend.
-- Neem het bron-programma ("modules") als uitgangspunt; splits/verdiep waar nodig; geen overlap tussen modules.
+- Passend bij het **aantal dagen** en het **niveau uit de kern** (§1a): een compleet programma dat de dagen vult, niet dun of overlappend.
+- Neem het bron-programma ("modules") als uitgangspunt; splits waar nodig; geen overlap tussen modules.
+- **Geeft de bron alleen moduletitels zonder inhoud** (bij een dunne bron de regel, niet de uitzondering), dan schrijf je de sub-bullets zelf — maar op het niveau van de kern. Werk uit wat er in zo'n module aan bod komt, niet wat een deelnemer er op expertniveau mee zou doen. Bij een introducerende training is "de zes fasen van het model doorlopen en herkennen wat er in elke fase gebeurt" juist; "features construeren", "modellen trainen" en "deployment inrichten" zijn dat niet, ook al horen ze bij het onderwerp.
 - Actieve formuleringen (wat leert/doet de deelnemer). Geen herhaling van intro/opzet/leerdoelen, geen marketing. Put voor de werkwoorden uit `stijlregister_nl.md` §C.
 - Sub-bullets binnen één module zijn parallel geformuleerd (§0.13): dezelfde constructie, voorzetsel en hulpwerkwoord herhaald waar dat de bullet zelfstandig leesbaar maakt.
 - Sub-bullets vormen samen een sluitend verhaal voor die module.
@@ -152,7 +177,7 @@ De code voegt onderstaande **twee vaste alinea's** in. Het enige wat jij levert 
 - **Één zin.** [hard]
 - **Geen voorkennis nodig →** exact: "Specifieke voorkennis voor het volgen van deze training is niet noodzakelijk." (code-fallback; jij hoeft dit niet te schrijven) [hard bij deze keuze]
 - **Wel voorkennis nodig →** in de trant van: "Enige ervaring in het werken met [....] is vereist. Mocht je hier vragen over hebben, neem gerust contact met ons op."
-- Bepaal wel/niet-voorkennis op basis van niveau en programma; bij twijfel: geen voorkennis (fallback).
+- Bepaal wel/niet-voorkennis op basis van het niveau uit de kern (§1a) en het programma; bij twijfel: geen voorkennis (fallback). Een introducerende training vraagt zelden voorkennis.
 
 ---
 
@@ -166,8 +191,8 @@ De code voegt onderstaande **twee vaste alinea's** in. Het enige wat jij levert 
 - **Elke bullet staat in de infinitief mét "te" en loopt door op die introzin.** [hard] Lees het altijd hardop als één zin: "Na deze training ben je in staat om … dashboards **te bouwen**". Zowel de aaneengesloten vorm ("te formuleren") als de gesplitste vorm ("voor **te** bereiden", "uit **te** oefenen") is goed.
 - **Herhaal "in staat" niet in een bullet.** [flag] Dat staat al in de introzin; "in staat om in staat te zijn om" is dubbel. De andere causale constructies uit `stijlregister_nl.md` §B mogen wél: "Inzicht te krijgen in …", "Inzicht te ontwikkelen in …".
 - **Elke bullet begint met een hoofdletter.** [hard]
-- **Concreet en realistisch; geen overpromising, niet absoluut.** Let hier scherp op: "ben je in staat om" is een stellige introzin. Beloof alleen wat de training in het aantal dagen echt oplevert.
-- **Vergrotende trappen waar het doel begrip is.** Gebruik "beter, sneller, effectiever, gerichter, scherper …" (zie `stijlregister_nl.md` §E) wanneer het doel meer inzicht of meer begrip is, en bij brede overzichtstrainingen gericht op samenwerken buiten het eigen werkveld. Zo'n vergrotende trap belooft een verbetering ten opzichte van hoe iemand het nu doet — eerlijker dan "beheersen". Levert de training juist een concrete, harde vaardigheid op (vaak persona A, zie §1), beloof die dan gewoon direct; een vergrotende trap verzwakt hem daar onnodig. Dit is een afweging per training, geen woord dat overal in moet.
+- **Concreet en realistisch; geen overpromising, niet absoluut.** Let hier scherp op: "ben je in staat om" is een stellige introzin. Beloof alleen wat de training in het aantal dagen echt oplevert. **Dit is het kopje waar het niveau uit §1a het hardst telt** — een doel is een belofte, en een belofte boven het niveau is de duurste fout in de hele tekst. Gebruik de werkwoorden uit het register van het niveau.
+- **Vergrotende trappen waar het doel begrip is.** Gebruik "beter, sneller, effectiever, gerichter, scherper …" (zie `stijlregister_nl.md` §E) wanneer het doel meer inzicht of meer begrip is, en bij brede overzichtstrainingen gericht op samenwerken buiten het eigen werkveld. Zo'n vergrotende trap belooft een verbetering ten opzichte van hoe iemand het nu doet — eerlijker dan "beheersen". **Bij een introducerend niveau (§1a) is dit de standaardvorm**, geen afweging: daar is "gerichter mee kunnen praten over" waar is en "beheersen" niet. Levert de training juist een concrete, harde vaardigheid op — toepassend of verdiepend niveau — beloof die dan gewoon direct; een vergrotende trap verzwakt hem daar onnodig.
 - **Vermijd vage formuleringen** zoals "Inzicht toepassen". [flag]
 - Baseer de doelen op de omschrijving + het programma.
 
@@ -218,10 +243,10 @@ Vaste boilerplate (code plaatst dit; titels ingevuld vanuit retrieval):
 
 ## 11. Genereer-volgorde (afhankelijkheden)
 
-1. **Kern** vaststaan (meegegeven).
+1. **Kern** vaststaan (meegegeven) — inclusief het **niveau** en de afbakening (§1a). Leg dat niveau vast vóór je één zin schrijft; het bepaalt de werkwoorden in elk kopje hierna.
 2. **Overzicht** (1) → daarna **Kortste omschrijving** (9), afgeleid van (1).
 3. **Modules** (3) → daarna **Doelen** (7), afgeleid van modules + Overzicht.
-4. **Doelgroep** (4) en **Voorkennis** (5): afleiden uit onderwerp/niveau/programma.
+4. **Doelgroep** (4) en **Voorkennis** (5): afleiden uit onderwerp/niveau (§1a)/programma.
 5. **Inleiding** (2): verdiept op (1).
 6. Vaste secties (Aanpak, Vervolgstappen, bedrijfstrainingblok, Certificatie) door de code.
 

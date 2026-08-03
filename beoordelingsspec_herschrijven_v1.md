@@ -5,12 +5,18 @@ Deze spec stuurt de **judge-LLM**. Hij is **afgeleid uit dezelfde bron als
 van "goed" verzint, gaat hij vechten met de schrijver in plaats van convergeren. De judge
 oordeelt tegen de schrijfspec; hij bedenkt geen nieuwe regels.
 
-> Je krijgt: de gekozen persona, de feiten (`bruikbaar` / `strippen` / `gaten`), de
-> goedgekeurde en afgewezen actualiseringen, en het **concept** (de tien kopjes, inclusief de vaste
+> Je krijgt: de gekozen persona, het aantal dagen, de **kern** (met vermelding van wie hem
+> schreef), de feiten (`bruikbaar` / `strippen` / `gaten`), de goedgekeurde en afgewezen
+> actualiseringen, de **brontekst** en het **concept** (de tien kopjes, inclusief de vaste
 > secties die de code al invoegde). De deterministische code-check (`rewrite_checks.py`) is
 > al gedraaid; format-fouten en uit de hand gelopen lengtes zijn er dus in principe uit.
 > Jouw taak is het *inhoudelijke* oordeel dat code niet kan geven. Roep tot slot
 > `submit_judgment` aan.
+>
+> **De brontekst is de bestaande trainingsbeschrijving, ongewijzigd.** De feiten hierboven
+> zijn een samenvatting die de scorer ervan maakte; de brontekst is het origineel. Waar deze
+> spec zegt "herleidbaar tot de bron", bedoelt hij die tekst — je kunt hem dus echt nalezen
+> in plaats van op de samenvatting af te gaan.
 
 > **Oordeel niet over lengte.** De woordaantallen in de schrijfspec zijn richtlijnen met een
 > ruime marge (schrijfspec §0.14); de code bewaakt de buitengrens al. Vraag dus nooit om
@@ -34,13 +40,37 @@ oordeelt tegen de schrijfspec; hij bedenkt geen nieuwe regels.
 Beoordeel elk generatief kopje tegen de schrijfspec. Geef `pass` of `fail` + één zin waarom.
 Let per kopje op de *inhoudelijke* kern (niet de lengte — dat deed de code al):
 
+**Toets eerst het niveau.** Je krijgt de kern mee, met daarin het niveau van de training en
+één zin over wat de training expliciet níét doet. Loop het concept daarlangs: **belooft de
+tekst ergens méér dan dat niveau?** Dit is de meest voorkomende manier waarop een herschreven
+training onwaar wordt, juist bij een dunne bron — het format vraagt om modules en doelen, en
+wat de schrijver dan aanvult schuift makkelijk omhoog in niveau. Concreet: een training waarin
+de deelnemer *kennismaakt met* een methode en leert *hoe die is opgebouwd*, mag niet beloven
+dat hij die methode toepast, inricht of in productie neemt. Vind je zo'n belofte, dan is dat
+een `fail` op het betreffende kopje met het niveau als reden — ook als de zin verder goed
+geschreven is. Let het scherpst op Doelen en Modules; daar zit de overpromising bijna altijd.
+
+**Zwijgt de kern over iets, val dan terug op de brontekst.** De kern is kort en dekt niet elk
+aspect van een training; hij is geen uitputtende beschrijving. Beoordeel een kopje dat over
+iets gaat waar de kern niets over zegt daarom tegen de bronwerkwoorden, niet tegen de stilte
+van de kern. Afwezigheid in de kern is geen bewijs dat iets niet in de training zit — de
+afbakeningszin ("de training doet expliciet níét …") is dat wél. En zwijgen kern én brontekst
+allebei, kijk dan naar de goedgekeurde actualiseringen: die staan per definitie in geen van
+beide (zie §2).
+
+Staat er bij de kern "lezing van de scorer" in plaats van "vastgesteld door reviewer", dan is
+het niveau niet door een mens bevestigd. Wijkt de tekst dan af van de kern maar volgt hij wél
+de brontekst, dan is dat goed — dat is de afgesproken voorrangsregel, en je kunt hem nu zelf
+nazien. Meldt de schrijver in `notities` een `kern-conflict:`, zet dan `human_queue` met die
+melding als `human_reden`; het is een signaal voor een mens, geen revisie voor de schrijver.
+
 - **Overzicht (1):** echte "Wil je …"-haak? voordelen i.p.v. losse features? persona-toon? geen marketing? Staat er "kunnen" waar wij handvatten bieden maar de deelnemer het resultaat levert ("je eigen website *kunnen* bouwen")?
 - **Inleiding (2):** verdiepend t.o.v. (1), geen herhaling? praktijkgericht? tools ondergeschikt aan wat de deelnemer leert? Landen de USP's in één van de twee registers uit `stijlregister_nl.md` §A ("wat wij bieden" / "wat jij mag verwachten"), met "we" of "je" als onderwerp?
-- **Modules (3):** modules niet-overlappend en dekkend voor het aantal dagen/niveau? actief geformuleerd? sub-bullets parallel en samen een sluitend verhaal?
+- **Modules (3):** modules niet-overlappend en dekkend voor het aantal dagen? actief geformuleerd? sub-bullets parallel en samen een sluitend verhaal? Staan de sub-bullets op het niveau van de kern, of is een dunne bron aangevuld met diepte die de training niet levert?
 - **Doelgroep (5):** op *bereiken* gericht, geen functietitels/"professionals"?
 - **Voorkennis (6):** juiste keuze wel/niet-voorkennis gezien niveau/programma?
 - **Doelen (7):** staat elke bullet in de infinitief mét "te", zodat hij doorloopt op "Na deze training ben je in staat om:"? Concreet en realistisch, geen vage "inzicht toepassen"?
-  **Let extra op stelligheid.** Die introzin is stellig en maakt overpromising makkelijk. Past de belofte bij het niveau, het aantal dagen en de persona, of had hier een vergrotende trap gemoeten ("gerichter mee te praten" i.p.v. "te beheersen", zie `stijlregister_nl.md` §E)? Bij begripsgerichte en brede overzichtstrainingen is die vergrotende trap de eerlijke vorm; bij persona A en concrete vaardigheden mag de belofte juist direct zijn. Dit is een oordeel dat de code niet kan geven — het is expliciet jouw taak.
+  **Let extra op stelligheid.** Die introzin is stellig en maakt overpromising makkelijk. Past de belofte bij het niveau uit de kern en het aantal dagen, of had hier een vergrotende trap gemoeten ("gerichter mee te praten" i.p.v. "te beheersen", zie `stijlregister_nl.md` §E)? Bij een introducerend niveau is die vergrotende trap de eerlijke vorm; levert de training een concrete vaardigheid op, dan mag de belofte juist direct zijn. Kijk hierbij naar het niveau, niet naar de persona — persona A gaat over toon en zegt niets over hoe diep de training gaat. Dit is een oordeel dat de code niet kan geven — het is expliciet jouw taak.
 - **Kortste omschrijving (9):** dezelfde belofte als (1), ingedikt, echte "Wil je …"-haak? Dezelfde "kunnen"-afweging als bij (1).
 
 De vaste secties (Aanpak 6, Vervolgstappen 8, het bedrijfstrainingblok onder Inleiding en
@@ -52,7 +82,9 @@ is geen fout. Een masterclass, workshop of examentraining houdt zijn soortwoord 
 **Actualiseringen.** Je krijgt de goedgekeurde acties (met eventuele reviewer-voorwaarde) en de
 afgewezen acties. Twee harde controles: is elke goedgekeurde actie verwerkt en is de voorwaarde
 gerespecteerd, en is geen enkele afgewezen actie alsnog in de tekst terechtgekomen. Een afgewezen
-actualisering die toch opduikt is een feitgetrouwheidsfout, geen stijlkwestie.
+actualisering die toch opduikt is een feitgetrouwheidsfout, geen stijlkwestie. Andersom geldt:
+wat een goedgekeurde actie voorschrijft staat per definitie níét in de brontekst en is daarom
+nooit een verzonnen feit — zie het kader in §2.
 
 Een goedgekeurde actie die begint met **"BESLISSING NODIG: …"** leest als een vraag, maar is er
 geen: door hem goed te keuren heeft de reviewer de beslissing genomen. Zo'n actie hoort dus
@@ -67,15 +99,51 @@ code-check vangt dit al af; kom je het toch tegen, dan is het een fail.
 
 ## 2. Feitgetrouwheid (grounding)  ⚠️ zwaarste as
 
-Controleer of elke inhoudelijke claim herleidbaar is tot `bruikbaar` of de brontekst.
-Onderscheid scherp — dit is waar auto-herschrijven fout gaat:
+Controleer of elke inhoudelijke claim herleidbaar is tot `bruikbaar`, de brontekst of een
+goedgekeurde actualisering. Onderscheid scherp — dit is waar auto-herschrijven fout gaat:
 
 - **Verzonnen feit (hard fail → human-queue):** een versienummer, vendor, feature, jaartal,
-  cijfer of certificering die niet in de bron/feiten staat en niet klopt of niet te
+  cijfer of certificering die in géén van die drie staat en niet klopt of niet te
   verifiëren is.
 - **Toegestane constructie (pass, wél flaggen als "thin"):** bij een dunne bron mag de
   schrijver plausibele *pedagogische structuur* invullen (modules opsplitsen, doelen
   afleiden). Dat is geen feitfout; markeer de output als "thin / kandidaat tweede ronde".
+  De lijst `gaten` vertelt je waar de bron zweeg — wat het concept dáár invult is per
+  definitie constructie.
+
+Staat een punt onder `strippen`, dan hoort het weg te zijn. Duikt het toch op in het concept,
+dan is dat een fout, ook als het feitelijk klopt.
+
+> ### Een goedgekeurde actualisering gaat vóór de brontekst
+>
+> Dit is de belangrijkste uitzondering op alles wat hier over de bron staat, en de reden dat
+> hij expliciet vermeld wordt: **een goedgekeurde actualisering voegt per definitie iets toe
+> dat níét in de bron voorkomt.** Dat is waaróm hij bestaat — de bron is op dat punt verouderd.
+> Zou je de brontekst als enige maatstaf nemen, dan zou elke actualisering een "verzonnen
+> feit" zijn en zou de reviewsessie precies het werk terugdraaien dat de reviewer deed.
+>
+> Reken een passage die uit een goedgekeurde actie voortkomt daarom **nooit** af als "niet
+> gegrond in de bron", "staat niet in de kern" of "belooft meer dan de bron". Een mens heeft
+> ervoor getekend; dat is hetzelfde gezag als een reviewer-kern. **Twijfel je of een passage
+> onder een goedgekeurde actie valt, dan valt hij eronder** — die twijfel gaat bewust die
+> kant op, want een onterecht geschrapte actualisering is duurder dan een die blijft staan.
+>
+> Wat je wél toetst is de andere kant: is elke goedgekeurde actie ook echt verwerkt, en is een
+> eventuele **VOORWAARDE** gerespecteerd? Die voorwaarde is de enige grens ("prima als
+> voorbeeld, niet als kernonderwerp" betekent dat het geen eigen module wordt). En staat de
+> actie onder NIET DOEN, dan hoort hij nergens in de tekst te staan.
+
+**De brontekst is de maatstaf voor claims en niveau, niet voor vorm.** Dat onderscheid is
+hier het belangrijkste:
+
+- **Wél afrekenen:** een claim die niet uit de bron, de feiten óf een goedgekeurde
+  actualisering komt, en een concept dat méér belooft dan de bronwerkwoorden zeggen
+  ("maak je kennis met" ≠ "je richt in").
+- **Niet afrekenen:** een andere volgorde, een andere indeling, een andere formulering,
+  samengevoegde of gesplitste modules, geschrapte ruis, weggelaten opsommingen. Dat ís
+  herschrijven — precies waar de opdracht om vraagt. Vraag nooit om dichter bij de
+  bronstructuur te blijven. Ontbrekende broninhoud is alleen een punt als er iets
+  wezenlijks verdwenen is: een onderwerp waar de training echt over gaat.
 
 Rapporteer per twijfelgeval het specifieke citaat en waarom het wel/niet gegrond is.
 

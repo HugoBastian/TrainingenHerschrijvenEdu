@@ -877,6 +877,167 @@ def test_splits_scheidt_goedgekeurd_van_afgewezen():
 
 
 # ---------------------------------------------------------------------------
+# De kern: het enige veld dat het niveau van de training vastlegt
+#
+# De reviewer stuurt bij in `kern_reviewer`; de scorer-kern blijft ernaast staan zodat een
+# herscoring hem mag verversen. Wie de kern schreef bepaalt hoeveel gezag hij heeft.
+# ---------------------------------------------------------------------------
+
+def _briefing(**overrides) -> rw.RewriteBriefing:
+    basis = dict(training_id=1, titel="Cursus Big Data Foundation", persona="A", dagen=2,
+                 kern="Scorer leest de training als een gestructureerde aanpak.",
+                 verdict="redelijk", actualiteit_type="additief",
+                 source_text="[intro]\nWe introduceren het CRISP-DM model.")
+    return rw.RewriteBriefing(**{**basis, **overrides})
+
+
+def test_reviewer_kern_wint_van_scorer_kern():
+    b = _briefing(kern_reviewer="Introducerend: de deelnemer maakt kennis met het proces.")
+    assert b.kern_definitief == "Introducerend: de deelnemer maakt kennis met het proces."
+    assert b.kern_van_reviewer
+
+
+def test_zonder_reviewer_kern_geldt_de_scorer_kern():
+    b = _briefing()
+    assert b.kern_definitief == b.kern
+    assert not b.kern_van_reviewer
+
+
+def test_lege_reviewer_kern_telt_niet_als_oordeel():
+    """Een lege Excel-cel komt binnen als NaN of als spaties; geen van beide is een oordeel."""
+    for leeg in ("", "   ", "\n"):
+        assert not _briefing(kern_reviewer=leeg).kern_van_reviewer
+    assert rw._cel(float("nan")) == ""
+    assert rw._cel(None) == ""
+    assert rw._cel("  echte tekst  ") == "echte tekst"
+
+
+def test_gezagsregel_volgt_de_herkomst_van_de_kern():
+    """Bij een scorer-kern wint de bron; bij een reviewer-kern wint de kern."""
+    scorer = rw.build_writer_user(_briefing())
+    assert "lezing van de scorer" in scorer
+    assert "wint de BRONTEKST" in scorer
+
+    reviewer = rw.build_writer_user(_briefing(kern_reviewer="Introducerende training."))
+    assert "vastgesteld door reviewer" in reviewer
+    assert "Hij is leidend" in reviewer
+    assert "wint de BRONTEKST" not in reviewer
+
+
+def test_writer_prompt_zet_de_brontekst_neer_als_de_training_zelf():
+    tekst = rw.build_writer_user(_briefing())
+    assert "BRONTEKST" in tekst
+    assert "Beloof nooit meer dan hier staat." in tekst
+    assert tekst.rstrip().endswith("We introduceren het CRISP-DM model.")
+
+
+def test_judge_krijgt_de_kern_met_herkomst():
+    """Zonder de kern kan de judge het niveau niet toetsen -- dat kon hij eerder niet."""
+    doc = {"titel": "Training Big Data Foundation", "overzicht": "Wil je iets?"}
+    scorer = rw.build_judge_user(_briefing(), doc)
+    assert "KERN (lezing van de scorer)" in scorer
+    reviewer = rw.build_judge_user(_briefing(kern_reviewer="Introducerend."), doc)
+    assert "KERN (vastgesteld door reviewer)" in reviewer
+    assert "Introducerend." in reviewer
+
+
+def test_judge_krijgt_de_brontekst_en_alle_feiten():
+    """§2 van de beoordelingsspec vraagt te herleiden tot "de brontekst" -- die kreeg hij niet.
+
+    Zonder de bron toetste de judge feitgetrouwheid tegen de samenvatting van de scorer: een
+    claim die de brontekst tegensprak maar `bruikbaar` niet, kwam er ongehinderd doorheen. Dat
+    weegt zwaarder sinds de kern het niveau draagt: zwijgt de kern over een aspect, dan had de
+    judge niets om op terug te vallen.
+    """
+    doc = {"titel": "Training Big Data Foundation", "overzicht": "Wil je iets?"}
+    tekst = rw.build_judge_user(
+        _briefing(bruikbaar=["CRISP-DM 6 fasen"], strippen=["verouderde prijsinfo"],
+                  gaten=["voorkennis niet beschreven"]),
+        doc)
+    assert "We introduceren het CRISP-DM model." in tekst
+    # strippen en gaten stonden wél in de spec beloofd, maar gingen niet mee
+    assert "verouderde prijsinfo" in tekst
+    assert "voorkennis niet beschreven" in tekst
+    # het concept staat achteraan: de bron is naslag, het concept is wat hij beoordeelt
+    assert tekst.index("BRONTEKST") < tekst.index("CONCEPT — dit is wat je beoordeelt")
+
+
+def test_judge_mag_de_bron_niet_als_vormnorm_gebruiken():
+    """Zonder deze regel rekent de judge het concept af op het niet volgen van de bronstructuur
+    -- en juist daarvan afwijken is het hele punt van herschrijven."""
+    tekst = rw.build_judge_user(_briefing(), {"titel": "T", "overzicht": "Wil je iets?"})
+    assert "Reken het concept NIET af op vorm" in tekst
+    assert "FEITGETROUWHEID" in tekst and "NIVEAU" in tekst
+
+
+def test_goedgekeurde_actualisering_gaat_voor_de_brontekst():
+    """De bron is de maatstaf voor claims -- behalve voor wat de reviewer heeft goedgekeurd.
+
+    Een actualisering voegt per definitie iets toe dat niet in de bron staat of haalt iets weg; dat is waarom
+    hij bestaat. Zonder deze uitzondering is elke goedgekeurde actie een "verzonnen feit" en
+    draait de review precies het werk terug dat de reviewer in de sessie deed. Geldt aan
+    beide kanten: de schrijver mag er geen laten liggen, de judge mag er geen afkeuren.
+    """
+    actie = bes.Besluit(1, "T", 1, "Voeg GA4 toe (bron noemt alleen Universal Analytics)",
+                        "prima, mits als voorbeeld", "mits", "alleen als voorbeeld",
+                        "handmatig")
+    b = _briefing(goedgekeurd=[actie])
+
+    schrijver = rw.build_writer_user(b)
+    assert "Eén uitzondering, en die gaat vóór" in schrijver
+    # de uitzondering staat ná "Beloof nooit meer dan hier staat", anders leest de schrijver
+    # dat verbod als het laatste woord en laat hij de actie liggen
+    assert schrijver.index("Beloof nooit meer dan hier staat") < schrijver.index("uitzondering")
+
+    judge = rw.build_judge_user(b, {"titel": "T", "overzicht": "Wil je iets?"})
+    assert "UITZONDERING, en die gaat vóór allebei" in judge
+    assert "nooit af als ongegrond" in judge
+    # de voorwaarde is de enige grens, en die gaat mee naar allebei
+    assert "alleen als voorbeeld" in schrijver and "alleen als voorbeeld" in judge
+
+
+def test_judge_oordeel_met_verkeerd_gevormd_blok_loopt_niet_stuk():
+    """Het tool-schema dwingt de vorm niet af: één meetrun leverde `feitgetrouw` als string.
+
+    Ongefilterd loopt dat verderop stuk op `judgment["feitgetrouw"].get("thin")` -- midden in
+    een batch, ná de dure schrijfcall.
+    """
+    kapot = {"verdict": "approved", "feitgetrouw": "alles klopt", "judge_confidence": "high"}
+    rw._call_tool, echt = (lambda *a, **k: kapot), rw._call_tool
+    try:
+        out = rw.judge_document(None, _briefing(), {"titel": "T"})
+    finally:
+        rw._call_tool = echt
+    assert out["verdict"] == "approved"          # de rest van het oordeel blijft bruikbaar
+    assert out["feitgetrouw"] == {}
+    assert "feitgetrouw" in out["judge_vorm"]    # maar het misgaan blijft zichtbaar
+    assert out.get("feitgetrouw", {}).get("thin", False) is False
+
+
+def test_build_briefing_leest_de_reviewerkolom():
+    scored = {"training_id": 7, "kern": "scorer-kern", "kern_reviewer": "reviewer-kern",
+              "verdict": "rijk", "vermoedelijk_persona": "B"}
+    b = rw.build_briefing(scored, {"days": 3, "intro": "tekst"}, "Cursus X")
+    assert b.kern_definitief == "reviewer-kern" and b.kern_van_reviewer
+    # ontbreekt de kolom (oud scoresheet), dan valt hij stil terug op de scorer-kern
+    zonder = rw.build_briefing({k: v for k, v in scored.items() if k != "kern_reviewer"},
+                               {"days": 3, "intro": "tekst"}, "Cursus X")
+    assert zonder.kern_definitief == "scorer-kern" and not zonder.kern_van_reviewer
+
+
+def test_reviewtabblad_zet_de_brontekst_naast_de_nieuwe_tekst():
+    """De mens kon alleen de nieuwe tekst lezen, dus niet zien of een claim de bron dekt."""
+    res = rw.RewriteResult(1, "Training Big Data Foundation", rw.APPROVED,
+                           oude_titel="Cursus Big Data Foundation")
+    rij = rw._review_rij(res, {}, {"intro": "We introduceren het CRISP-DM model."})
+    assert "We introduceren het CRISP-DM model." in rij["brontekst"]
+    # de kolom staat achteraan, naast de kopjes -- niet tussen de statusvelden
+    assert list(rij)[-1] == "brontekst"
+    # zonder bron (overgenomen zonder bronrij) blijft de cel gewoon leeg
+    assert rw._review_rij(res, {})["brontekst"] == ""
+
+
+# ---------------------------------------------------------------------------
 # Output: document -> CMS-content
 # ---------------------------------------------------------------------------
 

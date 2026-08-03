@@ -36,7 +36,7 @@ het model.
 | `rewrite_output.py` | Document → CMS-`content`-JSON (HTML) en → markdown met kop 1/2/3. |
 | `rewrite_trainings.py` | Hybride schrijver + orchestratie + I/O. |
 | `herschrijven.ipynb` | Notebook om de pijplijn stap voor stap te draaien en te inspecteren. |
-| `test_rewrite.py` | 98 offline tests (geen API-key nodig). |
+| `test_rewrite.py` | 110 offline tests (geen API-key nodig). |
 
 ## Setup
 
@@ -68,7 +68,7 @@ De scorer-output bevat geen brontekst, dus de rewriter joint op `training_id` �
 
 | Bestand | Inhoud |
 | --- | --- |
-| **scoresheet** | Alle scorer-velden + de handmatig ingevulde kolom `actie_besluit` + `herschreven`. |
+| **scoresheet** | Alle scorer-velden + de twee handmatig ingevulde kolommen `actie_besluit` en `kern_reviewer` + `herschreven`. |
 | **bronsheet** | `id`, `name`, `herschreven`, `content` (JSON-string met de CMS-velden). |
 
 ## Draaien
@@ -99,6 +99,24 @@ Twee dingen die het model bewust onderscheidt, en die je dus moet controleren:
 De reviewer-tekst gaat altijd letterlijk mee naar de schrijver, ook bij `doen` — het label
 bepaalt of de actie doorgaat, niet of de reviewer gehoord wordt.
 
+### 1b. De kern controleren (zelfde ronde, zelfde reviewer)
+
+Naast `actie_besluit` staat in het scoresheet de kolom **`kern_reviewer`**, leeg aangeleverd door
+de scorer. Klopt de kern in de kolom ernaast, laat hem dan leeg. Klopt hij niet — meestal omdat het
+**niveau** van de training niet klopt — plak hem over en pas hem aan. Twee kolommen omdat herscoren
+een rij vervangt: zou de reviewer de scorer-kern zelf overschrijven, dan gooit de eerstvolgende
+herscoring dat werk stil weg (`_behoud_kern_reviewer` in het scoring-project bewaakt dit).
+
+Waar je op let: de kern hoort te beschrijven wat de deelnemer met het onderwerp **doet**, in de
+werkwoorden van de bron. Zegt de bron "maak je kennis met" en "we introduceren", dan is de training
+introducerend — staat er in de kern "leert toepassen", dan is dat de correctie die je maakt. De kern
+sluit af met een afbakeningszin: wat de training expliciet níét doet.
+
+**Gezag volgt herkomst.** Een door jou bijgestelde kern is leidend, ook waar de brontekst iets
+anders suggereert — een mens heeft ervoor getekend. Een kern die alleen van de scorer komt is een
+lezing: botst die met de brontekst, dan wint de brontekst en meldt de schrijver het conflict in
+`notities`. Zo kost een verkeerd gelezen kern nooit meer dan een signaal.
+
 ### 2. Herschrijven
 
 ```bash
@@ -119,7 +137,9 @@ Output in `--out-dir`:
 - `herschreven.xlsx`, tabblad **cms** — `id` / `name` / `content`, met dezelfde
   JSON-structuur als het bronsheet, zodat het zo terug het CMS in kan;
 - `herschreven.xlsx`, tabblad **review** — status, flags en elk kopje in platte tekst, met een
-  lege `approve_edit`-kolom.
+  lege `approve_edit`-kolom en als laatste kolom de **brontekst**. Die staat er zodat je een
+  claim of een opgeschoven niveau naast het origineel kunt leggen; zonder die kolom lees je
+  alleen de nieuwe tekst en is precies de fout onzichtbaar die de judge net doorliet.
 
 Trainingen met `herschreven=1` worden **niet** herschreven maar wél ongewijzigd doorgezet
 (status `overgenomen`), zodat `herschreven.xlsx` één compleet CMS-document is. Het scoresheet
@@ -210,6 +230,36 @@ veld in de CMS-`content`:
 
 `days` wordt ongewijzigd uit de bron overgenomen.
 
+### Wat de judge ziet
+
+De judge oordeelt over wat code niet kan: feitgetrouwheid, niveau, persona en toon. Daarvoor
+krijgt hij dezelfde stijlbestanden als de schrijver, plus de kern (mét wie hem schreef), de
+feiten (`bruikbaar` / `strippen` / `gaten`), de besluiten van de reviewer, **de brontekst** en
+het concept — in die volgorde, met het concept achteraan omdat dat is wat hij beoordeelt.
+
+De brontekst zat er lang niet bij, terwijl de beoordelingsspec §2 wél opdroeg elke claim te
+herleiden tot "`bruikbaar` of de brontekst". De judge toetste feitgetrouwheid dus tegen de
+samenvatting van de scorer: een claim die de bron tegensprak maar `bruikbaar` niet, kwam er
+ongehinderd doorheen. Sinds de kern het niveau draagt weegt dat zwaarder — zwijgt de kern over
+een aspect, dan had hij niets om op terug te vallen.
+
+De bron is voor de judge de maatstaf voor **claims en niveau, niet voor vorm**. Zonder die
+regel gaat hij het concept afrekenen op het niet volgen van de bronstructuur, en juist daarvan
+afwijken is het hele punt van herschrijven. `BRONTEKST_UITLEG_JUDGE` staat daarom bewust anders
+dan `BRONTEKST_UITLEG` voor de schrijver: die moet de bron niet overtreffen, de judge moet hem
+niet napluizen op vorm.
+
+**Een goedgekeurde actualisering gaat vóór de brontekst.** Dat is de tegenhanger van de hele
+regel en staat in beide prompts én in §2 van de beoordelingsspec. Een actualisering voegt per
+definitie iets toe dat niet in de bron staat — dat is waaróm hij bestaat. Met de bron als enige
+maatstaf zou elke actualisering een "verzonnen feit" zijn en zou de review precies het werk
+terugdraaien dat de reviewer in de sessie deed. De twijfel gaat daarom bewust één kant op: valt
+een passage misschien onder een goedgekeurde actie, dan valt hij eronder. De reviewer-**voorwaarde**
+is de enige grens ("prima als voorbeeld" betekent: geen eigen module).
+
+Kosten: ~3.000 tekens per training, tegen een gecachete system-prefix van ~20k. Verwaarloosbaar
+naast de schrijfcall.
+
 ### Lengtes: richtlijn met vangrail
 
 Elk lengte-kopje heeft twee banden (`checks.BANDEN`). De **doelband** is de lengte uit de
@@ -245,7 +295,7 @@ geen stijlafweging in.
 ## Tests
 
 ```bash
-python test_rewrite.py     # 98 offline checks, geen API-key nodig
+python test_rewrite.py     # 110 offline checks, geen API-key nodig
 ```
 
 Getest wordt de deterministische laag: de code-check, de structurele splitsing van
