@@ -108,6 +108,7 @@ SCHRIJFSPEC = os.path.join(_HERE, "schrijfspec_herschrijven_v1.md")
 HUMANISERING = os.path.join(_HERE, "humanisering_nl.md")
 STIJLREGISTER = os.path.join(_HERE, "stijlregister_nl.md")
 BEOORDELINGSSPEC = os.path.join(_HERE, "beoordelingsspec_herschrijven_v1.md")
+TEMPLATE_PATH = os.path.join(_HERE, "Template trainingen nieuwe opbouw.md")
 CATALOG_PATH = os.path.join(_HERE, "vervolgtraining.json")
 TREE_PATH = os.path.join(_HERE, "vervolgtrainingen_tree.json")
 
@@ -116,6 +117,58 @@ APPROVED = "approved"
 NEEDS_REVISION = "needs-revision"
 HUMAN_QUEUE = "human-queue"
 OVERGENOMEN = "overgenomen"   # stond al in de nieuwe stijl; ongewijzigd doorgezet
+
+# ---------------------------------------------------------------------------
+# 1b. DE MATE VAN AANPASSING — twee assen
+# ---------------------------------------------------------------------------
+#
+# AS 1: het herschrijfniveau. Hoeveel van de bestaande tekst mag veranderen? Elk niveau mag
+# alles wat het niveau eronder mag; `volledig` is het gedrag van vóór deze schaal.
+#
+#   overnemen  niets, behalve titel en vervolgtitels          (was: herschreven=1)
+#   stijl      + de formulering, naar de ACTUELE schrijfregels
+#   format     + de structuur en de ontbrekende kopjes
+#   volledig   + de opbouw, vanaf nul uit de brontekst
+#
+# AS 2: de actualiseringen. Die staan hier BEWUST buiten. Een goedgekeurde actie is een
+# lokale toevoeging; een training daarom naar een hoger niveau tillen maakt de wijziging
+# groter dan de reviewer vroeg. Goedgekeurde acties worden op elk niveau doorgevoerd,
+# inclusief `overnemen` -- zie `neem_over`, dat daarvoor de besluiten moet kennen.
+MODI = ("overnemen", "stijl", "format", "volledig")
+MODUS_RANG = {m: i for i, m in enumerate(MODI)}
+MODUS_DEFAULT = "volledig"   # onbekend of leeg -> veilig aan de vrije kant
+
+
+def normaliseer_modus(waarde: Any, default: str = MODUS_DEFAULT) -> str:
+    """Cel- of modelwaarde -> een geldige modus. Onbekende waarde valt terug op `default`."""
+    tekst = _cel(waarde).lower()
+    return tekst if tekst in MODUS_RANG else default
+
+
+def hoogste_modus(*modi: str) -> str:
+    """De meest ingrijpende van de gegeven modi; gebruikt om een ondergrens te leggen."""
+    geldig = [m for m in modi if m in MODUS_RANG]
+    return max(geldig, key=lambda m: MODUS_RANG[m]) if geldig else MODUS_DEFAULT
+
+
+def spec_versie() -> str:
+    """Korte vingerafdruk van de vier bestanden die samen "de regels" zijn.
+
+    Staat per training in de output. Zodra de spec verandert is "welke goedgekeurde
+    trainingen dateren van vóór de huidige regels" precies de vraag die bepaalt wie er een
+    `stijl`-ronde in moet -- met deze hash is dat een filter op het reviewtabblad, zonder is
+    het een gok op bestandsdatums.
+    """
+    import hashlib
+    h = hashlib.sha256()
+    for pad in (SCHRIJFSPEC, HUMANISERING, STIJLREGISTER, TEMPLATE_PATH):
+        try:
+            with open(pad, "rb") as f:
+                h.update(f.read())
+        except OSError:
+            h.update(b"<ontbreekt>")
+        h.update(b"\0")
+    return h.hexdigest()[:12]
 
 # De vaste sjabloonteksten en de kopstructuur staan in sjabloon.py, afgeleid van
 # `Template trainingen nieuwe opbouw.md`. Eén bron, zodat spec, schrijver, judge en
@@ -539,10 +592,61 @@ class RewriteBriefing:
     rewrite_guidance: str = ""
     menselijke_input_nodig: bool = False
     kern_reviewer: str = ""
+    modus_reviewer: str = ""      # kolom `modus_reviewer`: het besluit van een mens
+    modus_voorstel: str = ""      # kolom `modus_voorstel`: uit scan_vorm + schat_modus
+    guidance_reviewer: str = ""   # kolom `guidance_reviewer`: vrije aanwijzing van de reviewer
+    huidige_content: dict = field(default_factory=dict)   # de bestaande CMS-content
+    herschreven: bool = False     # kolom `herschreven`: stond al in de nieuwe stijl
 
     @property
     def thin(self) -> bool:
         return self.verdict in ("dun", "redelijk")
+
+    @property
+    def modus(self) -> str:
+        """De herschrijfmodus die geldt. Gezag volgt herkomst, net als bij de kern.
+
+        Volgorde: het besluit van de reviewer, anders het voorstel uit de scan, anders de
+        oude `herschreven`-kolom (die was de facto al een modus: 1 betekende "niet
+        aanraken"), anders volledig herschrijven. Zo blijft een scoresheet zonder de nieuwe
+        kolommen zich exact gedragen als voorheen.
+
+        LET OP -- goedgekeurde actualiseringen verschuiven deze modus BEWUST niet. Een
+        goedgekeurde actie is een lokale toevoeging; de training daarom integraal opnieuw
+        laten schrijven maakt de wijziging groter dan de reviewer vroeg. Actualiseringen
+        lopen op elk niveau mee, inclusief `overnemen` (zie `neem_over`).
+        """
+        val = normaliseer_modus(self.modus_reviewer, default="")
+        if val not in MODUS_RANG:
+            val = normaliseer_modus(self.modus_voorstel, default="")
+        if val not in MODUS_RANG:
+            val = "overnemen" if self.herschreven else MODUS_DEFAULT
+        return val
+
+    @property
+    def modus_van_reviewer(self) -> bool:
+        return normaliseer_modus(self.modus_reviewer, default="") in MODUS_RANG
+
+    @property
+    def behoudt_tekst(self) -> bool:
+        """Modi waarin de bestaande tekst het uitgangspunt is in plaats van de brontekst."""
+        return self.modus in ("stijl", "format")
+
+    @property
+    def guidance_definitief(self) -> str:
+        """Scorer-guidance plus de vrije aanwijzing van de reviewer, in die volgorde.
+
+        Beide gaan mee: de scorer zegt waar het bronmateriaal het beste landt, de reviewer
+        zegt wat hij bij het nalezen zag. De reviewer staat achteraan omdat hij het laatste
+        woord heeft, en wordt als zodanig gelabeld zodat het model weet wie wat zegt.
+        """
+        delen = []
+        if self.rewrite_guidance.strip():
+            delen.append(self.rewrite_guidance.strip())
+        if self.guidance_reviewer.strip():
+            delen.append(f"AANWIJZING VAN DE REVIEWER (gaat vóór het bovenstaande): "
+                         f"{self.guidance_reviewer.strip()}")
+        return "\n".join(delen)
 
     @property
     def kern_van_reviewer(self) -> bool:
@@ -621,6 +725,11 @@ def build_briefing(scored: dict, source_content: dict, naam: str,
         rewrite_guidance=str(scored.get("rewrite_guidance", "") or ""),
         menselijke_input_nodig=bool(scored.get("menselijke_input_nodig")),
         kern_reviewer=_cel(scored.get("kern_reviewer")),
+        modus_reviewer=_cel(scored.get("modus_reviewer")),
+        modus_voorstel=_cel(scored.get("modus_voorstel")),
+        guidance_reviewer=_cel(scored.get("guidance_reviewer")),
+        huidige_content=dict(source_content or {}),
+        herschreven=str(scored.get("herschreven", "")).strip() in ("1", "1.0", "True", "true"),
     )
 
 
@@ -736,13 +845,18 @@ def _read(path: str) -> str:
         return f.read().strip()
 
 
-# Vier trainingen uit het goud-corpus die élke harde check halen (lengte binnen de vangrail,
-# openingszinnen, doelen in te-infinitief). Sinds de lengtebanden een marge hebben, halen er
-# 23 alles -- ruim genoeg keus; deze vier blijven staan omdat een wisselende few-shot de
-# prompt-cache waardeloos maakt. Wat overblijft is historisch materiaal van wisselende
-# kwaliteit: 22 vallen buiten de Inleiding-vangrail, 18 buiten die van het Overzicht.
-# Draai `checks_over_goud()` opnieuw als je een regel verandert; die meting levert deze lijst.
-GOUD_VOORBEELDEN = (2730, 3046, 3101, 3125)
+# Vier trainingen uit het goud-corpus die élke harde check halen -- inclusief de
+# modules-checks, en dát is nieuw. Zolang `goud_naar_check_input` de modulestructuur
+# oversloeg, waren `modules_aantal`, `bullets_aantal` en `bullets_variatie` op het goud
+# onzichtbaar. Nu ze meetellen, halen er nog maar 7 van de 78 alles, en drie van de vier
+# oude voorbeelden (2730, 3101, 3125) vielen af: die demonstreerden modules met twee
+# sub-bullets terwijl de spec er 3-6 eist. Een few-shot die de eigen regel schendt is erger
+# dan geen few-shot.
+#
+# Vaste selectie, want een wisselende few-shot maakt de prompt-cache waardeloos. De eerste
+# twee wegen het zwaarst -- `goud_voorbeelden()` neemt er standaard twee. Draai
+# `checks_over_goud()` opnieuw als je een regel verandert; die meting levert deze lijst.
+GOUD_VOORBEELDEN = (3046, 3146, 2737, 2586)
 GOUD_DIR = os.path.join(_HERE, "herschreven", "goud")
 
 
@@ -898,6 +1012,83 @@ BRONTEKST_UITLEG_JUDGE = (
 )
 
 
+# De bestaande tekst per kopje. Nodig zodra de modus zegt dat de tekst behouden moet
+# blijven: `build_source_text` slaat `setup`, `follow_up`, `summary_edudex` en
+# `certification` over (die zijn voor de scorer boilerplate), en levert bovendien één lap
+# tekst in plaats van een indeling per kopje. Voor herschrijven vanaf nul is dat prima, voor
+# bijwerken niet -- dan wil je precies zien wat er in elk veld staat.
+def huidige_versie_blok(content: dict, titel: str = "") -> str:
+    """Bestaande CMS-content -> leesbare weergave per kopje, in de volgorde van het template."""
+    if not content:
+        return ""
+    plat = uit.content_naar_platte_tekst(content, titel)
+    delen = []
+    for kopje in sjabloon.KOPJES:
+        tekst = str(plat.get(kopje.cms, "") or "").strip()
+        delen.append(f"## {kopje.kop}\n{tekst or '(leeg)'}")
+    return "\n\n".join(delen)
+
+
+HUIDIGE_VERSIE_UITLEG = (
+    "HUIDIGE VERSIE — de bestaande tekst van deze training, per kopje. Dit is je\n"
+    "uitgangsmateriaal én je maatstaf: dit is wat de training feitelijk is en belooft.\n"
+    "Let vooral op de werkwoorden — \"maak je kennis met\", \"we introduceren\", \"we geven\n"
+    "een overzicht\" beschrijven een ander niveau dan \"je bouwt\", \"je richt in\", \"je\n"
+    "optimaliseert\". Beloof nooit meer dan hier staat.\n\n"
+    "Een kopje dat op \"(leeg)\" staat ontbrak in de bron; dat vul je aan uit wat de andere\n"
+    "kopjes zeggen, niet uit wat je aannemelijk vindt.\n\n"
+    "Eén uitzondering, en die gaat vóór: de GOEDGEKEURDE ACTUALISERINGEN hierboven. Die voer\n"
+    "je uit, ook al staan ze hier niet — dat is precies waarom ze bestaan."
+)
+
+
+# De opdracht per herschrijfniveau. Deze tekst staat in de USER-message en niet in de
+# system-prefix: die prefix is één gecachet blok van ~20k tokens, en een modus-afhankelijke
+# prefix zou daar vier varianten van maken.
+#
+# Wat hier NIET in staat: de actualiseringen. Die lopen op elk niveau mee -- zie
+# `ACTUALISEREN_ONGEACHT_MODUS` hieronder en de toelichting bij `RewriteBriefing.modus`.
+MODUS_UITLEG: dict[str, str] = {
+    "stijl": (
+        "OPDRACHT — BIJWERKEN NAAR DE ACTUELE SCHRIJFREGELS.\n"
+        "Je bent hier redacteur, geen auteur. De inhoud van deze training klopt en is\n"
+        "compleet; wat niet meer klopt is de formulering. Herschrijf zin voor zin naar de\n"
+        "regels in de spec hierboven — de 'je'-vorm, de verplichte openingszinnen, het\n"
+        "stijlregister, het causale verband, weg met marketingtaal en verboden woorden.\n\n"
+        "Verander NIET wát er staat. Geen onderwerpen toevoegen, geen onderwerpen weglaten,\n"
+        "geen modules samenvoegen of splitsen, geen volgorde omgooien, geen doelen erbij\n"
+        "verzinnen. Elk feit, elk onderwerp en elke belofte in jouw versie staat ook in de\n"
+        "huidige versie hieronder. Kom je een kopje tegen dat inhoudelijk rammelt, laat het\n"
+        "dan rammelen en meld het in `notities` — dat is een besluit voor een mens."
+    ),
+    "format": (
+        "OPDRACHT — BIJWERKEN NAAR HET ACTUELE FORMAT.\n"
+        "De inhoud van deze training klopt, maar de vorm niet: er ontbreken kopjes, of de\n"
+        "structuur past niet op het format. Breng hem in vorm en pas daarbij ook de actuele\n"
+        "schrijfregels toe.\n\n"
+        "Wat je MAG: herindelen, modules samenvoegen of splitsen zodat je op 4-6 modules\n"
+        "uitkomt, de volgorde aanpassen, en de ontbrekende kopjes schrijven — maar die leid\n"
+        "je AF uit wat er al staat. Doelgroep, Voorkennis en Doelen zijn bij deze trainingen\n"
+        "vaak leeg; die volgen uit de modules en de inleiding.\n\n"
+        "Wat je NIET mag: onderwerpen toevoegen die nergens in de huidige versie staan, of\n"
+        "het niveau optrekken omdat een kopje anders dun blijft. Herindelen is iets anders\n"
+        "dan aanvullen. Blijft een kopje mager omdat de bron er niets over zegt, meld dat\n"
+        "dan in `notities` in plaats van het vol te schrijven."
+    ),
+    "volledig": "",   # geen extra opdracht: het gedrag van vóór deze schaal
+}
+
+# Actualiseringen staan los van het herschrijfniveau en gelden dus ook in `stijl` en
+# `format`. Zonder deze alinea leest het model "verander niets aan de inhoud" als een verbod
+# op precies het werk dat de reviewer heeft goedgekeurd.
+ACTUALISEREN_ONGEACHT_MODUS = (
+    "De goedgekeurde ACTUALISERINGEN hierboven staan LOS van deze opdracht en voer je hoe\n"
+    "dan ook uit. Ze zijn de enige plek waar nieuwe inhoud vandaan mag komen. Houd de\n"
+    "wijziging wel zo klein als de actie zelf: pas aan wat de actie raakt en laat de rest\n"
+    "op het niveau dat hierboven staat."
+)
+
+
 def build_writer_user(b: RewriteBriefing) -> str:
     dagen = str(b.dagen) if b.dagen is not None else "ONBEKEND (schat plausibel)"
     kern_gezag = KERN_GEZAG_REVIEWER if b.kern_van_reviewer else KERN_GEZAG_SCORER
@@ -920,13 +1111,84 @@ def build_writer_user(b: RewriteBriefing) -> str:
         "NIET DOEN — door de reviewer afgewezen. Voer deze NIET uit, ook niet als de\n"
         "brontekst er aanleiding toe geeft:\n"
         f"{_opsomming(x.als_instructie() for x in b.afgewezen)}\n\n"
-        f"Rewrite-guidance: {b.rewrite_guidance or '(geen)'}\n\n"
-        f"{BRONTEKST_UITLEG}\n\n{b.source_text}"
+        f"Rewrite-guidance: {b.guidance_definitief or '(geen)'}\n\n"
+        f"{_modus_en_materiaal(b)}"
     )
+
+
+def _modus_en_materiaal(b: RewriteBriefing) -> str:
+    """Het slotblok van de briefing: de opdracht per niveau + het materiaal om mee te werken.
+
+    In `stijl` en `format` VERVANGT de huidige versie de brontekst, in plaats van ernaast te
+    staan. Het is dezelfde content: `build_source_text` bouwt zijn tekst uit precies dit
+    `content`-object, alleen zonder `setup`, `follow_up`, `summary_edudex` en `certification`
+    (voor de scorer boilerplate) en zonder indeling per kopje. Twee keer hetzelfde meesturen
+    kost tokens en geeft het model twee versies van de waarheid, waarvan de ene net iets
+    minder compleet is dan de andere.
+
+    Valt de huidige content weg -- geen bron gevonden -- dan is er niets te behouden en
+    blijft alleen de brontekst over, ongeacht de modus.
+    """
+    uitleg = MODUS_UITLEG.get(b.modus, "")
+    huidig = huidige_versie_blok(b.huidige_content, b.nieuwe_titel) if b.behoudt_tekst else ""
+    blokken = []
+    if uitleg:
+        blokken.append(uitleg)
+        if b.goedgekeurd:
+            blokken.append(ACTUALISEREN_ONGEACHT_MODUS)
+    if huidig:
+        blokken.append(f"{HUIDIGE_VERSIE_UITLEG}\n\n{huidig}")
+    else:
+        blokken.append(f"{BRONTEKST_UITLEG}\n\n{b.source_text}")
+    return "\n\n".join(blokken)
+
+
+# Wat de judge extra moet weten als de training NIET vanaf nul is opgebouwd. Additief op
+# `BRONTEKST_UITLEG_JUDGE`, niet in plaats daarvan: de vorm-as blijft in elke modus gelijk
+# (geen oordeel over lengte, geen afrekenen op afwijken van de bronstructuur). Er komt één
+# as bij, en dat is precies de as die geen enkele code-check kan zien.
+#
+# Zonder dit blok gebeurt het omgekeerde van wat je wilt: de judge ziet een bewust
+# conservatieve tekst, mist de herschrijving die hij gewend is, en stuurt hem terug.
+MODUS_UITLEG_JUDGE = {
+    "stijl": (
+        "LET OP — deze training is bewust ALLEEN bijgewerkt naar de actuele schrijfregels.\n"
+        "De opdracht was: de formulering aanpassen, de inhoud ongemoeid laten. Beoordeel hem\n"
+        "daarop.\n\n"
+        "Dat betekent twee dingen. Reken het concept NIET af omdat het dicht bij de huidige\n"
+        "versie blijft, dezelfde onderwerpen in dezelfde volgorde behandelt of weinig is\n"
+        "veranderd — dat was de opdracht, niet een tekortkoming. En reken het WÉL af op het\n"
+        "omgekeerde: elk onderwerp, feit, doel of belofte in het concept moet herleidbaar\n"
+        "zijn tot de huidige versie hieronder of tot een goedgekeurde actualisering. Wat er\n"
+        "los van staat is drift, en drift is hier een fail."
+    ),
+    "format": (
+        "LET OP — deze training is bewust ALLEEN bijgewerkt naar het actuele format.\n"
+        "De opdracht was: in vorm brengen, ontbrekende kopjes afleiden uit wat er al stond,\n"
+        "en de inhoud verder ongemoeid laten.\n\n"
+        "Herindelen hoort er dus bij: samengevoegde of gesplitste modules, een andere\n"
+        "volgorde en nieuw geschreven Doelgroep-, Voorkennis- of Doelen-kopjes zijn geen\n"
+        "fout. Wat wél een fout is: een onderwerp dat nergens in de huidige versie voorkomt,\n"
+        "of een kopje dat is volgeschreven met inhoud die niet uit de andere kopjes volgt.\n"
+        "Dat is de fout die deze modus moet voorkomen — let er scherper op dan normaal."
+    ),
+}
 
 
 def build_judge_user(b: RewriteBriefing, document: dict) -> str:
     herkomst = "vastgesteld door reviewer" if b.kern_van_reviewer else "lezing van de scorer"
+    # `BRONTEKST_UITLEG_JUDGE` blijft in élke modus staan: daar zitten de feitgetrouwheids-
+    # en niveau-instructie, de uitzondering voor goedgekeurde actualiseringen én het verbod
+    # om op vorm af te rekenen. Alleen het materiaal eronder wisselt -- in `stijl`/`format`
+    # de bestaande tekst per kopje (een superset van `source_text`, dat `setup`, `follow_up`,
+    # `summary_edudex` en `certification` overslaat), anders de brontekst zoals altijd.
+    huidig = huidige_versie_blok(b.huidige_content, b.nieuwe_titel) if b.behoudt_tekst else ""
+    modus_blok = MODUS_UITLEG_JUDGE.get(b.modus, "") if huidig else ""
+    materiaal = "\n\n".join(x for x in (
+        BRONTEKST_UITLEG_JUDGE,
+        modus_blok,
+        huidig or b.source_text,
+    ) if x)
     return (
         f"Persona: {b.persona}\n"
         f"Aantal dagen: {b.dagen if b.dagen is not None else 'onbekend'}\n\n"
@@ -943,7 +1205,7 @@ def build_judge_user(b: RewriteBriefing, document: dict) -> str:
         f"{_opsomming(x.als_instructie() for x in b.goedgekeurd)}\n\n"
         "Afgewezen actualiseringen (mogen NIET terugkomen):\n"
         f"{_opsomming(x.actie for x in b.afgewezen)}\n\n"
-        f"{BRONTEKST_UITLEG_JUDGE}\n\n{b.source_text}\n\n"
+        f"{materiaal}\n\n"
         f"CONCEPT — dit is wat je beoordeelt:\n{uit.render_markdown(document, b.nieuwe_titel)}"
     )
 
@@ -1087,6 +1349,11 @@ class RewriteResult:
     toegepaste_acties: list[str] = field(default_factory=list)
     oude_titel: str = ""
     writer_out: dict = field(default_factory=dict)   # nodig om één kopje te hergenereren
+    # Onder welk regime is dit resultaat tot stand gekomen? Zonder deze drie is `approved`
+    # een status zonder betekenis zodra de spec of de modus verschuift.
+    modus: str = MODUS_DEFAULT
+    modus_voorstel: str = ""
+    spec_versie: str = ""
 
 
 def bepaal_vervolgstappen(client, b: RewriteBriefing, catalog: list[dict],
@@ -1116,7 +1383,8 @@ def rewrite_one(client, b: RewriteBriefing, catalog: list[dict],
     route = b.route_out
     if route:
         return RewriteResult(b.training_id, b.nieuwe_titel, HUMAN_QUEUE, reden=route,
-                             thin=b.thin, oude_titel=b.titel)
+                             thin=b.thin, oude_titel=b.titel, modus=b.modus,
+                             modus_voorstel=b.modus_voorstel, spec_versie=spec_versie())
 
     # audit-spoor: welke actualiseringen zijn meegegaan, en onder welke voorwaarde
     toegepast = [f"{x.nr}. {x.actie}" + (f" [{x.voorwaarde}]" if x.voorwaarde else "")
@@ -1152,7 +1420,9 @@ def rewrite_one(client, b: RewriteBriefing, catalog: list[dict],
         last_judgment = judgment
         verdict = judgment.get("verdict", HUMAN_QUEUE)
         gedeeld = dict(document=document, flags=flags, judgment=judgment,
-                       toegepaste_acties=toegepast, oude_titel=b.titel, writer_out=writer_out)
+                       toegepaste_acties=toegepast, oude_titel=b.titel, writer_out=writer_out,
+                       modus=b.modus, modus_voorstel=b.modus_voorstel,
+                       spec_versie=spec_versie())
         if verdict == APPROVED:
             return RewriteResult(b.training_id, titel, APPROVED, reden="",
                                  thin=b.thin or judgment.get("feitgetrouw", {}).get("thin", False),
@@ -1168,7 +1438,9 @@ def rewrite_one(client, b: RewriteBriefing, catalog: list[dict],
     return RewriteResult(b.training_id, b.nieuwe_titel, HUMAN_QUEUE,
                          reden="geen valide concept na max pogingen",
                          document=document, judgment=last_judgment, thin=b.thin,
-                         toegepaste_acties=toegepast, oude_titel=b.titel)
+                         toegepaste_acties=toegepast, oude_titel=b.titel,
+                         modus=b.modus, modus_voorstel=b.modus_voorstel,
+                         spec_versie=spec_versie())
 
 
 # ---------------------------------------------------------------------------
@@ -1407,14 +1679,99 @@ def export_goud_corpus(source_path: str, out_dir: str, verbose: bool = True) -> 
 
 
 _LI_RE = re.compile(r"<li>(.*?)(?=<li>|</li>)", re.S)
+_BLOK_TAG_RE = re.compile(r"<\s*(/?)\s*(ul|ol|li|h3)\b[^>]*>", re.I)
+
+
+def _modules_uit_ul(html: str, titel: str = "") -> list[dict]:
+    """Geneste <ul> -> [{titel, bullets}]; de vorm die `uit.render_modules` produceert.
+
+    Loopt de tags langs met een diepteteller in plaats van met één reguliere expressie.
+    Geneste lijsten zijn met een regex niet betrouwbaar te vangen -- dat is precies de
+    valkuil waarom deze structuur eerder werd overgeslagen. Een diepteteller heeft dat
+    probleem niet: hij leest de nesting zoals de browser hem leest.
+
+    Alleen de standaardvorm wordt herkend. Modules die als <h3>-koppen zijn opgeschreven
+    (32 van de 45 nog te herschrijven trainingen) leveren hier weinig of niets op, en dat is
+    de bedoeling: die structuur is niet de standaard en moet dus herschikt worden. Zie
+    `scan_vorm`, dat een onleesbare modulestructuur als ondergrens `format` behandelt.
+    """
+    from score_trainings import clean_text
+    modules: list[dict] = []
+    bullets: list[str] = []
+    titel_buf: list[str] = []
+    bullet_buf: list[str] = []
+    ul_diepte = 0
+    modus: str | None = None      # "titel" | "bullet" | None
+
+    def sluit_bullet() -> None:
+        nonlocal bullet_buf
+        tekst = clean_text("".join(bullet_buf), titel).strip()
+        bullet_buf = []
+        if tekst:
+            bullets.append(tekst)
+
+    def sluit_module() -> None:
+        nonlocal titel_buf, bullets
+        sluit_bullet()
+        naam = clean_text("".join(titel_buf), titel).strip()
+        if naam or bullets:
+            modules.append({"titel": naam, "bullets": bullets})
+        titel_buf, bullets = [], []
+
+    laatste = 0
+    for m in _BLOK_TAG_RE.finditer(html or ""):
+        tekst = (html or "")[laatste:m.start()]
+        laatste = m.end()
+        if modus == "titel":
+            titel_buf.append(tekst)
+        elif modus == "bullet":
+            bullet_buf.append(tekst)
+
+        sluit, naam = bool(m.group(1)), m.group(2).lower()
+        if naam in ("ul", "ol"):
+            if not sluit:
+                ul_diepte += 1
+                if ul_diepte >= 2:
+                    modus = None          # de moduletitel is af; hierna komen de bullets
+            else:
+                if ul_diepte >= 2:
+                    sluit_bullet()
+                elif ul_diepte == 1:
+                    sluit_module()
+                ul_diepte = max(0, ul_diepte - 1)
+                modus = None
+        elif naam == "li":
+            if sluit:
+                if ul_diepte >= 2:
+                    sluit_bullet()
+                modus = None
+            elif ul_diepte <= 1:
+                sluit_module()
+                modus = "titel"
+            else:
+                sluit_bullet()
+                modus = "bullet"
+        else:                              # <h3> hoort niet in de standaardvorm
+            modus = None
+    sluit_module()
+    return modules
+
+
+def modules_leesbaar(modules: list[dict]) -> bool:
+    """Is dit een echte modulestructuur, of wat losse resten van een andere opmaak?
+
+    Bewust streng. Voor de vormscan geldt: onbekend is niet hetzelfde als conform, dus bij
+    twijfel schatten we omhoog en niet omlaag.
+    """
+    return len(modules) >= 2 and any(m.get("bullets") for m in modules)
 
 
 def goud_naar_check_input(content: dict, titel: str = "") -> dict:
-    """Goud-content (HTML) -> de platte writer-vorm, zodat de checks erover kunnen.
+    """Bestaande CMS-content (HTML) -> de platte writer-vorm, zodat de checks erover kunnen.
 
-    Ruwe benadering: goed genoeg om te tellen welke regels het goud haalt, niet om mee te
-    genereren. De modules-structuur laten we leeg -- geneste <ul> betrouwbaar terugparsen
-    levert meer valkuilen op dan het antwoord waard is.
+    Gebruikt door `checks_over_goud` (hoe vaak faalt elke regel op het goud?), door
+    `neem_over` (flags op een ongewijzigd doorgezette training) en door `scan_vorm` (de
+    deterministische ondergrens van de herschrijfmodus).
     """
     from score_trainings import clean_text
     plat = {k: clean_text(v, titel) if isinstance(v, str) else v for k, v in content.items()}
@@ -1424,12 +1781,233 @@ def goud_naar_check_input(content: dict, titel: str = "") -> dict:
     return {
         "overzicht": plat.get("summary", ""),
         "inleiding": intro,
+        "modules": {"modules": _modules_uit_ul(content.get("modules", "") or "", titel)},
         "doelgroep": plat.get("target_audience", ""),
         "voorkennis": plat.get("prior_knowledge", ""),
         "doelen": [d for d in doelen if d],
         "kortste_omschrijving": plat.get("summary_edudex", ""),
         "nieuwe_titel": titel,
     }
+
+
+# Welke harde check-fails betekenen "de structuur moet op de schop" in plaats van "de
+# formulering moet anders"? Dat onderscheid is precies de grens tussen `format` en `stijl`.
+# Een ontbrekend kopje of een verkeerd aantal modules/bullets/doelen vraagt om herindelen;
+# een missende openingszin, een verboden woord of een lengte-overschrijding vraagt alleen om
+# andere zinnen. Codes komen uit rewrite_checks.py; verandert daar een regel van aard, dan
+# hoort hij hier mee te verhuizen.
+STRUCTUUR_CODES = frozenset({
+    "ontbreekt",          # check_presence: het kopje is er niet
+    "modules_aantal",     # niet 4-6 modules
+    "bullets_aantal",     # niet 3-6 sub-bullets
+    "bullets_variatie",   # overal hetzelfde aantal sub-bullets
+    "aantal",             # check_doelen: niet 4-5 doelen
+})
+
+
+def scan_vorm(content_bron: dict, titel: str = "", dagen: int | None = None,
+              verdict: str = "") -> dict:
+    """Deterministische ONDERGRENS van de herschrijfmodus. Doet geen API-call.
+
+    Wat deze scan kan en niet kan is de kern van het ontwerp. `rewrite_checks` vangt
+    openingszinnen, lengtes, aantallen en verboden woorden -- daarmee is te bewijzen dat een
+    tekst NIET voldoet, nooit dat hij wél voldoet. Of een zin het stijlregister volgt, of de
+    causale constructie zichtbaar is, of een woord raak gekozen is: dat ziet code niet.
+
+    Daarom is de uitkomst asymmetrisch. De scan legt een bodem en stelt NOOIT `overnemen`
+    voor; die conclusie mag alleen uit `schat_modus` (die de spec echt leest) of van een mens
+    komen. Zelfs een tekst die elke check haalt levert hier `stijl` op.
+    """
+    if not content_bron:
+        return {"ondergrens": "volledig", "reden": "geen broncontent",
+                "lege_kopjes": [], "harde_issues": [], "modules_leesbaar": False}
+    if str(verdict or "").strip() == "onbruikbaar":
+        return {"ondergrens": "volledig", "reden": "verdict onbruikbaar — te weinig bron",
+                "lege_kopjes": [], "harde_issues": [], "modules_leesbaar": False}
+
+    rw = goud_naar_check_input(content_bron, titel)
+    leesbaar = modules_leesbaar((rw.get("modules") or {}).get("modules") or [])
+    issues = checks.check_rewrite(rw, {"naam": titel, "dagen": dagen})
+    hard = checks.hard_fails(issues)
+    lege = [i.section for i in hard if i.code == "ontbreekt"]
+    structuur = [i for i in hard if i.code in STRUCTUUR_CODES]
+
+    if not leesbaar:
+        ondergrens, reden = "format", "modulestructuur niet als titel + sub-bullets te lezen"
+    elif structuur:
+        ondergrens = "format"
+        reden = "structuur wijkt af: " + ", ".join(sorted({f"{i.section}/{i.code}"
+                                                           for i in structuur}))
+    elif hard:
+        ondergrens = "stijl"
+        reden = f"{len(hard)} harde check-fails op de formulering"
+    else:
+        # Geen enkele check faalt. Dat is geen bewijs van conformiteit -- zie de docstring.
+        ondergrens, reden = "stijl", "geen check-fails; conformiteit niet door code vast te stellen"
+
+    return {"ondergrens": ondergrens, "reden": reden, "lege_kopjes": lege,
+            "harde_issues": [str(i) for i in hard], "modules_leesbaar": leesbaar}
+
+
+SUBMIT_MODUS = {
+    "name": "submit_modus",
+    "description": "Bepaal hoeveel er aan deze bestaande trainingstekst moet gebeuren om hem "
+                   "aan de meegeleverde schrijfregels en het format te laten voldoen.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "modus": {"type": "string", "enum": list(MODI),
+                "description": "overnemen = voldoet al; stijl = alle kopjes staan er en de "
+                               "inhoud klopt, alleen de formulering moet naar de regels "
+                               "hierboven; format = de structuur klopt niet of er ontbreken "
+                               "kopjes; volledig = de tekst is als basis onbruikbaar en de "
+                               "training moet opnieuw worden opgebouwd."},
+            "reden": {"type": "string",
+                "description": "Eén zin, concreet: wát voldoet er niet. Niet 'de stijl kan "
+                               "beter' maar 'Overzicht opent niet met een vraag en Doelgroep "
+                               "gebruikt de u-vorm'."},
+        },
+        "required": ["modus", "reden"],
+    },
+}
+
+SCHAT_MODUS_INSTRUCTIE = """\
+Je bepaalt hoeveel werk een bestaande trainingstekst nodig heeft om te voldoen aan de
+schrijfregels en het format hieronder. Je herschrijft niets; je stelt alleen vast wat er
+minimaal moet gebeuren.
+
+De vier niveaus, van licht naar zwaar:
+
+- `overnemen`  — de tekst voldoet al aan deze regels. Kies dit alleen als je bij het
+  nalezen niets zou veranderen.
+- `stijl`      — alle kopjes staan er en de inhoud klopt; alleen de formulering voldoet
+  niet aan de regels (u-vorm, marketingtaal, ontbrekende openingszinnen, verboden woorden,
+  geen causaal verband, verkeerd register voor de persona).
+- `format`     — er ontbreken kopjes, of de structuur klopt niet (modules niet als titel
+  met sub-bullets, verkeerde aantallen, inhoud die in het verkeerde kopje staat).
+- `volledig`   — de bestaande tekst is als basis onbruikbaar en de training moet vanaf de
+  brontekst opnieuw worden opgebouwd.
+
+Je krijgt een ONDERGRENS van een deterministische controle mee. Die controle vindt alleen
+wat met code te betrappen is; hij kan bewijzen dat iets niet voldoet, nooit dat het wél
+voldoet. Ga daarom nooit onder die ondergrens zitten, maar voel je vrij erboven te gaan als
+je iets ziet wat code niet ziet.
+
+Beoordeel de tekst op de regels hierboven, niet op je eigen smaak. Roep tot slot het tool
+`submit_modus` aan.
+"""
+
+
+def build_modus_system() -> list[dict]:
+    """Systeem-prompt voor de modusschatting: de ACTUELE schrijfregels, gecachet.
+
+    Dat de spec hier letterlijk in gaat is het hele punt van deze laag. Wordt de schrijfspec
+    of het stijlregister strenger, dan schuift het voorstel automatisch mee -- zonder dat er
+    ergens een drempel of een lijst met codes hoeft te worden bijgewerkt. Eén prefix voor de
+    hele batch, dus de cache pakt vanaf de tweede training.
+    """
+    prefix = "\n\n---\n\n".join([_read(SCHRIJFSPEC), _read(HUMANISERING), _read(STIJLREGISTER)])
+    return [{"type": "text", "text": SCHAT_MODUS_INSTRUCTIE + "\n\n---\n\n" + prefix,
+             "cache_control": {"type": "ephemeral"}}]
+
+
+def schat_modus(client, content_bron: dict, titel: str = "", dagen: int | None = None,
+                verdict: str = "") -> dict:
+    """Voorstel voor de herschrijfmodus: Python-ondergrens + een oordeel van een klein model.
+
+    Derde laag boven `scan_vorm`, in dezelfde geest als `kies_vervolgtrainingen`: Python
+    levert wat deterministisch vaststaat, een goedkoop model doet het oordeel dat code niet
+    kan doen, en een mens beslist (kolom `modus_reviewer`). Levert het model niets
+    bruikbaars, dan blijft de ondergrens staan -- nooit een voorstel dat lichter is dan wat
+    de checks al hebben weerlegd.
+
+    Geeft {"modus", "reden", "ondergrens", "scan"} terug.
+    """
+    scan = scan_vorm(content_bron, titel, dagen, verdict)
+    ondergrens = scan["ondergrens"]
+    uitkomst = {"modus": ondergrens, "reden": scan["reden"], "ondergrens": ondergrens,
+                "scan": scan}
+    if client is None or not content_bron or ondergrens == "volledig":
+        return uitkomst
+
+    user_text = (
+        f"Titel: {titel}\n"
+        f"Aantal dagen: {dagen if dagen is not None else 'onbekend'}\n\n"
+        f"ONDERGRENS uit de deterministische controle: {ondergrens}\n"
+        f"Reden: {scan['reden']}\n"
+        + ("Harde check-fails:\n" + _opsomming(scan["harde_issues"]) + "\n\n"
+           if scan["harde_issues"] else "\n")
+        + "BESTAANDE TEKST:\n" + huidige_versie_blok(content_bron, titel)
+    )
+    out = _call_tool(client, build_modus_system(), user_text, [SUBMIT_MODUS], "submit_modus",
+                     max_tokens=2000, model=KLEIN_MODEL, thinking=None)
+    if not isinstance(out, dict) or not out.get("modus"):
+        return uitkomst
+
+    voorstel = normaliseer_modus(out.get("modus"), default=ondergrens)
+    uitkomst["modus"] = hoogste_modus(voorstel, ondergrens)
+    reden = _cel(out.get("reden"))
+    if uitkomst["modus"] != voorstel:
+        reden = f"{reden} (opgehoogd naar de ondergrens {ondergrens}: {scan['reden']})".strip()
+    uitkomst["reden"] = reden or scan["reden"]
+    return uitkomst
+
+
+def modus_voorstellen(scored_path: str, source_path: str, out_path: str | None = None,
+                      met_llm: bool = True, verbose: bool = True):
+    """Vult `modus_voorstel` en `modus_reden` voor elke training in het scoresheet.
+
+    Dit is de stap die de reviewer voorbereidt, net zoals `besluiten.write_besluiten_sheet`
+    dat doet voor `actie_besluit`: de code doet het voorwerk, de mens kijkt na en beslist.
+    Bestaande waarden in `modus_reviewer` blijven ongemoeid -- die zijn per definitie
+    leidend.
+
+    Met `met_llm=False` blijft het bij de deterministische ondergrens (geen API-key nodig).
+    Dat is bruikbaar als kalibratie, niet als voorstel: de ondergrens stelt nooit
+    `overnemen` voor, dus elke training zou minstens een stijlronde krijgen.
+    """
+    from collections import Counter
+
+    scored = _load_scored(scored_path)
+    src_by_id, cols = load_source(source_path)
+    client = make_client() if met_llm else None
+
+    voorstellen, redenen, ondergrenzen = [], [], []
+    for _, srow in scored.iterrows():
+        tid = srow["training_id"]
+        src_row = src_by_id.get(tid)
+        content = parse_content(src_row[cols["content"]]) if src_row is not None else {}
+        naam = str(srow.get("titel") or (src_row[cols["name"]] if src_row is not None else "") or "")
+        dagen = bepaal_dagen(content, srow.get("aantal_dagen_bron"))
+        verdict = str(srow.get("verdict", "") or "")
+        uitkomst = schat_modus(client, content, sjabloon.nieuwe_titel(naam), dagen, verdict)
+        voorstellen.append(uitkomst["modus"])
+        redenen.append(uitkomst["reden"])
+        ondergrenzen.append(uitkomst["ondergrens"])
+        if verbose:
+            afwijking = "" if uitkomst["modus"] == uitkomst["ondergrens"] else \
+                f"  (ondergrens {uitkomst['ondergrens']})"
+            print(f"  {tid:>6}  {naam[:42]:42} -> {uitkomst['modus']:9}{afwijking}")
+
+    scored["modus_voorstel"] = voorstellen
+    scored["modus_reden"] = redenen
+    scored["modus_ondergrens"] = ondergrenzen
+    if "modus_reviewer" not in scored.columns:
+        scored["modus_reviewer"] = ""
+    if "guidance_reviewer" not in scored.columns:
+        scored["guidance_reviewer"] = ""
+
+    if verbose:
+        print("\nverdeling voorstel:", dict(Counter(voorstellen)))
+        print("verdeling ondergrens:", dict(Counter(ondergrenzen)))
+        anders = sum(1 for v, o in zip(voorstellen, ondergrenzen) if v != o)
+        print(f"voorstel wijkt af van de ondergrens bij {anders}/{len(voorstellen)} "
+              f"-- juist die rijen zijn het nalezen waard")
+    if out_path:
+        scored.to_excel(out_path, index=False)
+        if verbose:
+            print(f"\nGeschreven: {out_path}")
+    return scored
 
 
 def checks_over_goud(goud_dir: str = GOUD_DIR, verbose: bool = True) -> dict:
@@ -1439,23 +2017,30 @@ def checks_over_goud(goud_dir: str = GOUD_DIR, verbose: bool = True) -> dict:
     Valt een regel bij meer dan de helft van het corpus om, dan is die regel verdacht en
     niet de training. De trainingen die álles halen zijn de few-shot-kandidaten
     (`GOUD_VOORBEELDEN`).
+
+    De modules tellen sinds de modulestructuur parseerbaar is gewoon mee. Ze staan daarnaast
+    apart in de uitkomst, want ze domineren het beeld: `bullets_aantal` valt 172 keer om
+    over 78 trainingen. Dat is precies het soort cijfer waarvoor de regel hierboven bedoeld
+    is -- lees het als een vraag aan de spec, niet als een oordeel over het goud.
     """
     import glob
     from collections import Counter
     tellingen: Counter = Counter()
     schoon: list[tuple[Any, str]] = []
+    schoon_buiten_modules: list[tuple[Any, str]] = []
     bestanden = sorted(glob.glob(os.path.join(goud_dir, "*.json")))
     for pad in bestanden:
         with open(pad, encoding="utf-8") as f:
             d = json.load(f)
         titel = d.get("titel", "")
         rw = goud_naar_check_input(d.get("content") or {}, titel)
-        # modules zitten er bewust niet in; die checks zouden altijd falen
-        hard = [i for i in checks.hard_fails(checks.check_rewrite(rw)) if i.section != "modules"]
+        hard = checks.hard_fails(checks.check_rewrite(rw, {"naam": titel}))
         for issue in hard:
             tellingen[f"{issue.section}: {issue.code}"] += 1
         if not hard:
             schoon.append((d.get("training_id"), titel))
+        if not [i for i in hard if i.section != "modules"]:
+            schoon_buiten_modules.append((d.get("training_id"), titel))
     if verbose:
         print(f"{len(bestanden)} goud-trainingen; aantal dat elke harde regel NIET haalt:")
         for regel, n in tellingen.most_common():
@@ -1463,7 +2048,11 @@ def checks_over_goud(goud_dir: str = GOUD_DIR, verbose: bool = True) -> dict:
         print(f"\n{len(schoon)} halen alles -> kandidaat voor GOUD_VOORBEELDEN:")
         for tid, titel in schoon:
             print(f"  {tid:6} {titel}")
-    return {"tellingen": dict(tellingen), "schoon": schoon, "totaal": len(bestanden)}
+        print(f"\n{len(schoon_buiten_modules)} halen alles buiten de modules-checks om "
+              f"(vergelijkingspunt: zo zag deze meting eruit toen modules nog werden "
+              f"overgeslagen).")
+    return {"tellingen": dict(tellingen), "schoon": schoon,
+            "schoon_buiten_modules": schoon_buiten_modules, "totaal": len(bestanden)}
 
 
 def lengtes_over_goud(goud_dir: str = GOUD_DIR, verbose: bool = True) -> dict:
@@ -1534,6 +2123,8 @@ def _review_rij(res: RewriteResult, content: dict, content_bron: dict | None = N
     rij = {
         "training_id": res.training_id, "titel": res.titel,
         "oude_titel": res.oude_titel, "status": res.status,
+        "modus": res.modus, "modus_voorstel": res.modus_voorstel,
+        "spec_versie": res.spec_versie,
         "reden": res.reden, "thin": res.thin,
         "n_flags": len(res.flags), "flags": " | ".join(res.flags),
         "judge_confidence": (res.judgment or {}).get("judge_confidence", ""),
@@ -1573,26 +2164,134 @@ def normaliseer_follow_up(html_tekst: str) -> tuple[str, list[str]]:
     return _FOLLOW_UP_LI_RE.sub(vervang, html_tekst or ""), gewijzigd
 
 
-def neem_over(tid: Any, naam: str, content_bron: dict) -> tuple[RewriteResult, dict]:
-    """Een training die al in de nieuwe stijl staat, ongewijzigd doorzetten.
+# Kopjes die een actualisering los kan raken. `aanpak`, `vervolgstappen` en `certificatie`
+# staan er niet bij: die zijn volledig sjabloon of komen uit de catalogus, dus daar valt
+# inhoudelijk niets te actualiseren.
+ACTUALISEERBARE_KOPJES = ("overzicht", "inleiding", "modules", "doelgroep",
+                          "voorkennis", "doelen", "kortste_omschrijving")
+
+
+def build_actualisatie_tool() -> dict:
+    """Tool voor een gerichte actualisering: elk kopje optioneel, niets verplicht.
+
+    Afgeleid uit `SUBMIT_REWRITE`, net als `build_kopje_tool` -- één bron voor de
+    veldbeschrijvingen. Het verschil met `submit_rewrite` is dat `required` leeg is: het
+    model levert alléén de kopjes die de goedgekeurde actie daadwerkelijk raakt. Wat het niet
+    noemt blijft byte-voor-byte staan, en dat is precies de garantie die deze modus geeft.
+    """
+    props = {k: v for k, v in SUBMIT_REWRITE["input_schema"]["properties"].items()
+             if k in ACTUALISEERBARE_KOPJES}
+    props["notities"] = {"type": "string",
+                         "description": "Optioneel: wat je niet kon doorvoeren en waarom."}
+    return {
+        "name": "submit_actualisatie",
+        "description": "Lever ALLEEN de kopjes die door de goedgekeurde actualiseringen "
+                       "veranderen, in hun geheel en in de nieuwe stijl. Laat elk kopje weg "
+                       "dat ongewijzigd kan blijven.",
+        "input_schema": {"type": "object", "properties": props, "required": []},
+    }
+
+
+def actualiseer_content(client, b: RewriteBriefing, content: dict,
+                        titel: str) -> tuple[dict, list[str]]:
+    """Voert de goedgekeurde actualiseringen door in een verder ongemoeide training.
+
+    Dit is as 2 op zijn smalst: de tekst voldoet al, er is alleen een besluit van de reviewer
+    dat er iets bij of anders moet. Het model krijgt de bestaande tekst per kopje en levert
+    alleen wat het verandert; de code rendert precies díe velden opnieuw en laat de rest van
+    `content` ongemoeid -- inclusief `follow_up`, `setup` en `certification`, die anders door
+    het sjabloon zouden worden overschreven.
+
+    Geeft (nieuwe content, lijst met wat er is aangepast) terug.
+    """
+    if client is None or not b.goedgekeurd:
+        return content, []
+    tool = build_actualisatie_tool()
+    user_text = (
+        f"Titel: {titel}\n"
+        f"Persona: {b.persona}\n"
+        f"Aantal dagen: {b.dagen if b.dagen is not None else 'onbekend'}\n\n"
+        f"KERN — het niveau van deze training; schrijf daar nooit boven:\n"
+        f"{b.kern_definitief}\n\n"
+        f"{BESLISSING_UITLEG}\n\n"
+        "GOEDGEKEURDE ACTUALISERINGEN — dit is het enige wat er mag veranderen. Staat er een\n"
+        "VOORWAARDE bij, dan is die bindend:\n"
+        f"{_opsomming(x.als_instructie() for x in b.goedgekeurd)}\n\n"
+        "NIET DOEN — afgewezen door de reviewer:\n"
+        f"{_opsomming(x.als_instructie() for x in b.afgewezen)}\n\n"
+        + (f"Aanwijzing van de reviewer: {b.guidance_reviewer}\n\n"
+           if b.guidance_reviewer.strip() else "")
+        + "OPDRACHT — deze training staat al in de nieuwe stijl en wordt NIET herschreven.\n"
+          "Voer alleen de goedgekeurde actualiseringen hierboven door. Lever uitsluitend de\n"
+          "kopjes die daardoor veranderen, elk in zijn geheel en in dezelfde stijl als nu.\n"
+          "Raakt een actie maar één kopje, lever dan ook maar één kopje. Verander niets aan\n"
+          "de kopjes die je weglaat — die blijven letterlijk staan.\n\n"
+        + "HUIDIGE VERSIE:\n" + huidige_versie_blok(content, titel)
+    )
+    out = _call_tool(client, build_writer_system(), user_text, [tool], "submit_actualisatie")
+    if not isinstance(out, dict):
+        return content, ["actualisering niet doorgevoerd: geen bruikbaar antwoord van het model"]
+
+    nieuw = dict(content)
+    gewijzigd: list[str] = []
+    for veld in ACTUALISEERBARE_KOPJES:
+        if veld not in out or out[veld] in (None, "", [], {}):
+            continue
+        sleutel, waarde = uit.render_veld(veld, out[veld], {"titel": titel})
+        if nieuw.get(sleutel) != waarde:
+            nieuw[sleutel] = waarde
+            gewijzigd.append(sjabloon.KOP_PER_VELD.get(veld, veld))
+    if _cel(out.get("notities")):
+        gewijzigd.append(f"notitie schrijver: {_cel(out['notities'])}")
+    return nieuw, gewijzigd
+
+
+def neem_over(b: RewriteBriefing, client=None) -> tuple[RewriteResult, dict]:
+    """Een training die al aan het actuele format voldoet, ongewijzigd doorzetten.
 
     Niet herschrijven (dat zou een goede tekst alleen maar slechter maken), maar wel in
     `herschreven.xlsx` zetten -- anders is dat sheet geen compleet CMS-document. De
     code-check draait er wel overheen, zodat afwijkingen zichtbaar worden in `flags`.
+
+    Wél doorgevoerd: de goedgekeurde actualiseringen. Die staan los van het herschrijfniveau
+    (zie `RewriteBriefing.modus`) en golden tot nu toe alleen voor trainingen die de volledige
+    herschrijving in gingen -- een training met `herschreven=1` liet ze stilzwijgend vallen,
+    terwijl een mens er wel voor had getekend. Zonder acties is dit pad nog steeds gratis:
+    geen enkele API-call.
+
     Geeft (resultaat, CMS-content) terug.
     """
-    content = dict(content_bron or {})
-    titel = sjabloon.nieuwe_titel(naam)
+    content = dict(b.huidige_content or {})
+    naam = b.titel
+    titel = b.nieuwe_titel
     flags: list[str] = []
     if content.get("follow_up"):
         content["follow_up"], gewijzigd = normaliseer_follow_up(content["follow_up"])
         flags += [f"vervolgstappen-titel aangepast: {g}" for g in gewijzigd]
     if naam != titel:
         flags.append(f"titel aangepast: {naam} -> {titel}")
+
+    reden = "voldoet al aan het actuele format"
+    toegepast: list[str] = []
+    if b.goedgekeurd:
+        content, aangepast = actualiseer_content(client, b, content, titel)
+        toegepast = [f"{x.nr}. {x.actie}" + (f" [{x.voorwaarde}]" if x.voorwaarde else "")
+                     for x in b.goedgekeurd]
+        if aangepast:
+            flags += [f"geactualiseerd: {a}" for a in aangepast]
+            reden = f"{reden}; {len(b.goedgekeurd)} actualisering(en) doorgevoerd"
+        else:
+            flags.append("goedgekeurde actualiseringen leverden geen wijziging op")
+
+    # Modules tellen hier sinds kort mee: zolang `goud_naar_check_input` ze oversloeg, gaf
+    # elke overgenomen training een misleidend schone lijst. Training 328 bleek zo modules
+    # met 0 en 1 sub-bullets te hebben zonder dat iemand dat zag.
     rw = goud_naar_check_input(content, titel)
-    flags += [str(i) for i in checks.check_rewrite(rw) if i.section != "modules"]
-    res = RewriteResult(tid, titel, OVERGENOMEN, reden="stond al in de nieuwe stijl",
-                        flags=flags, oude_titel=naam)
+    flags += [str(i) for i in checks.check_rewrite(rw, {"naam": titel})]
+    res = RewriteResult(b.training_id, titel, OVERGENOMEN, reden=reden,
+                        flags=flags, oude_titel=naam, modus="overnemen",
+                        modus_voorstel=b.modus_voorstel, toegepaste_acties=toegepast,
+                        spec_versie=spec_versie())
     return res, content
 
 
@@ -1645,6 +2344,8 @@ def schrijf_training_artefacten(json_dir: str, tid: Any, res: RewriteResult,
     _schrijf_atomisch(json_pad, lambda f: json.dump({
         "training_id": tid, "titel": res.titel, "oude_titel": res.oude_titel,
         "status": res.status, "reden": res.reden, "thin": res.thin, "flags": res.flags,
+        "modus": res.modus, "modus_voorstel": res.modus_voorstel,
+        "spec_versie": res.spec_versie,
         "toegepaste_acties": res.toegepaste_acties,
         # writer_out is wat de schrijver letterlijk leverde; nodig om later één kopje te
         # hergenereren (aanpak_invulling zit ingebakken in de vaste Aanpak-alinea).
@@ -1762,13 +2463,21 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
             "zonder dat sheet is niet vast te stellen wat de reviewer heeft goedgekeurd.")
     per_training = bes.load_besluiten(besluiten_path)
 
-    # Al herschreven trainingen niet opnieuw genereren, maar wél doorzetten: het scoresheet
-    # is de bron van waarheid voor wat er in het CMS-document hoort.
+    # De splitsing loopt over de MODUS, niet meer over de `herschreven`-kolom. Die kolom is
+    # nog steeds het uitgangspunt -- zonder `modus_reviewer`/`modus_voorstel` betekent
+    # `herschreven=1` gewoon `overnemen` (zie `RewriteBriefing.modus`) -- maar er is nu één
+    # schaal in plaats van twee mechanismen naast elkaar.
+    def _modus_van_rij(srow) -> str:
+        if not skip_herschreven:
+            # expliciet gevraagd om alles te herschrijven: alleen een reviewer overrulet dat
+            return normaliseer_modus(srow.get("modus_reviewer"))
+        return build_briefing({k: srow[k] for k in scored.columns}, {}, "").modus
+
     overnemen = scored.iloc[0:0]
-    if skip_herschreven and "herschreven" in scored.columns:
-        al_klaar = scored["herschreven"] == 1
-        overnemen = scored[al_klaar]
-        scored = scored[~al_klaar]
+    if len(scored):
+        is_overnemen = scored.apply(_modus_van_rij, axis=1) == "overnemen"
+        overnemen = scored[is_overnemen]
+        scored = scored[~is_overnemen]
 
     # hervatten: rijen die al in de output staan overslaan
     bestaand_cms, bestaand_review = None, None
@@ -1793,28 +2502,33 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
     boom = load_tree(catalog)
     if verbose and catalog and not boom["paden"]:
         print(f"LET OP: {TREE_PATH} ontbreekt -> vervolgtrainingen alleen op keyword-overlap.")
-    client = make_client() if len(scored) else None
+    # Ook het overnemen-pad kan een client nodig hebben: goedgekeurde actualiseringen worden
+    # daar sinds deze schaal wél doorgevoerd (zie `neem_over`).
+    client = make_client() if len(scored) or len(overnemen) else None
 
     cms_records, review_records = [], []
 
-    # 1. de al herschreven trainingen, ongewijzigd (geen API-calls)
+    # 1. de trainingen die al aan het format voldoen (modus `overnemen`). Zonder goedgekeurde
+    #    actualiseringen kost dit pad geen enkele API-call.
     for _, srow in overnemen.iterrows():
         tid = srow["training_id"]
         src_row = src_by_id.get(tid)
         if src_row is None:
             if verbose:
-                print(f"  (id {tid} staat op herschreven=1 maar heeft geen bron; overgeslagen)")
+                print(f"  (id {tid} staat op modus 'overnemen' maar heeft geen bron; overgeslagen)")
             continue
-        naam = str(srow.get("titel") or src_row[cols["name"]] or "")
+        scored_dict = {k: srow[k] for k in overnemen.columns}
+        naam = str(scored_dict.get("titel") or src_row[cols["name"]] or "")
         content_bron = parse_content(src_row[cols["content"]])
-        res, content_uit = neem_over(tid, naam, content_bron)
+        b = build_briefing(scored_dict, content_bron, naam, per_training.get(tid, []))
+        res, content_uit = neem_over(b, client)
         cms_records.append({"id": tid, "name": res.titel,
                             "content": json.dumps(content_uit, ensure_ascii=False, default=_json_default)})
         review_records.append(_review_rij(res, content_uit, content_bron))
     if verbose and len(overnemen):
-        print(f"{len(overnemen)} trainingen met herschreven=1 ongewijzigd overgenomen")
+        print(f"{len(overnemen)} trainingen op modus 'overnemen' doorgezet")
 
-    # 2. de trainingen die wél herschreven moeten worden
+    # 2. de trainingen die wél herschreven moeten worden (modus stijl/format/volledig)
     for n, (_, srow) in enumerate(scored.iterrows(), start=1):
         scored_dict = {k: srow[k] for k in scored.columns}
         tid = scored_dict.get("training_id")
@@ -1841,7 +2555,7 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
                                 "content": json.dumps(content_uit, ensure_ascii=False, default=_json_default)})
         review_records.append(_review_rij(res, content_uit, content_bron))
         if verbose:
-            print(f"[{n}/{len(scored)}] {naam[:45]:45} -> {res.status}"
+            print(f"[{n}/{len(scored)}] {naam[:40]:40} [{res.modus:9}] -> {res.status}"
                   + (f" ({res.reden})" if res.reden else ""))
 
     cms = pd.DataFrame.from_records(cms_records)
@@ -1868,15 +2582,27 @@ def main():
     p = argparse.ArgumentParser(description="Herschrijf trainingen naar de nieuwe stijl.")
     p.add_argument("--scored", required=True, help="scoresheet xlsx (feiten + actie_besluit)")
     p.add_argument("--source", required=True, help="bron-xlsx met content-JSON (brontekst)")
-    p.add_argument("--besluiten", required=True, help="genormaliseerde besluiten.xlsx")
+    # niet `required`: --goud en --scan-modus herschrijven niets en hebben dus geen
+    # besluiten nodig. `rewrite_file` weigert nog steeds te draaien zonder.
+    p.add_argument("--besluiten", help="genormaliseerde besluiten.xlsx")
     p.add_argument("--out-dir", default="herschreven")
     p.add_argument("--start", type=int, default=0)
     p.add_argument("--limit", type=int, default=None)
     p.add_argument("--no-append", action="store_true", help="overschrijf i.p.v. hervatten")
     p.add_argument("--goud", action="store_true", help="exporteer alleen het goud-corpus")
+    p.add_argument("--scan-modus", metavar="UIT_XLSX",
+                   help="vul modus_voorstel/modus_reden in en schrijf het sheet weg voor de "
+                        "reviewer; herschrijft niets")
+    p.add_argument("--geen-llm", action="store_true",
+                   help="alleen bij --scan-modus: alleen de deterministische ondergrens")
     a = p.parse_args()
     if a.goud:
         export_goud_corpus(a.source, a.out_dir)
+        return
+    if a.scan_modus:
+        if not a.geen_llm and not os.getenv("ANTHROPIC_API_KEY"):
+            raise SystemExit("Zet ANTHROPIC_API_KEY, of gebruik --geen-llm.")
+        modus_voorstellen(a.scored, a.source, a.scan_modus, met_llm=not a.geen_llm)
         return
     if not os.getenv("ANTHROPIC_API_KEY"):
         raise SystemExit("Zet ANTHROPIC_API_KEY (in een .env-bestand of je omgeving).")

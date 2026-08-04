@@ -121,6 +121,33 @@ def render_vervolgstappen(alineas: list[str], titels: list[str], afsluiter: str,
 # Document -> CMS-content
 # ---------------------------------------------------------------------------
 
+# Per kopje: hoe ziet dat ene CMS-veld eruit? Zelfde renderers als `document_to_content`,
+# maar dan voor één veld tegelijk. Nodig om een goedgekeurde actualisering door te voeren in
+# een training die verder ongemoeid blijft: dan wil je precies dat ene veld opnieuw
+# renderen en elk ander veld byte-voor-byte laten staan.
+_VELD_RENDER = {
+    "overzicht": lambda w, ctx: str(w or "").strip(),
+    "kortste_omschrijving": lambda w, ctx: str(w or "").strip(),
+    "inleiding": lambda w, ctx: render_inleiding(w),
+    "doelgroep": lambda w, ctx: _paragrafen(w),
+    "voorkennis": lambda w, ctx: _paragrafen(w or sjabloon.VOORKENNIS_FALLBACK),
+    "doelen": lambda w, ctx: render_doelen(sjabloon.DOELEN_INTRO, list(w or [])),
+    "modules": lambda w, ctx: render_modules(
+        ctx.get("modules_opening") or sjabloon.modules_opening(ctx.get("titel", "")),
+        (w or {}).get("modules") if isinstance(w, dict) else (w or [])),
+}
+
+VELD_NAAR_CMS = {k.veld: k.cms for k in sjabloon.KOPJES}
+
+
+def render_veld(veld: str, waarde: Any, ctx: dict | None = None) -> tuple[str, str]:
+    """Eén kopje -> (CMS-sleutel, CMS-waarde). Werpt KeyError bij een onbekend kopje."""
+    if veld not in _VELD_RENDER:
+        raise KeyError(f"kopje {veld!r} is niet los te renderen; kies uit "
+                       f"{sorted(_VELD_RENDER)}")
+    return VELD_NAAR_CMS[veld], _VELD_RENDER[veld](waarde, ctx or {})
+
+
 def document_to_content(document: dict, source_content: dict | None = None) -> dict:
     """Het tien-kopjes-document -> de CMS-`content`-dict.
 

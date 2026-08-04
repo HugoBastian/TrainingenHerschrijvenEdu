@@ -16,6 +16,7 @@ import copy
 import json
 import os
 import tempfile
+from types import SimpleNamespace
 
 import besluiten as bes
 import rewrite_output as uit
@@ -1222,6 +1223,273 @@ def test_bewaar_training_zet_de_artefacten_in_trainingen():
         with open(paden["json"], encoding="utf-8") as f:
             # dezelfde CMS-content als de batch schrijft, inclusief `days` uit de bron
             assert json.load(f)["content"]["days"] == 7
+
+
+# ---------------------------------------------------------------------------
+# De mate van aanpassing: twee assen (herschrijfniveau + actualiseringen)
+# ---------------------------------------------------------------------------
+
+def _content(**overrides) -> dict:
+    """Bestaande CMS-content die aan het format voldoet, als vertrekpunt voor de scan."""
+    basis = {
+        "days": 2,
+        "summary": "Wil je " + " ".join(["data"] * 57) + "?",
+        "intro": "<p>" + " ".join(["onderwerp"] * 195) + "</p>",
+        "modules": ("<p>opening</p><ul>"
+                    "<li>Module een<ul><li>Punt a</li><li>Punt b</li><li>Punt c</li></ul></li>"
+                    "<li>Module twee<ul><li>Punt a</li><li>Punt b</li><li>Punt c</li>"
+                    "<li>Punt d</li></ul></li>"
+                    "<li>Module drie<ul><li>Punt a</li><li>Punt b</li><li>Punt c</li></ul></li>"
+                    "<li>Module vier<ul><li>Punt a</li><li>Punt b</li><li>Punt c</li>"
+                    "<li>Punt d</li><li>Punt e</li></ul></li>"
+                    "</ul>"),
+        "target_audience": "<p>Deze training is voor iedereen die met data keuzes wil maken.</p>",
+        "prior_knowledge": "<p>Specifieke voorkennis is niet noodzakelijk.</p>",
+        "objectives": ("<p>Na deze training ben je in staat om:</p><ul>"
+                       "<li>Datasets te ordenen en te controleren</li>"
+                       "<li>Analyses te vertalen naar keuzes</li>"
+                       "<li>Resultaten te presenteren aan je team</li>"
+                       "<li>Vraagstukken gestructureerd te benaderen</li></ul>"),
+        "summary_edudex": "Wil je slimmer met data werken en betere keuzes maken?",
+        "setup": "<p>De training is praktijkgericht.</p>",
+        "follow_up": "<p>Vervolg</p>",
+        "certification": "<p>Certificaat</p>",
+    }
+    return {**basis, **overrides}
+
+
+def test_modus_ladder_loopt_van_licht_naar_zwaar():
+    assert rw.MODI == ("overnemen", "stijl", "format", "volledig")
+    assert rw.MODUS_RANG["overnemen"] < rw.MODUS_RANG["stijl"] < rw.MODUS_RANG["format"]
+    assert rw.hoogste_modus("stijl", "format") == "format"
+    assert rw.hoogste_modus("volledig", "overnemen") == "volledig"
+    # onbekende waarden vallen veilig terug, niet naar het lichtste niveau
+    assert rw.normaliseer_modus("onzin") == rw.MODUS_DEFAULT == "volledig"
+    assert rw.normaliseer_modus(float("nan")) == "volledig"
+    assert rw.normaliseer_modus("  STIJL ") == "stijl"
+
+
+def test_reviewer_modus_wint_van_het_voorstel():
+    """Gezag volgt herkomst, net als bij de kern."""
+    assert _briefing(modus_voorstel="format").modus == "format"
+    assert _briefing(modus_voorstel="format", modus_reviewer="stijl").modus == "stijl"
+    assert not _briefing(modus_voorstel="format").modus_van_reviewer
+    assert _briefing(modus_reviewer="stijl").modus_van_reviewer
+
+
+def test_herschreven_kolom_blijft_werken_zonder_de_nieuwe_kolommen():
+    """Een scoresheet van vóór deze schaal moet zich exact gedragen als voorheen.
+
+    `herschreven=1` betekende de facto al een modus ("niet aanraken"); zonder die terugval
+    zou elke bestaande sheet ineens alles opnieuw laten schrijven.
+    """
+    assert _briefing(herschreven=True).modus == "overnemen"
+    assert _briefing(herschreven=False).modus == "volledig"
+    # een expliciet besluit gaat er wél overheen
+    assert _briefing(herschreven=True, modus_reviewer="format").modus == "format"
+
+
+def test_actualisering_verschuift_de_modus_niet():
+    """As 2 staat los van as 1 -- dat is de kern van het ontwerp.
+
+    Een goedgekeurde actie is een lokale toevoeging. Zou hij de modus ophogen, dan wordt de
+    wijziging groter dan de reviewer vroeg: één toegevoegd onderwerp zou de hele training
+    opnieuw laten schrijven.
+    """
+    actie = bes.Besluit(1, "T", 1, "Voeg GA4 toe", "ja", "doen", "", "handmatig")
+    assert _briefing(modus_reviewer="stijl", goedgekeurd=[actie]).modus == "stijl"
+    assert _briefing(herschreven=True, goedgekeurd=[actie]).modus == "overnemen"
+
+
+def test_modules_parser_leest_beide_nestingsvormen():
+    """De CMS-vorm zet de sub-lijst náást de titel-<li>, de renderer zet hem erin."""
+    naast = ("<ul><li>Module een</li><ul><li>Punt a</li><li>Punt b</li></ul>"
+             "<li>Module twee</li><ul><li>Punt c</li></ul></ul>")
+    erin = ("<ul><li>Module een<ul><li>Punt a</li><li>Punt b</li></ul></li>"
+            "<li>Module twee<ul><li>Punt c</li></ul></li></ul>")
+    for html in (naast, erin):
+        mods = rw._modules_uit_ul(html)
+        assert [m["titel"] for m in mods] == ["Module een", "Module twee"], html
+        assert [len(m["bullets"]) for m in mods] == [2, 1], html
+
+
+def test_modules_in_h3_vorm_gelden_niet_als_leesbaar():
+    """Onbekend is niet hetzelfde als conform: bij twijfel schat de scan omhoog."""
+    h3 = ("<p>opening</p><h3>Module een</h3><p>Uitleg over de module.</p>"
+          "<h3>Module twee</h3><p>Nog wat uitleg.</p>")
+    assert not rw.modules_leesbaar(rw._modules_uit_ul(h3))
+    assert rw.scan_vorm(_content(modules=h3), "Training X")["ondergrens"] == "format"
+
+
+def test_scan_stelt_nooit_overnemen_voor():
+    """De checks kunnen non-conformiteit bewijzen, conformiteit niet.
+
+    Een tekst die elke regex haalt kan nog steeds het stijlregister negeren. Die conclusie
+    mag daarom alleen van `schat_modus` of van een mens komen, nooit van de scan.
+    """
+    schoon = rw.scan_vorm(_content(), "Training Data")
+    assert schoon["harde_issues"] == [], schoon["harde_issues"]
+    assert schoon["ondergrens"] == "stijl"
+    assert "niet door code vast te stellen" in schoon["reden"]
+
+
+def test_scan_scheidt_structuur_van_formulering():
+    """Ontbrekende kopjes en verkeerde aantallen -> format; verkeerde zinnen -> stijl."""
+    # alleen de formulering deugt niet: de openingszin ontbreekt
+    stijl = rw.scan_vorm(_content(summary="Deze training gaat over data."), "Training Data")
+    assert stijl["ondergrens"] == "stijl"
+
+    # een leeg verplicht kopje is structuur
+    leeg = rw.scan_vorm(_content(objectives=""), "Training Data")
+    assert leeg["ondergrens"] == "format"
+    assert "doelen" in leeg["lege_kopjes"]
+
+    # een verkeerd aantal sub-bullets ook
+    krap = _content(modules="<ul><li>M1<ul><li>a</li></ul></li><li>M2<ul><li>b</li></ul></li></ul>")
+    assert rw.scan_vorm(krap, "Training Data")["ondergrens"] == "format"
+
+
+def test_scan_zonder_bron_of_met_onbruikbaar_verdict_gaat_naar_volledig():
+    assert rw.scan_vorm({}, "T")["ondergrens"] == "volledig"
+    assert rw.scan_vorm(_content(), "T", verdict="onbruikbaar")["ondergrens"] == "volledig"
+
+
+def test_schat_modus_valt_terug_op_de_ondergrens_zonder_client():
+    """Levert het model niets, dan blijft staan wat de checks al hebben weerlegd."""
+    uitkomst = rw.schat_modus(None, _content(objectives=""), "Training Data")
+    assert uitkomst["modus"] == uitkomst["ondergrens"] == "format"
+
+
+def test_schat_modus_mag_niet_onder_de_ondergrens_zakken():
+    """Een te licht voorstel wordt opgehoogd, met de reden erbij."""
+    def _client(modus):
+        """Minimale stub die één submit_modus-tooluse teruggeeft."""
+        blok = SimpleNamespace(type="tool_use", name="submit_modus",
+                               input={"modus": modus, "reden": "ziet er goed uit"})
+        resp = SimpleNamespace(content=[blok], stop_reason="tool_use")
+        return SimpleNamespace(messages=SimpleNamespace(create=lambda **_: resp))
+
+    leeg = _content(objectives="")          # ondergrens = format
+    op = rw.schat_modus(_client("overnemen"), leeg, "Training Data")
+    assert op["modus"] == "format", op
+    assert "opgehoogd naar de ondergrens" in op["reden"]
+    # een zwaarder voorstel mag wél blijven staan
+    zwaar = rw.schat_modus(_client("volledig"), leeg, "Training Data")
+    assert zwaar["modus"] == "volledig"
+
+
+def test_behoudende_modus_vervangt_de_brontekst_door_de_huidige_versie():
+    """In stijl/format is de bestaande tekst het uitgangspunt, niet de brontekst.
+
+    Twee keer dezelfde content meesturen kost tokens en geeft het model twee versies van de
+    waarheid -- waarvan `source_text` de minst complete is (`setup`, `follow_up`,
+    `summary_edudex` en `certification` ontbreken daar).
+    """
+    b = _briefing(modus_reviewer="stijl", huidige_content=_content())
+    tekst = rw.build_writer_user(b)
+    assert "HUIDIGE VERSIE" in tekst
+    assert "BRONTEKST —" not in tekst
+    assert "We introduceren het CRISP-DM model." not in tekst   # de source_text
+    assert "redacteur, geen auteur" in tekst
+    # de kopjes die build_source_text overslaat staan er nu wél in
+    assert "Kortste omschrijving" in tekst
+
+    # volledig blijft ongewijzigd: brontekst, geen huidige versie
+    vol = rw.build_writer_user(_briefing(modus_reviewer="volledig", huidige_content=_content()))
+    assert "BRONTEKST" in vol and "HUIDIGE VERSIE" not in vol
+    assert vol.rstrip().endswith("We introduceren het CRISP-DM model.")
+
+
+def test_zonder_bestaande_content_blijft_de_brontekst_staan():
+    """Niets te behouden -> geen behoud-opdracht, ongeacht de modus."""
+    tekst = rw.build_writer_user(_briefing(modus_reviewer="stijl", huidige_content={}))
+    assert "BRONTEKST" in tekst and "HUIDIGE VERSIE" not in tekst
+
+
+def test_actualiseer_alinea_verschijnt_alleen_met_goedgekeurde_acties():
+    """Zonder deze alinea leest het model 'verander niets' als een verbod op de actie."""
+    actie = bes.Besluit(1, "T", 1, "Voeg GA4 toe", "ja", "doen", "", "handmatig")
+    met = rw.build_writer_user(_briefing(modus_reviewer="stijl", huidige_content=_content(),
+                                         goedgekeurd=[actie]))
+    assert "staan LOS van deze opdracht" in met
+    zonder = rw.build_writer_user(_briefing(modus_reviewer="stijl", huidige_content=_content()))
+    assert "staan LOS van deze opdracht" not in zonder
+
+
+def test_judge_weet_in_welke_modus_hij_oordeelt():
+    """Anders keurt hij een bewust conservatieve tekst af als 'te weinig herschreven'."""
+    doc = {"titel": "T", "overzicht": "Wil je iets?"}
+    stijl = rw.build_judge_user(_briefing(modus_reviewer="stijl", huidige_content=_content()), doc)
+    assert "bewust ALLEEN bijgewerkt" in stijl
+    assert "drift is hier een fail" in stijl
+    # de bestaande instructies blijven staan; er komt alleen een as bij
+    assert "Reken het concept NIET af op vorm" in stijl
+    assert "FEITGETROUWHEID" in stijl and "NIVEAU" in stijl
+
+    vol = rw.build_judge_user(_briefing(modus_reviewer="volledig"), doc)
+    assert "bewust ALLEEN bijgewerkt" not in vol
+
+
+def test_guidance_van_de_reviewer_gaat_achter_die_van_de_scorer():
+    b = _briefing(rewrite_guidance="Leg de nadruk op governance.",
+                  guidance_reviewer="Modules 3 en 4 samenvoegen.")
+    assert b.guidance_definitief.index("governance") < b.guidance_definitief.index("samenvoegen")
+    tekst = rw.build_writer_user(b)
+    assert "Modules 3 en 4 samenvoegen." in tekst
+    assert "AANWIJZING VAN DE REVIEWER" in tekst
+    # zonder reviewer-aanwijzing verandert er niets aan de bestaande regel
+    assert "AANWIJZING VAN DE REVIEWER" not in rw.build_writer_user(_briefing())
+
+
+def test_actualisatie_tool_heeft_geen_verplichte_kopjes():
+    """Het model levert alleen wat verandert; de rest blijft byte-voor-byte staan."""
+    tool = rw.build_actualisatie_tool()
+    assert tool["input_schema"]["required"] == []
+    assert set(rw.ACTUALISEERBARE_KOPJES) <= set(tool["input_schema"]["properties"])
+    # de veldbeschrijvingen komen uit SUBMIT_REWRITE, zodat ze niet uiteen lopen
+    assert (tool["input_schema"]["properties"]["overzicht"]
+            is rw.SUBMIT_REWRITE["input_schema"]["properties"]["overzicht"])
+
+
+def test_render_veld_raakt_alleen_het_eigen_cms_veld():
+    sleutel, waarde = uit.render_veld("doelgroep", "Deze training is voor analisten.")
+    assert sleutel == "target_audience"
+    assert waarde == "<p>Deze training is voor analisten.</p>"
+    sleutel, waarde = uit.render_veld("overzicht", "Wil je iets?")
+    assert sleutel == "summary" and waarde == "Wil je iets?"      # platte tekst, geen HTML
+
+
+def test_overnemen_zonder_acties_doet_geen_enkele_call():
+    """Het goedkope pad moet gratis blijven als er niets te actualiseren valt."""
+    b = _briefing(titel="Cursus SQL", huidige_content=_content(), herschreven=True)
+    res, content = rw.neem_over(b, client=None)
+    assert res.status == rw.OVERGENOMEN
+    assert res.modus == "overnemen"
+    assert res.titel == "Training SQL"           # alleen de titelnormalisatie
+    assert content["summary"] == _content()["summary"]
+    assert res.toegepaste_acties == []
+
+
+def test_overnemen_meldt_het_wanneer_een_actie_niet_kon_worden_doorgevoerd():
+    """Stilzwijgend laten vallen is precies de fout die deze schaal moest repareren."""
+    actie = bes.Besluit(1, "T", 1, "Voeg GA4 toe", "ja", "doen", "", "handmatig")
+    b = _briefing(titel="Training SQL", huidige_content=_content(), herschreven=True,
+                  goedgekeurd=[actie])
+    res, _ = rw.neem_over(b, client=None)     # geen client -> niets doorgevoerd
+    assert any("geen wijziging" in f for f in res.flags), res.flags
+    assert res.toegepaste_acties == ["1. Voeg GA4 toe"]
+
+
+def test_resultaat_legt_vast_onder_welk_regime_het_tot_stand_kwam():
+    """Zonder modus en spec-versie is `approved` een status zonder betekenis."""
+    b = _briefing(huidige_content=_content(), herschreven=True)
+    res, content = rw.neem_over(b, client=None)
+    rij = rw._review_rij(res, content)
+    assert rij["modus"] == "overnemen"
+    assert "modus_voorstel" in rij and "spec_versie" in rij
+    assert len(rw.spec_versie()) == 12
+    # de vingerafdruk verandert mee met de spec, niet met de code
+    assert rw.spec_versie() == rw.spec_versie()
 
 
 # ---------------------------------------------------------------------------

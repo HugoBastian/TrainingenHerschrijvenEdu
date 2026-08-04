@@ -68,7 +68,7 @@ De scorer-output bevat geen brontekst, dus de rewriter joint op `training_id` �
 
 | Bestand | Inhoud |
 | --- | --- |
-| **scoresheet** | Alle scorer-velden + de twee handmatig ingevulde kolommen `actie_besluit` en `kern_reviewer` + `herschreven`. |
+| **scoresheet** | Alle scorer-velden + de handmatig ingevulde kolommen `actie_besluit`, `kern_reviewer`, `modus_reviewer` en `guidance_reviewer` + `herschreven`. |
 | **bronsheet** | `id`, `name`, `herschreven`, `content` (JSON-string met de CMS-velden). |
 
 ## Draaien
@@ -117,6 +117,23 @@ anders suggereert — een mens heeft ervoor getekend. Een kern die alleen van de
 lezing: botst die met de brontekst, dan wint de brontekst en meldt de schrijver het conflict in
 `notities`. Zo kost een verkeerd gelezen kern nooit meer dan een signaal.
 
+### 1c. De mate van aanpassing kiezen
+
+```bash
+python rewrite_trainings.py --scan-modus scoresheet_met_voorstel.xlsx \
+  --scored "scoresheet.xlsx" --source "/pad/naar/bronsheet.xlsx"
+```
+
+Vult per training `modus_voorstel` en `modus_reden` en levert lege kolommen `modus_reviewer` en
+`guidance_reviewer` aan. Jij kijkt het voorstel na en vult `modus_reviewer` waar je het er niet
+mee eens bent; leeg laten betekent "voorstel is goed". Zie **De mate van aanpassing** hieronder
+voor wat de vier niveaus betekenen. `--geen-llm` slaat de modelcall over en laat alleen de
+deterministische ondergrens staan — bruikbaar als kalibratie, niet als voorstel.
+
+`guidance_reviewer` is vrije tekst en gaat letterlijk mee naar de schrijver, achter de
+`rewrite_guidance` van de scorer en met het label dat hij vóór gaat: "modules 3 en 4 overlappen",
+"de inleiding mag blijven zoals hij is".
+
 ### 2. Herschrijven
 
 ```bash
@@ -136,15 +153,89 @@ Output in `--out-dir`:
   (`error`/`rejected`) krijgt geen `.md`;
 - `herschreven.xlsx`, tabblad **cms** — `id` / `name` / `content`, met dezelfde
   JSON-structuur als het bronsheet, zodat het zo terug het CMS in kan;
-- `herschreven.xlsx`, tabblad **review** — status, flags en elk kopje in platte tekst, met een
-  lege `approve_edit`-kolom en als laatste kolom de **brontekst**. Die staat er zodat je een
-  claim of een opgeschoven niveau naast het origineel kunt leggen; zonder die kolom lees je
-  alleen de nieuwe tekst en is precies de fout onzichtbaar die de judge net doorliet.
+- `herschreven.xlsx`, tabblad **review** — status, `modus`, `modus_voorstel`, `spec_versie`, flags
+  en elk kopje in platte tekst, met een lege `approve_edit`-kolom en als laatste kolom de
+  **brontekst**. Die staat er zodat je een claim of een opgeschoven niveau naast het origineel kunt
+  leggen; zonder die kolom lees je alleen de nieuwe tekst en is precies de fout onzichtbaar die de
+  judge net doorliet.
 
-Trainingen met `herschreven=1` worden **niet** herschreven maar wél ongewijzigd doorgezet
-(status `overgenomen`), zodat `herschreven.xlsx` één compleet CMS-document is. Het scoresheet
-bepaalt wat erin hoort. De run **hervat** verder standaard: wat al in `herschreven.xlsx` staat
-wordt overgeslagen. Gebruik `--no-append` om te overschrijven.
+`spec_versie` is een korte hash over de schrijfspec, `humanisering_nl.md`, `stijlregister_nl.md` en
+het template. Zodra die bestanden veranderen is "welke goedgekeurde trainingen dateren van vóór de
+huidige regels" precies de vraag die bepaalt wie er een `stijl`-ronde in moet — met deze kolom is
+dat een filter, zonder is het een gok op bestandsdatums.
+
+Trainingen op modus `overnemen` worden **niet** herschreven maar wél doorgezet (status
+`overgenomen`), zodat `herschreven.xlsx` één compleet CMS-document is. Het scoresheet bepaalt wat
+erin hoort. De run **hervat** verder standaard: wat al in `herschreven.xlsx` staat wordt
+overgeslagen. Gebruik `--no-append` om te overschrijven.
+
+## De mate van aanpassing
+
+Niet elke training hoeft even zwaar herschreven. Sommige zijn inhoudelijk in orde en missen alleen
+gevulde velden; andere voldoen aan het format van gisteren maar niet aan dat van vandaag. Dat
+onderscheid loopt langs **twee assen die los van elkaar staan**.
+
+### As 1: het herschrijfniveau
+
+Kolom `modus_reviewer`. Elk niveau mag alles wat het niveau eronder mag.
+
+| Modus | Wat er mag veranderen | Wanneer |
+| --- | --- | --- |
+| `overnemen` | Niets, behalve de titel en de vervolgtitels | Voldoet aan het actuele format |
+| `stijl` | De formulering | Alle kopjes staan er en de inhoud klopt; de schrijfregels zijn opgeschoven |
+| `format` | + de structuur en de ontbrekende kopjes | Inhoud klopt, velden leeg of verkeerd ingedeeld |
+| `volledig` | + de opbouw, vanaf nul uit de brontekst | Het gedrag van vóór deze schaal |
+
+In `stijl` en `format` krijgt de schrijver **de bestaande tekst per kopje** in plaats van de
+brontekst. Dat is dezelfde content: `build_source_text` bouwt zijn tekst uit precies dat
+`content`-object, alleen zonder `setup`, `follow_up`, `summary_edudex` en `certification` en zonder
+indeling per kopje. Voor herschrijven vanaf nul is dat prima, voor bijwerken niet — dan wil je zien
+wat er in elk veld staat. Twee keer hetzelfde meesturen zou het model twee versies van de waarheid
+geven, waarvan de ene net minder compleet is.
+
+De betekenis van `stijl` is **relatief aan de actuele spec**, niet aan een moment in de tijd. Wordt
+`schrijfspec_herschrijven_v1.md` strenger, dan verschuift vanzelf welke trainingen daar
+thuishoren — daarom leest de modusschatting die spec letterlijk in plaats van een drempel te
+hanteren.
+
+### As 2: de actualiseringen
+
+De goedgekeurde besluiten uit `besluiten.xlsx` worden op **elk** niveau doorgevoerd, ook bij
+`overnemen`. Ze verschuiven de modus bewust niet: een goedgekeurde actie is een lokale toevoeging,
+en de training daarom integraal opnieuw laten schrijven maakt de wijziging groter dan de reviewer
+vroeg. De opdracht luidt overal hetzelfde — voer de actie uit, laat wat de actie niet raakt op het
+niveau dat as 1 voorschrijft.
+
+Bij `overnemen` gebeurt dat met een apart tool (`submit_actualisatie`) waarin **geen enkel kopje
+verplicht is**: het model levert alleen de kopjes die de actie raakt, de code rendert precies die
+velden opnieuw en laat de rest van `content` byte-voor-byte staan — inclusief `follow_up`, `setup`
+en `certification`, die anders door het sjabloon zouden worden overschreven. Zonder goedgekeurde
+acties kost dit pad nog steeds geen enkele API-call.
+
+Dit repareerde ook een stille fout: `neem_over` kreeg de besluiten helemaal niet te zien, dus een
+training met `herschreven=1` liet zijn goedgekeurde actualiseringen vallen terwijl een mens er wel
+voor had getekend. Van de zes trainingen met `herschreven=1` in het huidige sheet gold dat er drie.
+
+### Wie de modus bepaalt: drie lagen
+
+Python kan de schrijfregels niet lezen. `rewrite_checks.py` vangt openingszinnen, lengtes,
+aantallen en verboden woorden — daarmee is te **bewijzen dat een tekst niet voldoet, nooit dat hij
+wél voldoet**. Of een zin het stijlregister volgt of het causale verband zichtbaar maakt, ziet code
+niet. Vandaar dezelfde drietrap als bij `besluiten.py` en de vervolgtrainingen:
+
+| Laag | Wat | Levert |
+| --- | --- | --- |
+| **Python** `scan_vorm()` | Deterministische ondergrens uit `check_rewrite` | Nooit `overnemen`; zelfs een tekst die elke check haalt levert `stijl` op |
+| **Haiku** `schat_modus()` | Leest de actuele schrijfspec + stijlregister naast de bestaande tekst | Een voorstel ≥ die ondergrens, met één regel motivering |
+| **Mens** `modus_reviewer` | Leest de tekst en beslist | Leidend |
+
+De scan scheidt **structuur** van **formulering**: een ontbrekend kopje of een verkeerd aantal
+modules, sub-bullets of doelen vraagt om herindelen (`format`), een missende openingszin of een
+verboden woord alleen om andere zinnen (`stijl`). Die codes staan in `STRUCTUUR_CODES`; verandert
+een regel in `rewrite_checks.py` van aard, dan hoort hij daar mee te verhuizen.
+
+Een scoresheet zónder de nieuwe kolommen gedraagt zich exact als voorheen: `herschreven=1` was de
+facto al een modus ("niet aanraken") en valt terug op `overnemen`, de rest op `volledig`.
 
 ### Eén kopje opnieuw
 
@@ -175,13 +266,27 @@ rw.checks_over_goud()    # hoe vaak faalt elke harde regel op de 78 trainingen?
 rw.lengtes_over_goud()   # hoe lang zijn de kopjes werkelijk? -> kalibratie van de lengtebanden
 ```
 
-Van de 78 halen er **23** élke harde check; vier daarvan staan in `GOUD_VOORBEELDEN` en gaan
+Van de 78 halen er **7** élke harde check; vier daarvan staan in `GOUD_VOORBEELDEN` en gaan
 als few-shot mee in de gecachete system-prefix van de schrijver (een wisselende selectie zou
 die cache waardeloos maken). De rest is meetlat: valt een regel bij meer dan de helft van het
 corpus om, dan is de regel verdacht en niet de training. Zo is de lengte-check ontstaan — met
 één hard venster van 55–65 woorden viel 65% van het goud om op het Overzicht, dus is die
 lengte nu een richtlijn met een vangrail eromheen (zie hieronder). Verander je een check, draai
 dit dan opnieuw en werk `GOUD_VOORBEELDEN` bij.
+
+**De modules tellen sinds kort mee, en dat verschoof dit beeld.** Zolang `goud_naar_check_input`
+de modulestructuur oversloeg — geneste `<ul>` betrouwbaar terugparsen leek meer valkuil dan
+antwoord — waren `modules_aantal`, `bullets_aantal` en `bullets_variatie` op het goud onzichtbaar.
+Met een diepteteller in plaats van een regex is die structuur wél te lezen (75 van de 78), en
+zakte het aantal schone trainingen van 26 naar 7. Drie van de vier oude `GOUD_VOORBEELDEN` (2730,
+3101, 3125) vielen daardoor af: die demonstreerden modules met twee sub-bullets terwijl de spec er
+3–6 eist. Een few-shot die de eigen regel schendt is erger dan geen few-shot, dus de selectie is
+vervangen door 3046, 3146, 2737 en 2586.
+
+Wat daarbij hoort als open vraag aan de spec, niet als oordeel over het goud: `bullets_aantal`
+valt **172 keer** om over 78 trainingen. Dat is precies het soort cijfer waarvoor de regel hierboven
+bedoeld is. `checks_over_goud()` rapporteert daarom ook hoeveel trainingen schoon zijn als je de
+modules-checks weglaat, zodat beide getallen naast elkaar staan.
 
 Het goud dateert van vóór de huidige Doelen-introzin: 47 van de 78 openen nog met "Na deze
 training heb je handvatten om:". `goud_voorbeelden()` vervangt die regel bij het opbouwen van
