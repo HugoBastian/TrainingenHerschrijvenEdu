@@ -36,7 +36,7 @@ TRAININGEN = [
         ),
         "inleiding": (
             "PHP draait achter een groot deel van het web, van kleine sites tot complexe "
-            "applicaties. In vijf dagen bouw je een stevige basis om er professioneel mee te "
+            "applicaties. In deze training bouw je een stevige basis om er professioneel mee te "
             "kunnen werken. Je begint met functioneel programmeren en de kernconstructies van "
             "de taal. Daarna stap je over naar objectgeoriënteerd programmeren: je ontwerpt "
             "eigen classes en zet bestaande libraries in voor taken als PDF-generatie en "
@@ -131,7 +131,7 @@ TRAININGEN = [
         ),
         "inleiding": (
             "Data modeling begint met de vraag welke structuur je nodig hebt voordat je gaat "
-            "bouwen. In twee dagen werk je aan drie modelniveaus. Het conceptuele model bakent "
+            "bouwen. In deze training werk je aan drie modelniveaus. Het conceptuele model bakent "
             "de scope af, het logische model verfijnt de structuur en het fysieke model "
             "vertaalt naar datastores. Je legt entiteiten, attributen en sleutels vast en "
             "kiest de juiste cardinaliteit bij 1:1, 1:N en N:N.\n\n"
@@ -144,7 +144,7 @@ TRAININGEN = [
             "Onze trainers ontwerpen dagelijks databases en informatiesystemen. Hierdoor "
             "koppelen ze de theorie aan ontwerpbeslissingen die je in je eigen werkpraktijk "
             "herkent. We nemen jouw systemen en modelleervraagstukken als uitgangspunt en "
-            "toetsen modellen aan concrete eisen en testcases. Zo weet je na twee dagen hoe je "
+            "toetsen modellen aan concrete eisen en testcases. Zo weet je na afloop hoe je "
             "een model opzet, toetst en verdedigt tegenover ontwikkelaars en architecten."
         ),
         "modules": [
@@ -216,8 +216,8 @@ TRAININGEN = [
                         "Master Power BI - Ontwerpintelligentie met Data Modeling & Stermodelleren"]},
         ],
         "kortste_omschrijving": (
-            "Wil je zelf datamodellen kunnen opzetten en beoordelen? In twee dagen werk je met "
-            "conceptuele, logische en fysieke modellen, ER-diagrammen en normalisatie tot 3NF."
+            "Wil je zelf datamodellen kunnen opzetten en beoordelen? Je werkt met conceptuele, "
+            "logische en fysieke modellen, ER-diagrammen en normalisatie tot 3NF."
         ),
     },
     # -------------------------------------------------------------------

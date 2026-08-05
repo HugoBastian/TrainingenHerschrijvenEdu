@@ -68,6 +68,12 @@ tekens van de Kortste omschrijving staan vast, want daar zit geen stijlafweging 
     | "de training PHP Professional" (lopend, kleine letter) | "de Training PHP Professional" |
 
     Die laatste: midden in een zin is het soortwoord een gewoon zelfstandig naamwoord en geen deel van een titel. Als kop 1 blijft het uiteraard "Training PHP Professional".
+21. **Noem de duur van de training nooit in de tekst.** [hard] Geen "in deze training van twee dagen", geen "een tweedaagse training", geen "na drie dagen". Het aantal dagen krijg je wél mee in de briefing en je gebruikt het ook — om te bepalen hoeveel programma er past, hoe hoog de belofte in de Doelen mag liggen en hoe lang de Inleiding wordt (§0.14, §4, §8). Maar het staat als apart veld bij de training, los van deze tekst, en het wordt met enige regelmaat bijgesteld. Staat het aantal middenin een alinea, dan gaat het bij zo'n aanpassing mee de mist in en ziet niemand het.
+
+    **Fout:** "In deze training van twee dagen krijg je een overzicht van de methoden, modellen en algoritmen."
+    **Goed:** "In deze training krijg je een overzicht van de methoden, modellen en algoritmen."
+
+    Dit geldt óók als de brontekst de duur wel noemt: laat hem dan weg.
 
 ---
 
@@ -162,7 +168,7 @@ De variant `actueel` geldt **alleen** voor trainingen waarbij de tekst op de web
 (Begint de titel met een afwijkend soortwoord — "Masterclass …", "Workshop …" — dan zet de code "Tijdens de masterclass …". Het soortwoord staat midden in een zin en krijgt daarom een kleine letter; zie §0.20.)
 
 **Regels (checkbaar) voor de modules die jij schrijft:**
-- **4–6 modules.** [hard]
+- **Het aantal modules schuift mee met de duur: bij 1 dag 4–6, bij 2–3 dagen 4–7, bij 4 dagen of meer 5–9.** [hard] Dat is een vangrail, geen doel. **Kies het aantal dat de stof vraagt en ga niet standaard naar de bovengrens** — een programma van vier goed afgebakende modules is beter dan zes waarvan er twee overlappen. Typisch: 4–5 bij één dag, 5–6 bij twee tot drie dagen, 6–8 bij vier dagen of meer.
 - **Per module 3–6 sub-bullets, en het aantal moet variëren tussen modules** (niet elke module evenveel). [hard]
 - **Geen HTML.** Modules = hoofd-bullets, inhoud = sub-bullets. [hard]
 - Passend bij het **aantal dagen** en het **niveau uit de kern** (§1a): een compleet programma dat de dagen vult, niet dun of overlappend.
@@ -185,6 +191,11 @@ De code voegt onderstaande **twee vaste alinea's** in. Het enige wat jij levert 
 > Onze trainers zijn, naast trainer, in hun dagelijks werk expert op hun trainingsonderwerp. Ze beschikken dus niet alleen over de meest actuele kennis, maar hebben ook essentiële praktijkervaring. Hierdoor zijn ze in staat om een waardevolle vertaalslag te maken van kennis naar toepassing binnen jouw organisatie en werksituatie.
 
 **Regel:** lever alleen de `[….]`-invulling (praktijkgericht, geen module-inhoud herhalen).
+
+**De zin eindigt al op "ervaar je hoe".** Begin je invulling dus niet met "hoe", "dat" of "wat" — dan staat er "ervaar je hoe hoe …". Ook geen hele zin en geen punt aan het eind; die zet de code erachter.
+
+**Goed:** `je datamodellen opzet en beoordeelt` → "… en ervaar je hoe je datamodellen opzet en beoordeelt."
+**Fout:** `hoe je datamodellen opzet` → "… en ervaar je hoe hoe je datamodellen opzet."
 
 **Let op — deze tekst is van ons, niet van jou.** Alinea 2 bevat "niet alleen … maar ook", "essentiële" en "waardevolle": constructies en woorden die `humanisering_nl.md` jou verbiedt. Dat is een bewuste keuze van de schrijfstijl-eigenaar voor onze eigen boilerplate, geen vrijbrief. **Neem ze niet over in tekst die jij schrijft.** Wat je hier wél uit mag halen: de causale wending "Hierdoor zijn ze in staat om …" (§0.12).
 
@@ -211,7 +222,7 @@ De code voegt onderstaande **twee vaste alinea's** in. Het enige wat jij levert 
 **Doel:** in één zin duidelijk maken of voorkennis vereist is.
 
 **Regels (checkbaar):**
-- **Één zin.** [hard]
+- **Zo compact als de inhoud toelaat.** Meestal één zin; twee mag als er een voorbehoud of een contactzin bij hoort — zie het voorbeeld hieronder, dat er zelf uit twee bestaat. Loopt het verder uit dan ongeveer 45 woorden, dan staat er meer dan een voorwaarde. [flag]
 - **Geen voorkennis nodig →** exact: "Specifieke voorkennis voor het volgen van deze training is niet noodzakelijk." (code-fallback; jij hoeft dit niet te schrijven) [hard bij deze keuze]
 - **Wel voorkennis nodig →** in de trant van: "Enige ervaring in het werken met [....] is vereist. Mocht je hier vragen over hebben, neem gerust contact met ons op."
 - Bepaal wel/niet-voorkennis op basis van het niveau uit de kern (§1a) en het programma; bij twijfel: geen voorkennis (fallback). Een introducerende training vraagt zelden voorkennis.

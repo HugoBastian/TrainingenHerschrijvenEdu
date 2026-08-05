@@ -125,6 +125,23 @@ _TE_INFINITIEF_RE = re.compile(
 # fail -- de zin is niet fout, alleen dubbel.
 _IN_STAAT_RE = re.compile(r"\bin staat\b", re.I)
 
+# Hetzelfde woord twee keer achter elkaar. Ontstaat vooral op de naad tussen vaste tekst en
+# geschreven tekst: "... ervaar je hoe" + invulling "hoe een data-analysetraject ..." gaf bij
+# training 2347 "ervaar je hoe hoe ...". `sjabloon.schoon_invulling` haalt dat er nu af, maar de
+# naad is niet de enige plek waar het kan ontstaan, dus staat de check op alle tekstvelden.
+#
+# Hard: een dubbel woord is nooit bedoeld en nooit een stijlkwestie. De uitzonderingen zijn
+# verdubbelingen die in het Nederlands gewoon correct zijn, en "je je" is daarvan de enige die
+# hier ook echt voorkomt: na inversie volgt het wederkerend voornaamwoord op het onderwerp
+# ("maak je je de materie eigen", "verdiep je je verder"). Hij staat in onze eigen
+# `AANPAK_ALINEA_1` en in 115 velden van het bestaande goud. "dat dat", "die die" en "het het"
+# staan erbij omdat ze in een bijzin net zo correct zijn ("of het het waard is").
+#
+# Verder is de lijst bewust kort: elke andere verdubbeling is een fout. Op het goud vindt deze
+# check precies één echte ("logging toepassen in in automatiseringsscripts").
+_DUBBEL_WOORD_UITZONDERING = frozenset(("je", "dat", "die", "het"))
+_DUBBEL_WOORD_RE = re.compile(r"\b([A-Za-zÀ-ÿ]+)\s+\1\b", re.I)
+
 
 def word_count(text: str) -> int:
     return len(_WORD_RE.findall(text or ""))
@@ -199,6 +216,10 @@ def check_generic(rw: dict) -> list[Issue]:
         if _PLACEHOLDER_RE.search(text):
             issues.append(Issue(section, HARD, "placeholder",
                                 "onvervulde placeholder ([....] / {{ oplnaam }}) blijven staan."))
+        dubbel = _DUBBEL_WOORD_RE.search(text)
+        if dubbel and dubbel.group(1).lower() not in _DUBBEL_WOORD_UITZONDERING:
+            issues.append(Issue(section, HARD, "dubbel_woord",
+                                f"'{dubbel.group(0)}' -- hetzelfde woord staat er twee keer."))
         if _U_VORM_RE.search(text):
             issues.append(Issue(section, FLAG, "u_vorm",
                                 "gebruikt mogelijk de 'u'-vorm; schrijf in 'je'-vorm."))
@@ -227,6 +248,30 @@ ZIN_SIGNAAL = 35
 
 # Kopjes met lopende tekst. Bullets en de [....]-invulling zijn geen zinnen en tellen niet mee.
 _PROZA_VELDEN = ("overzicht", "inleiding", "doelgroep", "voorkennis")
+
+# De duur van een training hoort niet in de lopende tekst: het aantal dagen staat als apart veld
+# bij de training en wordt met enige regelmaat bijgesteld. Een vermelding middenin een alinea
+# gaat dan mee de mist in en wordt bij zo'n aanpassing makkelijk over het hoofd gezien.
+#
+# Alleen op de prozavelden plus de Kortste omschrijving -- in een module-bullet kan "tweedaagse
+# implementatie" over de stof gaan in plaats van over onze training.
+_DUUR_VELDEN = _PROZA_VELDEN + ("kortste_omschrijving",)
+_DUUR_RE = re.compile(
+    r"\b(?:één|een|twee|drie|vier|vijf|zes|zeven|acht|negen|tien|\d+)[\s-]*"
+    r"(?:daagse|dagdelen|dagdeel|dagen|dag)\b", re.I)
+
+
+def check_duurvermelding(rw: dict, ctx: dict | None = None) -> list[Issue]:
+    """Geen "In deze training van twee dagen ..." in de tekst. Zie `_DUUR_RE`."""
+    issues: list[Issue] = []
+    for key in _DUUR_VELDEN:
+        m = _DUUR_RE.search(_norm(rw.get(key)))
+        if m:
+            issues.append(Issue(key, HARD, "duur_in_tekst",
+                                f"noemt de duur van de training ('{m.group(0)}'). Het aantal "
+                                f"dagen staat als apart veld bij de training en verandert soms; "
+                                f"laat het uit de lopende tekst."))
+    return issues
 
 
 def check_zinlengte(rw: dict, ctx: dict | None = None) -> list[Issue]:
@@ -399,12 +444,39 @@ def check_inleiding(rw: dict, ctx: dict | None = None) -> list[Issue]:
     return _lengte_issues("inleiding", word_count(t), band)
 
 
+# Meer dagen = meer programma, dus schuift het aantal modules mee -- net als de lengteband van
+# de Inleiding hierboven. De vorige vaste band van 4-6 stond smaller dan de eigen catalogus:
+# van de 71 bestaande nieuwe-stijl trainingen met een genest programma viel 31% erbuiten, vrijwel
+# allemaal erboven (7 t/m 10). De medianen lopen op met de duur: 1 dag -> 5, 2-3 dagen -> 6,
+# 4 dagen en meer -> 7. Deze banden dekken 85% van dat corpus.
+#
+# Blijft een vangrail, geen doel: de schrijfspec en de tool-description noemen daarnaast een
+# typisch aantal, want een model dat alleen een bereik krijgt kiest stelselmatig de bovenkant.
+_MODULES_PER_DAGEN: tuple[tuple[int, tuple[int, int]], ...] = (
+    (1, (4, 6)),       # 1 dag of korter
+    (3, (4, 7)),       # 2-3 dagen
+    (99, (5, 9)),      # 4 dagen of meer
+)
+_MODULES_BAND_DEFAULT = (4, 7)
+
+
+def modulesband(dagen: int | None = None) -> tuple[int, int]:
+    """(min, max) aantal modules voor dit aantal dagen. Zonder dagen: de brede middenband."""
+    if not dagen:
+        return _MODULES_BAND_DEFAULT
+    for grens, band in _MODULES_PER_DAGEN:
+        if dagen <= grens:
+            return band
+    return _MODULES_BAND_DEFAULT
+
+
 def check_modules(rw: dict, ctx: dict | None = None) -> list[Issue]:
     mods = _modules(rw)
     issues = []
-    if not (4 <= len(mods) <= 6):
+    lo, hi = modulesband((ctx or {}).get("dagen"))
+    if not (lo <= len(mods) <= hi):
         issues.append(Issue("modules", HARD, "modules_aantal",
-                            f"{len(mods)} modules; moet 4-6 zijn."))
+                            f"{len(mods)} modules; moet {lo}-{hi} zijn."))
     bullet_counts = []
     for idx, m in enumerate(mods, start=1):
         bullets = [b for b in (m.get("bullets") or []) if isinstance(b, str) and b.strip()]
@@ -436,12 +508,41 @@ def check_doelgroep(rw: dict, ctx: dict | None = None) -> list[Issue]:
     return issues
 
 
+# Voorkennis is zo kort als de inhoud toelaat, maar niet per se één zin: het aanbevolen
+# antwoord uit de schrijfspec ("Enige ervaring met [....] is vereist. Mocht je hier vragen over
+# hebben, neem gerust contact met ons op.") bestaat zelf uit twee zinnen. De eerdere
+# zin-telling flagde dus precies het modelantwoord. Wat overblijft is een signaal op écht
+# uitlopen -- boven dit aantal woorden staat er meer dan een voorwaarde plus een contactzin.
+VOORKENNIS_SIGNAAL = 45
+
+
 def check_voorkennis(rw: dict, ctx: dict | None = None) -> list[Issue]:
     t = _norm(rw.get("voorkennis"))
     if not t:
         return []
-    if sentence_count(t) > 1:
-        return [Issue("voorkennis", FLAG, "een_zin", "moet één compacte zin zijn.")]
+    n = word_count(t)
+    if n > VOORKENNIS_SIGNAAL:
+        return [Issue("voorkennis", FLAG, "voorkennis_lang",
+                      f"{n} woorden; houd het compact (richtlijn tot "
+                      f"{VOORKENNIS_SIGNAAL} woorden: de voorwaarde en eventueel een "
+                      f"contactzin).")]
+    return []
+
+
+def check_aanpak_invulling(rw: dict, ctx: dict | None = None) -> list[Issue]:
+    """De [....]-invulling past achter "... en ervaar je hoe ".
+
+    Alleen een signaal, geen hard fail: `sjabloon.schoon_invulling` haalt het leidende
+    voegwoord er al af, dus de tekst die het CMS in gaat klopt sowieso. De flag bestaat om te
+    zien of de schrijver de instructie oppikt -- blijft hij vuren, dan werkt de tool-description
+    niet en niet de code.
+    """
+    t = _norm(rw.get("aanpak_invulling"))
+    woorden = t.split()
+    if len(woorden) > 1 and woorden[0].lower() in ("hoe", "dat", "wat"):
+        return [Issue("aanpak", FLAG, "invulling_voegwoord",
+                      f"invulling begint met '{woorden[0]}'; de vaste zin eindigt al op "
+                      f"'ervaar je hoe'. De code heeft het weggehaald.")]
     return []
 
 
@@ -614,6 +715,7 @@ def check_rewrite(rewrite: dict, ctx: dict | None = None) -> list[Issue]:
     issues += check_modules(rw, ctx)
     issues += check_doelgroep(rw, ctx)
     issues += check_voorkennis(rw, ctx)
+    issues += check_aanpak_invulling(rw, ctx)
     issues += check_doelen(rw, ctx)
     issues += check_kortste_omschrijving(rw, ctx)
     issues += check_vervolgstappen(rw, ctx)
@@ -623,14 +725,16 @@ def check_rewrite(rewrite: dict, ctx: dict | None = None) -> list[Issue]:
     issues += check_lerend_aspect(rw, ctx)
     issues += check_generic(rw)
     issues += check_zinlengte(rw, ctx)
+    issues += check_duurvermelding(rw, ctx)
     return issues
 
 
 if __name__ == "__main__":
     # Mini-demo (zonder API-key). Voer test_rewrite.py uit voor de echte tests.
     demo = {
-        "overzicht": "Wil je " + "woord " * 58 + "?",
-        "inleiding": "zin " * 195,
+        # Afwisselende vulwoorden: twee keer hetzelfde woord achter elkaar is een harde fout.
+        "overzicht": "Wil je " + " ".join(("woord", "term")[i % 2] for i in range(58)) + "?",
+        "inleiding": " ".join(("zin", "regel")[i % 2] for i in range(195)),
         "modules": {"modules": [
             {"titel": "M1", "bullets": ["a", "b", "c"]},
             {"titel": "M2", "bullets": ["a", "b", "c", "d"]},

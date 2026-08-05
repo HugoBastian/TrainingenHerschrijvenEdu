@@ -29,13 +29,24 @@ from rewrite_checks import HARD, FLAG, check_rewrite, hard_fails, flags
 # Fixtures
 # ---------------------------------------------------------------------------
 
+def vul(n: int, *woorden: str) -> str:
+    """`n` vulwoorden om een lengtecheck op een exact woordaantal te zetten.
+
+    Wisselt tussen de opgegeven woorden af, want twee keer hetzelfde woord achter elkaar is
+    sinds `check_generic` een harde fout ("ervaar je hoe hoe ..."). Een fixture die 55 keer
+    "data" achter elkaar zet, test dan niet meer wat hij bedoelt te testen.
+    """
+    keuze = woorden or ("data", "inzicht")
+    return " ".join(keuze[i % len(keuze)] for i in range(n))
+
+
 def _good_rewrite() -> dict:
     """Een concept dat ALLE harde checks haalt (0 hard-fails)."""
     return {
         # "kunnen" staat er bewust in: dit is het concept dat alle regels haalt, dus het hoort
         # ook het lerende aspect te demonstreren (schrijfspec Sectie 0.15).
-        "overzicht": "Wil je data kunnen " + " ".join(["data"] * 55) + "?",   # 59 woorden
-        "inleiding": " ".join(["onderwerp"] * 195),             # 195 woorden
+        "overzicht": "Wil je data kunnen " + vul(55) + "?",   # 59 woorden
+        "inleiding": vul(195, "onderwerp", "thema"),             # 195 woorden
         "modules": {"modules": [
             {"titel": "Module een", "bullets": ["Onderdeel a", "Onderdeel b", "Onderdeel c"]},
             {"titel": "Module twee", "bullets": ["Onderdeel a", "Onderdeel b", "Onderdeel c", "Onderdeel d"]},
@@ -85,19 +96,19 @@ def test_good_rewrite_has_no_hard_fails():
 
 def test_korte_te_kort():
     rw = _good_rewrite()
-    rw["overzicht"] = "Wil je " + " ".join(["data"] * 10) + "?"
+    rw["overzicht"] = "Wil je " + vul(10) + "?"
     assert "lengte_woorden" in _codes(check_rewrite(rw, _CTX), HARD)
 
 
 def test_korte_verkeerde_opening():
     rw = _good_rewrite()
-    rw["overzicht"] = "Deze training " + " ".join(["data"] * 57) + "."
+    rw["overzicht"] = "Deze training " + vul(57) + "."
     assert "opening" in _codes(check_rewrite(rw, _CTX), HARD)
 
 
 def test_algemene_te_lang():
     rw = _good_rewrite()
-    rw["inleiding"] = " ".join(["onderwerp"] * 280)
+    rw["inleiding"] = vul(280, "onderwerp", "thema")
     assert "lengte_woorden" in _codes(check_rewrite(rw, _CTX), HARD)
 
 
@@ -107,7 +118,7 @@ def test_algemene_te_lang():
 
 def test_korte_net_buiten_richtlijn_is_flag():
     rw = _good_rewrite()
-    rw["overzicht"] = "Wil je " + " ".join(["data"] * 70) + "?"   # 72 woorden
+    rw["overzicht"] = "Wil je " + vul(70) + "?"   # 72 woorden
     issues = check_rewrite(rw, _CTX)
     assert "lengte_woorden" not in _codes(issues, HARD)
     assert "lengte_richtlijn" in _codes(issues, FLAG)
@@ -115,13 +126,13 @@ def test_korte_net_buiten_richtlijn_is_flag():
 
 def test_korte_buiten_vangrail_is_hard():
     rw = _good_rewrite()
-    rw["overzicht"] = "Wil je " + " ".join(["data"] * 100) + "?"
+    rw["overzicht"] = "Wil je " + vul(100) + "?"
     assert "lengte_woorden" in _codes(check_rewrite(rw, _CTX), HARD)
 
 
 def test_algemene_net_buiten_richtlijn_is_flag():
     rw = _good_rewrite()
-    rw["inleiding"] = " ".join(["onderwerp"] * 228)
+    rw["inleiding"] = vul(228, "onderwerp", "thema")
     issues = check_rewrite(rw, _CTX)
     assert "lengte_woorden" not in _codes(issues, HARD)
     assert "lengte_richtlijn" in _codes(issues, FLAG)
@@ -130,13 +141,13 @@ def test_algemene_net_buiten_richtlijn_is_flag():
 def test_inleidingsband_schuift_met_dagen():
     """Een training van vijf dagen mag een langere Inleiding hebben dan een van één dag."""
     rw = _good_rewrite()
-    rw["inleiding"] = " ".join(["onderwerp"] * 228)
+    rw["inleiding"] = vul(228, "onderwerp", "thema")
     lang = check_rewrite(rw, dict(_CTX, dagen=5))
     kort = check_rewrite(rw, dict(_CTX, dagen=1))
     assert "lengte_richtlijn" not in _codes(lang, FLAG)   # binnen de band voor 5 dagen
     assert "lengte_richtlijn" in _codes(kort, FLAG)       # te lang voor een eendaagse
     # de vangrail schuift mee, maar niet oneindig
-    rw["inleiding"] = " ".join(["onderwerp"] * 265)
+    rw["inleiding"] = vul(265, "onderwerp", "thema")
     assert "lengte_woorden" not in _codes(check_rewrite(rw, dict(_CTX, dagen=5)), HARD)
     assert "lengte_woorden" in _codes(check_rewrite(rw, dict(_CTX, dagen=2)), HARD)
 
@@ -168,7 +179,7 @@ def test_zinlengte_kijkt_niet_naar_bullets():
 def test_overzichtsband_negeert_dagen():
     """Het Overzicht is de aanhaakalinea; die blijft even lang, hoe lang de training ook duurt."""
     rw = _good_rewrite()
-    rw["overzicht"] = "Wil je " + " ".join(["data"] * 70) + "?"
+    rw["overzicht"] = "Wil je " + vul(70) + "?"
     for dagen in (1, 5):
         assert "lengte_richtlijn" in _codes(check_rewrite(rw, dict(_CTX, dagen=dagen)), FLAG)
 
@@ -354,7 +365,7 @@ def test_ontbrekend_kopje():
 
 def test_cursus_in_lopende_tekst_is_hardfail():
     rw = _good_rewrite()
-    rw["inleiding"] = "Tijdens deze cursus " + " ".join(["onderwerp"] * 193)
+    rw["inleiding"] = "Tijdens deze cursus " + vul(193, "onderwerp", "thema")
     assert "soortwoord" in _codes(check_rewrite(rw, _CTX), HARD)
 
 
@@ -659,13 +670,13 @@ def test_u_vorm_is_flag_geen_hardfail():
 
 def test_llm_frase_is_flag():
     rw = _good_rewrite()
-    rw["inleiding"] = "In deze training duiken we in " + " ".join(["onderwerp"] * 186)
+    rw["inleiding"] = "In deze training duiken we in " + vul(186, "onderwerp", "thema")
     assert "llm_taal" in _codes(check_rewrite(rw, _CTX), FLAG)
 
 
 def test_marketing_is_flag():
     rw = _good_rewrite()
-    rw["overzicht"] = "Wil je deze uniek " + " ".join(["data"] * 55) + "?"
+    rw["overzicht"] = "Wil je deze uniek " + vul(55) + "?"
     assert "marketing" in _codes(check_rewrite(rw, _CTX), FLAG)
 
 
@@ -1272,8 +1283,8 @@ def _content(**overrides) -> dict:
     """Bestaande CMS-content die aan het format voldoet, als vertrekpunt voor de scan."""
     basis = {
         "days": 2,
-        "summary": "Wil je " + " ".join(["data"] * 57) + "?",
-        "intro": "<p>" + " ".join(["onderwerp"] * 195) + "</p>",
+        "summary": "Wil je " + vul(57) + "?",
+        "intro": "<p>" + vul(195, "onderwerp", "thema") + "</p>",
         "modules": ("<p>opening</p><ul>"
                     "<li>Module een<ul><li>Punt a</li><li>Punt b</li><li>Punt c</li></ul></li>"
                     "<li>Module twee<ul><li>Punt a</li><li>Punt b</li><li>Punt c</li>"
@@ -1675,7 +1686,7 @@ def test_lerend_aspect_is_flag_geen_hardfail():
     # het schone concept demonstreert het lerende aspect en vuurt dus niet
     assert "lerend_aspect" not in _codes(check_rewrite(_good_rewrite(), _CTX))
     rwd = _good_rewrite()
-    rwd["overzicht"] = ("Wil je datamodellen opzetten die kloppen? " + "woord " * 55).strip()
+    rwd["overzicht"] = "Wil je datamodellen opzetten die kloppen? " + vul(55, "woord", "term")
     issues = check_rewrite(rwd)
     assert "lerend_aspect" in [i.code for i in flags(issues)]
     assert "lerend_aspect" not in [i.code for i in hard_fails(issues)]
@@ -1692,7 +1703,7 @@ def test_lerend_aspect_accepteert_nederlandse_vormen():
 
 def test_soortwoord_hoofdletter_is_flag():
     rwd = _good_rewrite()
-    rwd["inleiding"] = "Tijdens de Training XML leer je veel. " + "woord " * 180
+    rwd["inleiding"] = "Tijdens de Training XML leer je veel. " + vul(180, "woord", "term")
     issues = check_rewrite(rwd)
     assert "soortwoord_hoofdletter" in [i.code for i in flags(issues)]
     assert "soortwoord_hoofdletter" not in [i.code for i in hard_fails(issues)]
@@ -1727,7 +1738,9 @@ _OUDE_CONTENT = {
 
 def test_ververs_vaste_teksten_vervangt_alle_vijf():
     nieuw, gewijzigd = uit.ververs_vaste_teksten(_OUDE_CONTENT, "Training XML")
-    assert len(gewijzigd) == 5, gewijzigd
+    assert [g for g in gewijzigd if not g.startswith("witregels")] == [
+        "Deelnamecertificaat", "bedrijfstrainingblok", "Modules-openingszin", "Aanpak",
+        "Vervolgstappen-boilerplate"], gewijzigd
     for veld in ("intro", "modules", "setup", "follow_up", "certification"):
         plat = uit._tekst_uit(nieuw[veld])
         for vervallen in sjabloon.VERVALLEN_VASTE_TEKSTEN:
@@ -1754,6 +1767,184 @@ def test_ververs_is_idempotent():
 def test_ververs_respecteert_modules_variant():
     nieuw, _ = uit.ververs_vaste_teksten(_OUDE_CONTENT, "Training XML", "actueel")
     assert "snelle ontwikkelingen" in nieuw["modules"]
+
+
+# ---------------------------------------------------------------------------
+# Reviewbevindingen op de eerste batch (796 / 2347 / 2407)
+# ---------------------------------------------------------------------------
+
+def _goud_content(bestandsnaam: str = "107.json") -> dict:
+    """Echte CMS-content van een training die al in de nieuwe stijl staat."""
+    pad = os.path.join(rw.GOUD_DIR, bestandsnaam)
+    if not os.path.exists(pad):
+        return {}
+    with open(pad, encoding="utf-8") as f:
+        return json.load(f).get("content") or {}
+
+
+def test_bestaande_cms_content_bevat_geen_newlines():
+    """De referentie waar de output op gemeten wordt -- valt die weg, dan zegt de test hieronder niets."""
+    content = _goud_content()
+    if not content:
+        return
+    for sleutel, waarde in content.items():
+        if isinstance(waarde, str):
+            assert "\n" not in waarde, f"{sleutel} bevat wél een newline"
+
+
+def test_output_html_bevat_geen_letterlijke_newlines():
+    """Alinea's worden gescheiden door <p>-tags, niet door witregels in de HTML.
+
+    Het CMS zet die letterlijke newlines om in extra witruimte, waardoor de tekst er anders
+    uitziet dan de trainingen die er al in staan -- en die hebben er geen enkele.
+    """
+    content = uit.document_to_content(_document(), {})
+    for sleutel, waarde in content.items():
+        if isinstance(waarde, str):
+            assert "\n" not in waarde, f"{sleutel}: {waarde[:120]!r}"
+
+
+def test_ververs_haalt_oude_boilerplate_uit_echte_cms_content():
+    """Het `overnemen`-pad op content zoals die écht in het CMS staat: zonder newlines.
+
+    De eerdere split op een witregel leverde daar één blok op, waardoor de oude vaste alinea's
+    bleven staan en de nieuwe eroverheen werden geplakt -- dubbele boilerplate dus.
+    """
+    content = _goud_content()
+    if not content.get("follow_up"):
+        return
+    nieuw, gewijzigd = uit.ververs_vaste_teksten(content, "Training Creative Cloud")
+    assert "Vervolgstappen-boilerplate" in gewijzigd
+    plat = uit._tekst_uit(nieuw["follow_up"])
+    assert "Wil je je na deze training verder verdiepen of verbreden?" not in plat
+    assert "Binnen dit vakgebied beschikken wij" not in plat
+    assert plat.count(sjabloon.VERVOLG_ALINEA_2) == 1
+    # de catalogustitels en hun eigen intro's blijven staan
+    assert "Training DTP met InDesign" in nieuw["follow_up"]
+
+
+def test_witregelnormalisatie_plakt_geen_woorden_aan_elkaar():
+    """Alleen witruimte rond de blokstructuur mag weg; tussen twee woorden nooit."""
+    assert uit._compacte_html("<p>een zin</p>\n\n<p>en nog een</p>") == \
+        "<p>een zin</p><p>en nog een</p>"
+    assert uit._compacte_html("<ul>\n  <li>Titel\n    <ul>\n      <li>bullet</li>\n</ul>\n</li>\n</ul>") == \
+        "<ul><li>Titel<ul><li>bullet</li></ul></li></ul>"
+    # spaties binnen een tekstknoop blijven
+    assert uit._compacte_html("<p>twee woorden <em>schuin</em> erna</p>") == \
+        "<p>twee woorden <em>schuin</em> erna</p>"
+
+
+def test_aanpak_invulling_verdubbelt_hoe_niet():
+    """Training 2347 leverde "hoe een data-analysetraject ..." en kreeg "ervaar je hoe hoe"."""
+    briefing = _briefing()
+    doc = rw.assemble_document({**_good_rewrite(),
+                                "aanpak_invulling": "hoe een data-analysetraject verloopt"},
+                               briefing, [])
+    assert "ervaar je hoe hoe" not in doc["aanpak"]
+    assert "ervaar je hoe een data-analysetraject verloopt." in doc["aanpak"]
+
+
+def test_aanpak_invulling_met_voegwoord_is_een_flag():
+    rwd = _good_rewrite()
+    rwd["aanpak_invulling"] = "hoe je datamodellen opzet"
+    issues = check_rewrite(rwd, _CTX)
+    assert "invulling_voegwoord" in [i.code for i in flags(issues)]
+    assert "invulling_voegwoord" not in [i.code for i in hard_fails(issues)]
+
+
+def test_hoe_hoe_overleeft_een_round_trip_niet():
+    """De fout was zelfbestendigend: de terugleespaden vingen "hoe X" en plakten hem terug."""
+    kapot = sjabloon.AANPAK_ALINEA_1.format(invulling="hoe een traject verloopt")
+    hersteld = rw._writer_out_uit_json({"document": {"aanpak": kapot}})
+    assert hersteld["aanpak_invulling"] == "een traject verloopt"
+    opnieuw, _ = uit.ververs_vaste_teksten(
+        {"setup": f"<p>{kapot}</p>"}, "Training XML")
+    assert "ervaar je hoe hoe" not in opnieuw["setup"]
+
+
+def test_dubbel_woord_is_hardfail_maar_je_je_mag():
+    rwd = _good_rewrite()
+    rwd["doelgroep"] = "Deze training is bedoeld voor iedereen die met met data werkt."
+    assert "dubbel_woord" in [i.code for i in hard_fails(check_rewrite(rwd, _CTX))]
+    # "maak je je de materie eigen" staat in onze eigen vaste tekst en is correct Nederlands
+    rwd["doelgroep"] = "Deze training is bedoeld voor iedereen die zich je je werk eigen maakt."
+    assert "dubbel_woord" not in [i.code for i in hard_fails(check_rewrite(rwd, _CTX))]
+
+
+def test_voorkennis_mag_twee_zinnen_zijn():
+    """Het aanbevolen antwoord uit schrijfspec Sectie 7 bestaat zelf uit twee zinnen."""
+    rwd = _good_rewrite()
+    rwd["voorkennis"] = ("Enige ervaring in het werken met JavaScript is vereist. Mocht je "
+                         "hier vragen over hebben, neem gerust contact met ons op.")
+    issues = check_rewrite(rwd, _CTX)
+    assert "een_zin" not in _codes_in(issues, "voorkennis")
+    assert "voorkennis_lang" not in _codes_in(issues, "voorkennis")
+
+
+def test_voorkennis_die_uitloopt_is_wel_een_flag():
+    rwd = _good_rewrite()
+    rwd["voorkennis"] = "Enige ervaring met data is vereist. " + vul(50)
+    assert "voorkennis_lang" in _codes_in(check_rewrite(rwd, _CTX), "voorkennis", FLAG)
+
+
+def test_doelgroep_blijft_wel_op_een_zin_staan():
+    """Daar is één zin wél het ontwerp; alleen Voorkennis is versoepeld."""
+    rwd = _good_rewrite()
+    rwd["doelgroep"] = "Deze training is bedoeld voor analisten. Ook voor adviseurs."
+    assert "een_zin" in _codes_in(check_rewrite(rwd, _CTX), "doelgroep", FLAG)
+
+
+def test_duur_in_de_tekst_is_hardfail():
+    for veld, tekst in (
+        ("inleiding", "In deze training van twee dagen leer je veel. " + vul(180, "onderwerp", "thema")),
+        ("overzicht", "Wil je in een tweedaagse training data leren duiden? " + vul(52)),
+        ("kortste_omschrijving", "Wil je in 2 dagen leren modelleren?"),
+    ):
+        rwd = _good_rewrite()
+        rwd[veld] = tekst
+        codes = _codes_in(check_rewrite(rwd, _CTX), veld, HARD)
+        assert "duur_in_tekst" in codes, f"{veld}: {codes}"
+
+
+def test_duur_check_raakt_geen_module_inhoud():
+    """"Tweedaagse implementatie" in een bullet kan over de stof gaan, niet over ons."""
+    rwd = _good_rewrite()
+    rwd["modules"]["modules"][0]["bullets"][0] = "Een tweedaagse implementatie voorbereiden"
+    assert "duur_in_tekst" not in [i.code for i in check_rewrite(rwd, _CTX)]
+
+
+def test_modulesband_schuift_mee_met_de_duur():
+    import rewrite_checks as c
+    assert c.modulesband(1) == (4, 6)
+    assert c.modulesband(2) == (4, 7)
+    assert c.modulesband(3) == (4, 7)
+    assert c.modulesband(5) == (5, 9)
+    assert c.modulesband(None) == (4, 7)   # dagen onbekend -> de brede middenband
+
+
+def test_zeven_modules_mag_bij_drie_dagen_maar_niet_bij_een():
+    rwd = _good_rewrite()
+    rwd["modules"]["modules"] = [
+        {"titel": f"Module {i}", "bullets": ["a", "b", "c"] + (["d"] if i % 2 else [])}
+        for i in range(7)
+    ]
+    assert "modules_aantal" not in _codes_in(check_rewrite(rwd, {**_CTX, "dagen": 3}), "modules")
+    assert "modules_aantal" in _codes_in(check_rewrite(rwd, {**_CTX, "dagen": 1}), "modules", HARD)
+
+
+def test_fewshot_toont_de_modulestructuur_met_niveaus():
+    """Zonder nesting ziet de schrijver bij het zwaarst wegende kopje een platte lijst."""
+    tekst = rw.goud_voorbeelden()
+    modules_blok = tekst.split("**Modules**")[1].split("**Doelen**")[0]
+    assert "\n* " in modules_blok, "geen moduletitels in het voorbeeld"
+    assert "\n  * " in modules_blok, "geen sub-bullets in het voorbeeld"
+
+
+def test_fewshot_noemt_de_duur_van_de_training_niet():
+    import rewrite_checks as c
+    tekst = rw.goud_voorbeelden(n=len(rw.GOUD_VOORBEELDEN))
+    treffer = c._DUUR_RE.search(tekst)
+    assert not treffer, f"few-shot noemt de duur: {treffer.group(0)!r}"
 
 
 def test_fewshot_haalt_zelf_alle_harde_checks():

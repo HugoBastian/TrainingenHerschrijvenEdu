@@ -314,9 +314,11 @@ rw.checks_over_goud()    # hoe vaak faalt elke harde regel op de 78 trainingen?
 rw.lengtes_over_goud()   # hoe lang zijn de kopjes werkelijk? -> kalibratie van de lengtebanden
 ```
 
-Van de 78 halen er **7** élke harde check; vier daarvan staan in `GOUD_VOORBEELDEN` en gaan
-als few-shot mee in de gecachete system-prefix van de schrijver (een wisselende selectie zou
-die cache waardeloos maken). De rest is meetlat: valt een regel bij meer dan de helft van het
+Van de 78 haalt er sinds Templatev2 **nul** élke harde check (zie het kader hierboven: de
+`doelgroep: opening`-regel alleen al velt er 77). De few-shot komt daarom uit `goud_v2/` en
+niet meer uit dit corpus; `GOUD_VOORBEELDEN` verwijst naar `herschreven/goud_v2/`, en die vier
+gaan mee in de gecachete system-prefix van de schrijver (een wisselende selectie zou die cache
+waardeloos maken). Dit corpus is nu puur meetlat: valt een regel bij meer dan de helft van het
 corpus om, dan is de regel verdacht en niet de training. Zo is de lengte-check ontstaan — met
 één hard venster van 55–65 woorden viel 65% van het goud om op het Overzicht, dus is die
 lengte nu een richtlijn met een vangrail eromheen (zie hieronder). Verander je een check, draai
@@ -330,6 +332,11 @@ zakte het aantal schone trainingen van 26 naar 7. Drie van de vier oude `GOUD_VO
 3101, 3125) vielen daardoor af: die demonstreerden modules met twee sub-bullets terwijl de spec er
 3–6 eist. Een few-shot die de eigen regel schendt is erger dan geen few-shot, dus de selectie is
 vervangen door 3046, 3146, 2737 en 2586.
+
+Datzelfde corpus heeft de modulesband bijgesteld. Met de oude vaste 4–6 viel `modules_aantal`
+**25 keer** om; met de duurafhankelijke band (zie "Lengtes: richtlijn met vangrail") nog **14
+keer**, vrijwel allemaal programma's van 8 of meer. De regel was smaller dan de eigen praktijk,
+en dat trok de schrijver stelselmatig naar de bovengrens.
 
 Wat daarbij hoort als open vraag aan de spec, niet als oordeel over het goud: `bullets_aantal`
 valt **172 keer** om over 78 trainingen. Dat is precies het soort cijfer waarvoor de regel hierboven
@@ -474,7 +481,23 @@ schrijft hij het kopje opnieuw.
 | Overzicht | 55–65 woorden | 45–90 |
 | Inleiding | 180–210 woorden (1 dag: 170–200 · 4+ dagen: 190–230) | 150–260 (4+ dagen: 150–280) |
 | Zin (lopende tekst) | ±20 woorden gemiddeld | geen — alleen een FLAG boven 35 |
+| Voorkennis | zo compact mogelijk, meestal één of twee zinnen | geen — alleen een FLAG boven 45 woorden |
 | Kortste omschrijving | — | **max. 200 tekens, hard** |
+
+**Het aantal modules schuift mee met de duur** (`checks.modulesband()`), langs dezelfde lijn:
+1 dag → 4–6, 2–3 dagen → 4–7, 4 dagen of meer → 5–9, onbekend → 4–7. Dit is een vangrail en
+geen doel; de schrijfspec en de tool-description noemen daarnaast een *typisch* aantal, want een
+model dat alleen een bereik krijgt kiest stelselmatig de bovenkant. De vorige vaste band van
+4–6 stond smaller dan de eigen catalogus: van de 71 bestaande nieuwe-stijl trainingen met een
+genest programma viel 31% erbuiten, vrijwel allemaal erboven (7 t/m 10). De medianen lopen op
+met de duur (1 dag → 5, 2–3 dagen → 6, 4+ → 7); de huidige banden dekken 85% van dat corpus.
+
+**Voorkennis stond eerder op "één zin, [flag]".** Die regel flagde precies het antwoord dat de
+schrijfspec zelf aanbeveelt ("Enige ervaring met […] is vereist. Mocht je hier vragen over
+hebben, neem gerust contact met ons op."), want dat zijn er twee. Wat bedoeld was is *compact*,
+niet *grammaticaal één zin* — vandaar nu een woordsignaal in plaats van een zinsteller. Bij
+**Doelgroep** blijft de zinsteller wél staan: daar is één zin het ontwerp en is het voorbeeld
+in de spec ermee in lijn.
 
 De reden voor de marge: met één hard venster moest de schrijver op het laatste woord inkorten,
 en dat kostte de zin zijn ritme en precisie — precies wat de spec elders probeert op te bouwen.

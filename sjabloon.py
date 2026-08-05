@@ -244,6 +244,29 @@ AANPAK_ALINEA_2 = (
 )
 AANPAK_FALLBACK = "je dit toepast in de praktijk"
 
+# De schrijver ziet in zijn tool alleen "lever de [....]-invulling" en niet de zin eromheen.
+# Levert hij dan een invulling die zelf met "hoe" begint, dan staat er "ervaar je hoe hoe ...".
+# Dat is precies wat er bij training 2347 gebeurde. De prompt zegt het inmiddels expliciet,
+# maar dat is een instructie en geen garantie -- dus knippen we het er hier alsnog af.
+#
+# Ook "dat" en "wat" staan in de lijst: dezelfde fout, andere voegwoord. Wat er daarna staat
+# blijft ongemoeid; alleen dat ene leidende woord gaat eraf.
+_DUBBEL_VOEGWOORD = ("hoe", "dat", "wat")
+
+
+def schoon_invulling(invulling: str) -> str:
+    """De [....]-invulling zoals hij achter "... en ervaar je hoe " past.
+
+    "hoe je XML toepast"  -> "je XML toepast"
+    "je XML toepast"      -> "je XML toepast"
+    "hoe"                 -> "hoe"          (niets over: laat staan, de check vangt het)
+    """
+    tekst = (invulling or "").strip()
+    woorden = tekst.split()
+    if len(woorden) > 1 and woorden[0].lower() in _DUBBEL_VOEGWOORD:
+        return " ".join(woorden[1:])
+    return tekst
+
 # Kopje 5 -- Voorkennis: zin als er geen voorkennis nodig is.
 VOORKENNIS_FALLBACK = (
     "Specifieke voorkennis voor het volgen van deze training is niet noodzakelijk."

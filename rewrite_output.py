@@ -44,19 +44,18 @@ def _esc(tekst: Any) -> str:
 
 
 def _blokken(tekst: Any) -> list[str]:
+    """De invoer van de schrijver: lege regels scheiden de alinea's. Blijft op `\\n\\n`."""
     return [b.strip() for b in str(tekst or "").split("\n\n") if b.strip()]
 
 
-def _paragrafen(tekst: Any, scheiding: str = "\n") -> str:
+def _paragrafen(tekst: Any) -> str:
     """Platte tekst met lege regels -> losse <p>-blokken."""
-    return scheiding.join(f"<p>{_esc(b)}</p>" for b in _blokken(tekst))
+    return "".join(f"<p>{_esc(b)}</p>" for b in _blokken(tekst))
 
 
 def _lijst(items) -> str:
-    regels = ["<ul>"]
-    regels += [f"<li>{_esc(i)}</li>" for i in items if str(i or "").strip()]
-    regels.append("</ul>")
-    return "\n".join(regels)
+    regels = [f"<li>{_esc(i)}</li>" for i in items if str(i or "").strip()]
+    return "<ul>" + "".join(regels) + "</ul>"
 
 
 # ---------------------------------------------------------------------------
@@ -65,35 +64,32 @@ def _lijst(items) -> str:
 
 def render_inleiding(tekst: Any) -> str:
     """Kopje 2: de geschreven inleiding + het vaste bedrijfstrainingblok onder een <h3>."""
-    return "\n".join([
+    return "".join([
         _paragrafen(tekst),
-        "",
         f"<h3>{_esc(sjabloon.BEDRIJFSTRAINING_KOP)}</h3>",
         f"<p>{_esc(sjabloon.BEDRIJFSTRAINING_TEKST)}</p>",
-    ]).strip()
+    ])
 
 
 def render_modules(opening: str, modules: list[dict]) -> str:
     """Kopje 3: openingszin + geneste <ul> (module -> sub-bullets)."""
-    regels = [f"<p>{_esc(opening)}</p>", "", "<ul>"]
+    delen = [f"<p>{_esc(opening)}</p>", "<ul>"]
     for module in modules or []:
         titel = _esc(module.get("titel", ""))
         bullets = [b for b in (module.get("bullets") or []) if str(b or "").strip()]
         if not titel and not bullets:
             continue
-        regels.append(f"  <li>{titel}")
+        delen.append(f"<li>{titel}")
         if bullets:
-            regels.append("    <ul>")
-            regels += [f"      <li>{_esc(b)}</li>" for b in bullets]
-            regels.append("    </ul>")
-        regels.append("  </li>")
-    regels.append("</ul>")
-    return "\n".join(regels)
+            delen.append(_lijst(bullets))
+        delen.append("</li>")
+    delen.append("</ul>")
+    return "".join(delen)
 
 
 def render_doelen(intro: str, bullets: list[str]) -> str:
     """Kopje 7: vaste introzin + <ul> met de doelen."""
-    return f"<p>{_esc(intro)}</p>\n{_lijst(bullets)}"
+    return f"<p>{_esc(intro)}</p>{_lijst(bullets)}"
 
 
 def render_vervolgstappen(alineas: list[str], titels: list[str], afsluiter: str,
@@ -110,12 +106,12 @@ def render_vervolgstappen(alineas: list[str], titels: list[str], afsluiter: str,
     if schone_groepen:
         for groep in schone_groepen:
             intro = str(groep.get("intro") or "").strip() or sjabloon.VERVOLG_LIJST_INTRO
-            delen.append(f"<p>{_esc(intro)}</p>\n{_lijst(groep['titels'])}")
+            delen.append(f"<p>{_esc(intro)}</p>{_lijst(groep['titels'])}")
     elif titels:
-        delen.append(f"<p>{_esc(sjabloon.VERVOLG_LIJST_INTRO)}</p>\n{_lijst(titels)}")
+        delen.append(f"<p>{_esc(sjabloon.VERVOLG_LIJST_INTRO)}</p>{_lijst(titels)}")
     if str(afsluiter or "").strip():
         delen.append(f"<p>{_esc(afsluiter)}</p>")
-    return "\n\n".join(delen)
+    return "".join(delen)
 
 
 # ---------------------------------------------------------------------------
@@ -159,20 +155,85 @@ _EERSTE_P_RE = re.compile(r"<p>.*?</p>", re.S | re.I)
 # Niet tot het eind van de alinea -- daar staat alinea 2 achteraan geplakt.
 _INVULLING_RE = re.compile(r"ervaar je hoe\s+([^.]+)\.", re.I)
 
+# Blok-elementen op het hoogste niveau van een CMS-veld. De <ul>'s van Vervolgstappen zijn
+# platte titellijsten zonder nesting, dus een niet-gulzige match is hier veilig.
+_TOP_BLOK_RE = re.compile(r"<p\b.*?</p>|<ul\b.*?</ul>|<ol\b.*?</ol>", re.S | re.I)
+
 # Vaste alinea's van het kopje Vervolgstappen, huidig én vervallen. Herkend op hun eerste
 # woorden, want de staart van zo'n alinea is vaker met de hand bijgeschaafd dan de kop.
+#
+# De "Wil je je na deze training …"-opener staat er met vraagteken en al: dat maakt hem
+# precies genoeg. 48 van de 78 bestaande trainingen openen er hun Vervolgstappen mee en die
+# alinea doet exact wat VERVOLG_ALINEA_1/2 nu doen. Zonder vraagteken zou de prefix ook
+# groep-intro's raken die wél inhoud dragen ("Wil je je na deze training verder verdiepen in
+# digitale autonomie, …"), en die horen te blijven staan.
 _VERVOLG_VASTE_OPENINGEN = (
     "Binnen dit expertisegebied beschikken wij",
     "Binnen dit vakgebied beschikken wij",
+    "Binnen dit vakgebied hebben we ruime praktijkervaring",
     "Er zijn verschillende vervolgtrainingen",
+    "Wil je je na deze training verder verdiepen of verbreden?",
     "Zo kies je een vervolgstap",
+    "Neem gerust contact met ons op om te verkennen welke vorm",
+    "Neem daarnaast ook gerust contact met ons op om te verkennen welke vorm",
 )
+
+
+# Witruimte rond de blokstructuur, in drie vormen. Geen ervan zit tussen twee woorden, dus
+# geen ervan draagt betekenis:
+#   1. tussen twee tags           "</p>\n\n<p>"        -> "</p><p>"
+#   2. vóór een geneste lijst     "<li>Titel\n  <ul>"  -> "<li>Titel<ul>"
+#   3. vóór een sluitende blok-tag "bullet\n</li>"     -> "bullet</li>"
+_WITRUIMTE_REGELS = (
+    (re.compile(r">\s+<"), "><"),
+    (re.compile(r"\s+<(ul|ol)\b", re.I), r"<\1"),
+    (re.compile(r"\s+</(li|ul|ol|p|h[1-6])>", re.I), r"</\1>"),
+)
+
+
+def _compacte_html(fragment: str) -> str:
+    """Haalt de witregels rond de blok-tags weg; de tekst zelf blijft ongemoeid.
+
+    Nodig omdat een deel van de content nog uit een eerdere generatie van deze code komt, die
+    `</p>\\n\\n<p>` schreef. Het CMS maakt daar extra witruimte van in plaats van gewone
+    paragraafspacing, en geen van de 78 trainingen die al in de nieuwe stijl staan heeft ook
+    maar één newline.
+    """
+    tekst = fragment or ""
+    for regel, vervanging in _WITRUIMTE_REGELS:
+        tekst = regel.sub(vervanging, tekst)
+    return tekst.strip()
 
 
 def _tekst_uit(html_fragment: str) -> str:
     """Ruwe HTML -> platte tekst, voor het herkennen van vaste alinea's."""
     plat = re.sub(r"<[^>]+>", "", html_fragment or "")
     return re.sub(r"\s+", " ", html.unescape(plat)).strip()
+
+
+def _top_blokken(fragment: str) -> list[str]:
+    """HTML -> lijst van blok-elementen op het hoogste niveau.
+
+    Splitst op de blokgrens en niet op een witregel. Dat scheelt niet alleen netheid: de
+    content die in het CMS staat bevat geen enkele newline (nagemeten over alle 78 trainingen
+    in `herschreven/goud/`), dus een split op `\\n\\n` levert daar één blok op en laat de
+    vervanging van vaste teksten volledig langs zijn doel schieten.
+
+    Tekst tussen de blokken -- losse tekst zonder tag -- blijft als eigen blok bewaard; hem
+    stilzwijgend laten vallen zou inhoud wissen.
+    """
+    blokken: list[str] = []
+    laatste = 0
+    for m in _TOP_BLOK_RE.finditer(fragment or ""):
+        tussen = (fragment or "")[laatste:m.start()].strip()
+        if tussen:
+            blokken.append(tussen)
+        blokken.append(m.group(0))
+        laatste = m.end()
+    staart = (fragment or "")[laatste:].strip()
+    if staart:
+        blokken.append(staart)
+    return blokken
 
 
 def ververs_vaste_teksten(content: dict, titel: str,
@@ -192,9 +253,20 @@ def ververs_vaste_teksten(content: dict, titel: str,
     gewijzigd: list[str] = []
 
     def _zet(sleutel: str, waarde: str, label: str):
+        waarde = _compacte_html(waarde)
         if nieuw.get(sleutel) != waarde and waarde:
             nieuw[sleutel] = waarde
             gewijzigd.append(label)
+
+    # Witregels tussen de blok-tags weghalen, ook in de velden die verder niets vasts bevatten.
+    # Anders houdt een training die met een eerdere versie van deze code is gegenereerd zijn
+    # `</p>\n\n<p>` in precies die velden die we hier niet aanraken.
+    for sleutel, waarde in list(nieuw.items()):
+        if isinstance(waarde, str) and "\n" in waarde:
+            compact = _compacte_html(waarde)
+            if compact != waarde:
+                nieuw[sleutel] = compact
+                gewijzigd.append(f"witregels ({sleutel})")
 
     # Deelnamecertificaat: volledig vast, geen variabelen.
     _zet("certification", f"<p>{_esc(sjabloon.CERTIFICATIE)}</p>", "Deelnamecertificaat")
@@ -204,11 +276,11 @@ def ververs_vaste_teksten(content: dict, titel: str,
     intro = nieuw.get("intro") or ""
     if "<h3" in intro.lower():
         geschreven = _H3_BLOK_RE.sub("", intro).strip()
-        _zet("intro", "\n".join([
-            geschreven, "",
+        _zet("intro", "".join([
+            geschreven,
             f"<h3>{_esc(sjabloon.BEDRIJFSTRAINING_KOP)}</h3>",
             f"<p>{_esc(sjabloon.BEDRIJFSTRAINING_TEKST)}</p>",
-        ]).strip(), "bedrijfstrainingblok")
+        ]), "bedrijfstrainingblok")
 
     # Modules: alleen de openingszin (de eerste <p>), niet de modulelijst eronder.
     modules = nieuw.get("modules") or ""
@@ -226,22 +298,21 @@ def ververs_vaste_teksten(content: dict, titel: str,
         if not m:
             gewijzigd.append("LET OP: Aanpak-invulling niet teruggevonden, fallback gebruikt")
         _zet("setup", _paragrafen(
-            sjabloon.AANPAK_ALINEA_1.format(invulling=invulling) + "\n\n"
-            + sjabloon.AANPAK_ALINEA_2, scheiding="\n\n"), "Aanpak")
+            sjabloon.AANPAK_ALINEA_1.format(invulling=sjabloon.schoon_invulling(invulling))
+            + "\n\n" + sjabloon.AANPAK_ALINEA_2), "Aanpak")
 
     # Vervolgstappen: de vaste alinea's ervoor en de vervallen afsluiter erachter. De
     # catalogustitels en hun groep-intro's blijven precies zoals ze staan.
     follow = nieuw.get("follow_up") or ""
     if follow and "<ul" in follow.lower():
-        # Op inhoud filteren, niet op positie: een groep-intro zit soms in hetzelfde blok
-        # als zijn <ul> en soms erboven, dus tellen levert de verkeerde grens op. Wat blijft
-        # staan is alles wat geen vaste alinea is -- dus de titels en hun eigen intro's.
-        blokken = [b for b in re.split(r"\n\s*\n", follow) if b.strip()]
-        staart = [b for b in blokken
+        # Op inhoud filteren, niet op positie: een groep-intro staat soms boven zijn <ul> en
+        # soms eronder, dus tellen levert de verkeerde grens op. Wat blijft staan is alles wat
+        # geen vaste alinea is -- dus de titels en hun eigen intro's.
+        staart = [b for b in _top_blokken(follow)
                   if not _tekst_uit(b).startswith(_VERVOLG_VASTE_OPENINGEN)]
         kop = [f"<p>{_esc(sjabloon.VERVOLG_ALINEA_1)}</p>",
                f"<p>{_esc(sjabloon.VERVOLG_ALINEA_2)}</p>"]
-        _zet("follow_up", "\n\n".join(kop + staart), "Vervolgstappen-boilerplate")
+        _zet("follow_up", "".join(kop + staart), "Vervolgstappen-boilerplate")
 
     return nieuw, gewijzigd
 
@@ -266,7 +337,7 @@ def document_to_content(document: dict, source_content: dict | None = None) -> d
         "modules": render_modules(modules.get("opening", ""), modules.get("modules") or []),
         "target_audience": _paragrafen(document.get("doelgroep")),
         "prior_knowledge": _paragrafen(document.get("voorkennis")),
-        "setup": _paragrafen(document.get("aanpak"), scheiding="\n\n"),
+        "setup": _paragrafen(document.get("aanpak")),
         "objectives": render_doelen(doelen.get("intro", ""), doelen.get("bullets") or []),
         "follow_up": render_vervolgstappen(vervolg.get("alineas") or [],
                                            vervolg.get("titels") or [],

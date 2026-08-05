@@ -788,7 +788,12 @@ SUBMIT_REWRITE = {
                                "Schrijf NIET het bedrijfstrainingblok; dat plaatst de code."},
             "modules": {
                 "type": "object",
-                "description": "Kopje Modules. 4-6 modules; per module 3-6 sub-bullets, aantal moet variëren.",
+                "description": "Kopje Modules. Het aantal modules schuift mee met de duur: bij "
+                               "1 dag 4-6, bij 2-3 dagen 4-7, bij 4 dagen of meer 5-9. Dat is "
+                               "een vangrail, geen doel — kies het aantal dat de stof vraagt en "
+                               "ga niet standaard naar de bovengrens. Typisch is 4-5 modules bij "
+                               "1 dag, 5-6 bij 2-3 dagen en 6-8 bij 4 dagen of meer. Per module "
+                               "3-6 sub-bullets, aantal moet variëren.",
                 "properties": {
                     "modules": {
                         "type": "array",
@@ -807,9 +812,16 @@ SUBMIT_REWRITE = {
             "doelgroep": {"type": "string",
                 "description": "Kopje Doelgroep. Één zin, begint met 'Deze training is voor …'. Geen functietitels/'professionals'."},
             "voorkennis": {"type": "string",
-                "description": "Kopje Voorkennis. Één zin. Laat leeg als geen voorkennis nodig is (code plaatst de fallbackzin)."},
+                "description": "Kopje Voorkennis. Compact: één zin waar dat kan, twee als er een "
+                               "voorbehoud of een contactzin bij hoort. Laat leeg als geen "
+                               "voorkennis nodig is (code plaatst de fallbackzin)."},
             "aanpak_invulling": {"type": "string",
-                "description": "Kopje Aanpak. Alleen de [.....]-invulling: één woord of enkele woorden."},
+                "description": "Kopje Aanpak. Alleen de [.....]-invulling: één woord of enkele "
+                               "woorden. De code plakt jouw tekst achter de vaste zin '... maak "
+                               "je je de materie stap voor stap eigen en ervaar je hoe ' en zet "
+                               "er zelf een punt achter. Begin dus NIET met 'hoe', 'dat' of "
+                               "'wat', en schrijf geen hele zin. Goed: 'je datamodellen opzet en "
+                               "beoordeelt'. Fout: 'hoe je datamodellen opzet'."},
             "doelen": {"type": "array", "items": {"type": "string"},
                 "description": "Kopje Doelen. 4-5 doelen in de infinitief MET 'te', aansluitend op de "
                                "vaste introzin 'Na deze training ben je in staat om:' — dus "
@@ -918,6 +930,31 @@ def _actualiseer_doelen_intro(tekst: str) -> str:
     return _GOUD_DOELEN_INTRO_RE.sub(sjabloon.DOELEN_INTRO, tekst, count=1)
 
 
+def _goud_modules_blok(html: str, titel: str) -> str:
+    """De modules van een voorbeeld mét hun niveaus, als geneste bullets.
+
+    Niet via `clean_text`: die vervangt <ul> en <li> allebei door een newline, waardoor
+    moduletitel en sub-bullet in het voorbeeld niet meer van elkaar te onderscheiden zijn. Het
+    model kreeg zo bij het zwaarst wegende kopje een platte lijst van dertig regels te zien --
+    geen voorbeeld van een programma-indeling, en dus geen enkel houvast voor hoeveel modules
+    er bij een training horen. Dat is een van de redenen dat het steevast op de bovengrens
+    uitkwam.
+
+    Zelfde vorm als `uit.render_markdown` gebruikt, zodat het voorbeeld eruitziet zoals de
+    schrijver zijn eigen structuur aanlevert.
+    """
+    from score_trainings import clean_text
+    modules = _modules_uit_ul(html, titel)
+    if not modules:
+        return clean_text(html, titel)
+    opening = clean_text((html or "").split("<ul", 1)[0], titel)
+    regels = [opening] if opening else []
+    for module in modules:
+        regels.append(f"* {module.get('titel', '')}")
+        regels += [f"  * {b}" for b in module.get("bullets") or []]
+    return "\n".join(regels).strip()
+
+
 def goud_voorbeelden(n: int = 2, goud_dir: str = GOUD_V2_DIR) -> str:
     """Twee voorbeelden als tekstblok voor de gecachete system-prefix.
 
@@ -933,10 +970,14 @@ def goud_voorbeelden(n: int = 2, goud_dir: str = GOUD_V2_DIR) -> str:
         with open(pad, encoding="utf-8") as f:
             d = json.load(f)
         c = d.get("content") or {}
-        blok = [f"### {d.get('titel', '')}"]
+        titel = d.get("titel", "")
+        blok = [f"### {titel}"]
         for kop, sleutel in (("Overzicht", "summary"), ("Modules", "modules"),
                              ("Doelen", "objectives")):
-            tekst = clean_text(c.get(sleutel, ""), d.get("titel", ""))
+            if sleutel == "modules":
+                tekst = _goud_modules_blok(c.get(sleutel, ""), titel)
+            else:
+                tekst = clean_text(c.get(sleutel, ""), titel)
             if sleutel == "objectives":
                 tekst = _actualiseer_doelen_intro(tekst)
             if tekst:
@@ -1341,7 +1382,8 @@ def bepaal_titel(writer_out: dict, b: RewriteBriefing) -> str:
 def assemble_document(writer_out: dict, b: RewriteBriefing, titels: list[str],
                       groepen: list[dict] | None = None) -> dict:
     """Bouwt het complete tien-kopjes-document; vaste teksten door de code ingevoegd."""
-    invulling = str(writer_out.get("aanpak_invulling", "")).strip() or sjabloon.AANPAK_FALLBACK
+    invulling = (sjabloon.schoon_invulling(writer_out.get("aanpak_invulling", ""))
+                 or sjabloon.AANPAK_FALLBACK)
     voorkennis = str(writer_out.get("voorkennis", "") or "").strip() or sjabloon.VOORKENNIS_FALLBACK
     titel = bepaal_titel(writer_out, b)
     return {
@@ -1549,7 +1591,11 @@ def _writer_out_uit_json(resultaat: dict) -> dict:
     prefix = sjabloon.AANPAK_ALINEA_1.split("{invulling}")[0]
     invulling = ""
     if aanpak.startswith(prefix):
-        invulling = aanpak[len(prefix):].split("\n\n")[0].rstrip(". ")
+        # `schoon_invulling` ook hier: een document dat al "ervaar je hoe hoe ..." bevat levert
+        # anders de invulling "hoe ..." op, die er bij het opnieuw samenstellen ongewijzigd weer
+        # achter komt. Zonder deze regel repareert een hergeneratie de fout dus nooit.
+        invulling = sjabloon.schoon_invulling(
+            aanpak[len(prefix):].split("\n\n")[0].rstrip(". "))
     return {
         "overzicht": doc.get("overzicht", ""),
         "inleiding": doc.get("inleiding", ""),
