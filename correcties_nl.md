@@ -433,3 +433,36 @@ Drie keer, één per training, met "structureel" erbij.
 ❌ … beoordeel je bestaande modellen scherper en **leg je nieuwe structuren reproduceerbaar vast**.
 
 > "In je hoofd? Op papier? Deze vind ik ongrijpbaar en misschien wel hoogdravend."
+
+---
+
+# Ronde 3 — de eerste batch met deze regels
+
+Niet uit een reviewronde maar uit een meting over de eigen catalogus: twee patronen waarop de
+output systematisch afweek van de 78 bestaande trainingen.
+
+## 24. De tweede zin van het Overzicht noemt de training (schrijfspec §2)
+
+73 van de 78 bestaande trainingen beginnen de zin die op de "Wil je"-vraag volgt met "In deze
+training" of "Tijdens deze training". Zonder die opening hangt het antwoord los van de vraag.
+
+❌ Wil je AI-taalmodellen zo kunnen aansturen dat de output aansluit op jouw werk? **Je leert** je eigen documenten, processen en doelen als context aan te leveren.
+✅ Wil je AI-taalmodellen zo kunnen aansturen dat de output aansluit op jouw werk? **In deze training leer je** je eigen documenten, processen en doelen als context aan te leveren.
+
+❌ Wil je zelf datamodellen kunnen opzetten …? **Je werkt met** conceptuele, logische en fysieke modellen.
+✅ Wil je zelf datamodellen kunnen opzetten …? **In deze training werk je met** conceptuele, logische en fysieke modellen.
+
+❌ Wil je de opbouw van een data-analysetraject kunnen doorgronden …? **Je maakt kennis met** de terminologie rond Big Data.
+✅ Wil je de opbouw van een data-analysetraject kunnen doorgronden …? **Tijdens deze training maak je kennis met** de terminologie rond Big Data.
+
+## 25. Het programma is geen inhoudsopgave (schrijfspec §4)
+
+Het oude goud heeft mediaan zes modules met samen ~20 sub-bullets. Zes of zeven modules met
+overal vier tot vijf sub-bullets is bijna 30 regels: dat leest als een inventarisatie van het
+vakgebied en niet als een programma van twee dagen.
+
+❌ Zeven modules bij een tweedaagse, met sub-bullets zoals "Aandachtspunten rond privacy, vertrouwelijkheid en datasensitiviteit afwegen" én, drie modules verderop, "Richtlijnen voor verantwoord gebruik en blijvende verbetering opstellen".
+✅ Vijf modules, waarbij die twee onderwerpen in dezelfde module staan.
+
+> Kies het richtgetal (4 bij één dag, 5 bij twee tot drie, 6 vanaf vier) en voeg verwante
+> onderwerpen samen. Niet: de stof over meer modules uitsmeren zodat elke module "vol" oogt.

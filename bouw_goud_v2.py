@@ -29,11 +29,11 @@ TRAININGEN = [
         "modules_nb": "stabiel",
         "overzicht": (
             "Wil je professioneel leren programmeren in PHP en zelf een webapplicatie "
-            "kunnen bouwen die je daarna goed kunt onderhouden? Je werkt van functioneel naar "
-            "objectgeoriënteerd programmeren en zet een MySQL-database op die je in je "
-            "applicatie gebruikt. Je leert veilig te programmeren, beheert je afhankelijkheden "
-            "met Composer en bouwt een eigen webwinkel. Hierdoor ben je in staat om werkende, "
-            "goed onderhoudbare code op te leveren."
+            "kunnen bouwen die je daarna goed kunt onderhouden? In deze training werk je van "
+            "functioneel naar objectgeoriënteerd programmeren en zet je een MySQL-database op "
+            "die je in je applicatie gebruikt. Je leert veilig te programmeren, beheert je "
+            "afhankelijkheden met Composer en bouwt een eigen webwinkel. Hierdoor ben je in "
+            "staat om werkende, goed onderhoudbare code op te leveren."
         ),
         "inleiding": (
             "PHP draait achter een groot deel van het web, van kleine sites tot complexe "
@@ -125,11 +125,11 @@ TRAININGEN = [
         "overzicht": (
             "Wil je zelf datamodellen kunnen opzetten en bestaande modellen kunnen "
             "beoordelen, zodat je datastructuren altijd betrouwbaar blijven, ook als het "
-            "systeem groeit? Je werkt met conceptuele, logische en fysieke modellen, met "
-            "ER-diagrammen en met normalisatie tot en met 3NF, en je maakt kennis met "
-            "stermodelleren volgens Kimball. Je leert relaties correct vast te leggen en te "
-            "vertalen naar een fysieke implementatie. Hierdoor ben je in staat om je "
-            "ontwerpkeuzes te onderbouwen en de kwaliteit van je datastructuren te bewaken."
+            "systeem groeit? In deze training werk je met conceptuele, logische en fysieke "
+            "modellen, met ER-diagrammen en met normalisatie tot 3NF, en maak je kennis met "
+            "stermodelleren volgens Kimball. Je leert een model te toetsen aan concrete eisen "
+            "en testcases. Hierdoor ben je in staat om je ontwerpkeuzes te onderbouwen en de "
+            "kwaliteit van je datastructuren te bewaken."
         ),
         "inleiding": (
             "Data modeling begint bij de vraag hoe je je data kunt structureren, nog voor je "
@@ -166,15 +166,17 @@ TRAININGEN = [
             ]},
             {"titel": "Relationele modellering en ER-diagrammen", "bullets": [
                 "Entiteiten, attributen en sleutelbegrippen vastleggen",
-                "ER-diagrammen lezen en zelf opstellen",
+                "ER-diagrammen lezen en zelf opstellen op basis van concrete eisen",
                 "Relatietypen en cardinaliteit bepalen bij 1:1, 1:N en N:N",
                 "Associaties uitwerken met joins en foreign keys",
                 "Bestaande modellen beoordelen op relaties en sleutelkeuzes",
+                "Kennismaken met datamodellerings-software en daarin een eerste model opzetten",
             ]},
             {"titel": "Normalisatie en modelkwaliteit", "bullets": [
                 "Normaliseren tot en met de derde normaalvorm",
                 "Redundantie en inconsistenties in datastructuren opsporen",
                 "Modellen verifiëren en valideren tegen de gestelde eisen",
+                "Testcases opstellen en het model daarmee toetsen",
                 "Integrity constraints bepalen en vastleggen",
             ]},
             {"titel": "Multidimensionaal modelleren met sterschema's (Kimball)", "bullets": [
@@ -183,12 +185,6 @@ TRAININGEN = [
                 "De rol van sterschema's binnen cloud-datawarehouse- en lakehouse-omgevingen bepalen",
                 "Data Vault verkennen als aanvulling naast Kimball",
                 "Document-datamodellen bekijken als contrast met het relationele model",
-            ]},
-            {"titel": "Gereedschap en praktijk", "bullets": [
-                "Kennismaken met datamodellerings-software",
-                "Een eerste model opzetten in de tool",
-                "Oefenen met ERD's op basis van concrete eisen",
-                "Testcases opstellen en het model daarmee toetsen",
             ]},
         ],
         # Doelgroep en Voorkennis staan pal onder elkaar en mogen elkaar niet herhalen
@@ -234,8 +230,9 @@ TRAININGEN = [
         "modules_nb": "actueel",
         "overzicht": (
             "Wil je grip krijgen op grote datasets en analyses kunnen opzetten die tot "
-            "bruikbare conclusies leiden? Je leert het CRISP-DM-model toe te passen als vaste "
-            "route door elk analysevraagstuk. Je leert datakwaliteit te beoordelen, passende "
+            "bruikbare conclusies leiden? In deze training leer je het CRISP-DM-model toe te "
+            "passen als vaste route door elk analysevraagstuk. Je leert datakwaliteit te "
+            "beoordelen, passende "
             "algoritmen en tools te kiezen en uitkomsten te vertalen naar rapportages. "
             "Hierdoor ben je in staat om een analysetraject gestructureerd te doorlopen, van "
             "businessvraag tot ingebruikname, en om de keuzes daarin te onderbouwen."
@@ -263,7 +260,6 @@ TRAININGEN = [
             {"titel": "Big data en data-analyse in kaart brengen", "bullets": [
                 "Doorgronden wat big data betekent voor sturing op strategie en bedrijfsprocessen",
                 "Data mining, machine learning en predictive analytics van elkaar onderscheiden",
-                "Overzicht opbouwen van beschikbare methoden, modellen en algoritmen",
                 "Infrastructuur en tools vergelijken, met cloud dataplatformen als voorbeeld",
                 "Kort verkennen wat generatieve AI toevoegt aan het analyseproces",
                 "Vooruitkijken naar de ontwikkeling van data science en machine learning",
@@ -288,17 +284,13 @@ TRAININGEN = [
                 "Modellen trainen en parameters aanscherpen",
                 "Stappen en keuzes documenteren zodat resultaten herleidbaar blijven",
             ]},
-            {"titel": "Evaluation en Deployment", "bullets": [
+            {"titel": "Evaluation en Deployment: van model naar rapportage", "bullets": [
                 "Modelresultaten beoordelen op prestatie en op waarde voor de businessvraag",
                 "Uitkomsten valideren tegen de vooraf opgestelde succescriteria",
                 "Een model in gebruik nemen en het beheer en de monitoring inrichten",
-            ]},
-            {"titel": "Datavisualisatie, rapportage en best practices", "bullets": [
                 "Visualisaties kiezen die passen bij de informatievraag van de ontvanger",
                 "Rapportages opzetten die conclusies en onzekerheden zichtbaar maken",
                 "Analyseresultaten vertalen naar vervolgstappen voor besluitvorming",
-                "Veelvoorkomende valkuilen in analysetrajecten herkennen en vermijden",
-                "Best practices toepassen op een eigen praktijkcase",
             ]},
         ],
         "doelgroep": (
@@ -341,8 +333,8 @@ TRAININGEN = [
         "overzicht": (
             "Wil je design patterns in JavaScript gericht kunnen inzetten, zodat je "
             "applicaties professioneel opgezet, goed onderhoudbaar en makkelijk uit te breiden "
-            "blijven? Je leert de structuur achter zo'n patroon te doorgronden en het toe te "
-            "passen in moderne JavaScript-code. Je werkt met ES6-modules, React- en "
+            "blijven? In deze training leer je de structuur achter zo'n patroon te doorgronden "
+            "en het toe te passen in moderne JavaScript-code. Je werkt met ES6-modules, React- en "
             "Vue-componenten en TypeScript. Hierdoor ben je in staat om onderbouwd het best "
             "passende patroon te kiezen en die keuze te verdedigen."
         ),
@@ -367,15 +359,11 @@ TRAININGEN = [
             "onderhoudbaarheid."
         ),
         "modules": [
-            {"titel": "Fundamenten van design patterns", "bullets": [
+            {"titel": "Fundamenten en de keuze voor een patroon", "bullets": [
                 "Onderscheiden van bewezen patronen, veelbelovende ideeën en de rule of three",
                 "Ontleden van de structuur van een patroon",
                 "Herkennen van oplossingen die averechts werken in bestaande code",
-                "Beschrijven van een eigen patroon volgens een vaste opzet",
-            ]},
-            {"titel": "Categorieën en de keuze voor een patroon", "bullets": [
-                "Indelen van patronen in categorieën",
-                "Vergelijken van patronen die op elkaar lijken",
+                "Indelen van patronen in categorieën en vergelijken van patronen die op elkaar lijken",
                 "Kiezen van het best passende patroon op basis van het probleem",
                 "Onderbouwen van je keuze richting je team",
             ]},
@@ -481,6 +469,29 @@ def bouw(t: dict) -> tuple[dict, list]:
     return content, issues
 
 
+def vormprofiel(t: dict) -> str:
+    """Eén regel per voorbeeld met de maten waarop de few-shot stil kan afdrijven.
+
+    Waarom dit hier staat: de checks bewijzen dat een voorbeeld de regels haalt, maar niet dat
+    het de goede kant van de band demonstreert. Een few-shot met zes modules van vijf bullets
+    en een tweede zin die met "Je leert …" begint, haalt alles — en de output kopieert precies
+    dat. Zo'n afwijking is een keer ongemerkt in de voorbeelden geslopen en pas in de batch
+    erna opgevallen. Deze regel maakt hem zichtbaar zonder dat je ernaar hoeft te zoeken.
+    """
+    n_bullets = [len(m["bullets"]) for m in t["modules"]]
+    lo, hi = checks.modulesband(t["dagen"])
+    band_ok = "  " if lo <= len(n_bullets) <= hi else "!!"
+    zin2 = (checks.zinnen(t["overzicht"])[1:2] or [""])[0]
+    # Via de check zelf, niet via de regex erachter: dan blijft dit kloppen als de regel schuift.
+    zin2_ok = "!!" if any(i.code == "tweede_zin"
+                          for i in checks.check_overzicht({"overzicht": t["overzicht"]})) else "  "
+    return (f"  {t['training_id']:22} {t['dagen']} dg | "
+            f"{band_ok}{len(n_bullets)} modules (band {lo}-{hi}) | "
+            f"{sum(n_bullets):2d} bullets ({','.join(str(n) for n in n_bullets)}) | "
+            f"overzicht {checks.word_count(t['overzicht']):3d} w | "
+            f"{zin2_ok}2e zin: {zin2[:34]}…")
+
+
 if __name__ == "__main__":
     os.makedirs(UIT_DIR, exist_ok=True)
     totaal_hard = 0
@@ -500,4 +511,9 @@ if __name__ == "__main__":
         with open(pad, "w", encoding="utf-8") as f:
             json.dump({"training_id": t["training_id"], "titel": t["titel"],
                        "content": content}, f, ensure_ascii=False, indent=2)
+
+    print("\nvormprofiel (ter vergelijking: het oude goud heeft mediaan 6 modules en ~20 "
+          "sub-bullets;\nde eerste twee regels hieronder gaan als voorbeeld mee in de prompt):")
+    for t in TRAININGEN:
+        print(vormprofiel(t))
     print(f"\n{len(TRAININGEN)} bestanden in {UIT_DIR}; {totaal_hard} harde fails totaal")

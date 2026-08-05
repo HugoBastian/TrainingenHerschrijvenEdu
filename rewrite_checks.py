@@ -553,6 +553,21 @@ def check_presence(rw: dict) -> list[Issue]:
     return issues
 
 
+# De zin die de openingsvraag beantwoordt noemt de training. Dat is geen nieuwe regel maar een
+# bestaand catalogus-patroon dat we kwijt waren: 73 van de 78 goud-trainingen openen hun tweede
+# zin met "In deze training" of "Tijdens deze training". Geen van de few-shots deed dat nog
+# ("Je leert …", "Je werkt met …"), en de output nam dat een-op-een over -- waardoor de tweede
+# zin los kwam te staan van de vraag erboven.
+#
+# "masterclass" en "workshop" mogen erin, want schrijfspec §0.0 laat die titels staan, en er
+# mag een bijvoeglijk naamwoord tussen ("In deze interactieve training", "In deze driedaagse
+# training") -- het gaat erom dat de zin de training noemt, niet om de exacte woordvolgorde.
+# FLAG en geen HARD: de regel is "nagenoeg elke tweede zin", niet "elke".
+_TWEEDE_ZIN_RE = re.compile(
+    r"^(?:in|tijdens)\s+(?:deze|de)\s+(?:\w+\s+){0,2}?(?:training|masterclass|workshop)\b",
+    re.I)
+
+
 def check_overzicht(rw: dict, ctx: dict | None = None) -> list[Issue]:
     t = _norm(rw.get("overzicht"))
     if not t:
@@ -564,6 +579,13 @@ def check_overzicht(rw: dict, ctx: dict | None = None) -> list[Issue]:
     if _BULLET_PREFIX_RE.search(t):
         issues.append(Issue("overzicht", HARD, "opsomming",
                             "mag geen opsomming/bullets bevatten."))
+    zin2 = (zinnen(t)[1:2] or [""])[0]
+    if zin2 and not _TWEEDE_ZIN_RE.match(zin2):
+        issues.append(Issue(
+            "overzicht", FLAG, "tweede_zin",
+            f'de zin die de openingsvraag beantwoordt begint met "{zin2.split(",")[0][:40]}…"; '
+            f'begin met "In deze training leer je …" (of "Tijdens deze training …" waar '
+            f'"leer je" niet past). Een kale "Je leert …" laat de zin los staan van de vraag.'))
     return issues
 
 
@@ -576,19 +598,25 @@ def check_inleiding(rw: dict, ctx: dict | None = None) -> list[Issue]:
 
 
 # Meer dagen = meer programma, dus schuift het aantal modules mee -- net als de lengteband van
-# de Inleiding hierboven. De vorige vaste band van 4-6 stond smaller dan de eigen catalogus:
-# van de 71 bestaande nieuwe-stijl trainingen met een genest programma viel 31% erbuiten, vrijwel
-# allemaal erboven (7 t/m 10). De medianen lopen op met de duur: 1 dag -> 5, 2-3 dagen -> 6,
-# 4 dagen en meer -> 7. Deze banden dekken 85% van dat corpus.
+# de Inleiding hierboven. De medianen in het oude goud lopen op met de duur: 1 dag -> 5,
+# 2-3 dagen -> 6, 4 dagen en meer -> 7; de banden hieronder dekken 71% van dat corpus.
 #
-# Blijft een vangrail, geen doel: de schrijfspec en de tool-description noemen daarnaast een
-# typisch aantal, want een model dat alleen een bereik krijgt kiest stelselmatig de bovenkant.
+# Dat percentage lag eerder op 85%, met 4-7 voor 2-3 dagen en 5-9 vanaf 4 dagen. Dat is
+# teruggedraaid, en dat is een REDACTIEBESLUIT en geen corpusmeting: het programma werd in de
+# praktijk te lang. Wie dit later ziet, moet niet denken dat de band per ongeluk onder de
+# catalogus is gezakt -- de bovenkant van de catalogus is bewust niet meer de bovenkant van de
+# band. De ondergrens is ongewijzigd.
+#
+# Blijft een vangrail, geen doel. De tool-description noemt daarnaast één typisch aantal in
+# plaats van een bereik: een model dat een bereik krijgt kiest stelselmatig de bovenkant. Dat
+# is over de hele batch te zien -- Overzicht 76/76/76/78 woorden bij een band tot 80, modules
+# 6/6/6/7 bij een band tot 7, sub-bullets 4-5 bij een band tot 6.
 _MODULES_PER_DAGEN: tuple[tuple[int, tuple[int, int]], ...] = (
     (1, (4, 6)),       # 1 dag of korter
-    (3, (4, 7)),       # 2-3 dagen
-    (99, (5, 9)),      # 4 dagen of meer
+    (3, (4, 6)),       # 2-3 dagen
+    (99, (5, 8)),      # 4 dagen of meer
 )
-_MODULES_BAND_DEFAULT = (4, 7)
+_MODULES_BAND_DEFAULT = (4, 6)
 
 
 def modulesband(dagen: int | None = None) -> tuple[int, int]:

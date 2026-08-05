@@ -77,7 +77,7 @@ import sjabloon
 # 1. CONFIG (tune-knoppen bovenaan, net als de scorer)
 # ---------------------------------------------------------------------------
 
-MODEL = "claude-opus-5"          # generatie profiteert van Opus; makkelijk te wisselen
+MODEL = "claude-opus-4-8"          # generatie profiteert van Opus; makkelijk te wisselen
 KLEIN_MODEL = "claude-haiku-4-5"   # keuze uit een shortlist; geen generatie
 MAX_TOKENS = 16000
 THINKING = {"type": "adaptive"}    # adaptieve thinking voor schrijf-/oordeelskwaliteit
@@ -782,7 +782,11 @@ SUBMIT_REWRITE = {
                                "'Wil je …'. Geen bullets. Lengte is hier geen doel op zich: liever "
                                "wat langer en een complete introductie in de materie, dan kort door "
                                "de bocht. Blijft een wezenlijk onderwerp van de training buiten "
-                               "beeld, dan is het te kort. Twee dingen die hier het vaakst misgaan: "
+                               "beeld, dan is het te kort. De TWEEDE zin — die de openingsvraag "
+                               "beantwoordt — begint met 'In deze training leer je …', of met "
+                               "'Tijdens deze training …' waar 'leer je' niet past. Nooit een kaal "
+                               "'Je leert …' of 'Je werkt met …': dan staat de zin los van de vraag "
+                               "erboven. Twee dingen die verder het vaakst misgaan: "
                                "(1) de openingsvraag dekt maar één deelaspect in plaats van het "
                                "zwaartepunt van de training; (2) de werkwoorden staan aan de "
                                "onderkant — 'begrippen kunnen plaatsen', 'gerichter meepraten', "
@@ -802,12 +806,13 @@ SUBMIT_REWRITE = {
                                "Schrijf NIET het bedrijfstrainingblok; dat plaatst de code."},
             "modules": {
                 "type": "object",
-                "description": "Kopje Modules. Het aantal modules schuift mee met de duur: bij "
-                               "1 dag 4-6, bij 2-3 dagen 4-7, bij 4 dagen of meer 5-9. Dat is "
-                               "een vangrail, geen doel — kies het aantal dat de stof vraagt en "
-                               "ga niet standaard naar de bovengrens. Typisch is 4-5 modules bij "
-                               "1 dag, 5-6 bij 2-3 dagen en 6-8 bij 4 dagen of meer. Per module "
-                               "3-6 sub-bullets, aantal moet variëren.",
+                "description": "Kopje Modules. Kies 4 modules bij 1 dag, 5 bij 2-3 dagen en 6 bij "
+                               "4 dagen of meer. Wijk daarvan af als de stof dat vraagt, maar ga "
+                               "nooit boven 6 (8 bij 4 dagen of meer) of onder 4 (5 bij 4 dagen "
+                               "of meer). Een programma van zes of zeven modules met overal vijf "
+                               "sub-bullets leest als een inhoudsopgave, niet als een training: "
+                               "voeg liever twee verwante onderwerpen samen dan dat je ze uit "
+                               "elkaar trekt. Per module 3-6 sub-bullets, aantal moet variëren.",
                 "properties": {
                     "modules": {
                         "type": "array",
@@ -1736,7 +1741,48 @@ def judge_document(client, b: RewriteBriefing, document: dict) -> dict:
 # 10. I/O (scored + source joinen; per-training JSON + samenvattings-xlsx)
 # ---------------------------------------------------------------------------
 
-def _load_scored(path: str):
+# Kolommen die `modus_voorstellen()` (sectie 3b) aan het scoresheet toevoegt, plus de vier
+# kolommen die een reviewer met de hand invult. Ontbreken ze, dan werkt de pijplijn gewoon
+# door -- maar met de defaults, en die zijn niet neutraal: `modus` valt terug op `volledig`
+# en `modules_nb` op `stabiel`. Dat is precies wat er gebeurde toen de batch nog op het ruwe
+# scoresheet draaide in plaats van op `scoresheet_met_modus.xlsx`: drie van de vier
+# trainingen werden volledig herschreven terwijl de scan `format` voorstelde, en een
+# training met `modules_nb_voorstel = actueel` kreeg toch de stabiele NB.
+_PIJPLIJN_KOLOMMEN: tuple[str, ...] = ("modus_voorstel", "modules_nb_voorstel")
+_REVIEWER_KOLOMMEN: tuple[str, ...] = ("modus_reviewer", "kern_reviewer",
+                                       "guidance_reviewer", "modules_nb_reviewer")
+
+
+def _waarschuw_ontbrekende_kolommen(df, path: str) -> None:
+    """Meld naar stderr dat dit sheet de uitkomst van sectie 3b mist.
+
+    Bewust een waarschuwing en geen exception: een sheet zonder deze kolommen is een geldig
+    startpunt (dat is precies wat sectie 3b zelf inleest). Wat niet mag, is dat het herschrijven
+    er stil op doordraait -- de terugval is onzichtbaar in de output en kost een hele batch.
+    """
+    mist_pijplijn = [k for k in _PIJPLIJN_KOLOMMEN if k not in df.columns]
+    mist_reviewer = [k for k in _REVIEWER_KOLOMMEN if k not in df.columns]
+    if not mist_pijplijn and not mist_reviewer:
+        return
+    regels = [f"LET OP: {os.path.basename(path)} mist kolommen uit de pijplijn."]
+    if mist_pijplijn:
+        regels.append(f"  ontbreekt: {', '.join(mist_pijplijn)}")
+        regels.append("  -> elke training valt terug op modus 'volledig' en NB 'stabiel'; "
+                      "het voorstel uit sectie 3b wordt genegeerd.")
+    if mist_reviewer:
+        regels.append(f"  ontbreekt: {', '.join(mist_reviewer)}")
+        regels.append("  -> handmatige correcties van de reviewer worden genegeerd.")
+    regels.append("  Draai sectie 3b (`modus_voorstellen`) en lees het resultaatsheet "
+                  "(`scoresheet_met_modus.xlsx`) in plaats van het ruwe scoresheet.")
+    print("\n".join(regels), file=sys.stderr)
+
+
+def _load_scored(path: str, waarschuw: bool = True):
+    """Scoresheet inlezen en normaliseren.
+
+    `waarschuw=False` alleen voor `modus_voorstellen()`: dat is de stap die de ontbrekende
+    kolommen juist gaat máken, dus daar is hun afwezigheid het normale geval.
+    """
     import pandas as pd
     df = pd.read_excel(path)
     df.columns = [str(c).strip() for c in df.columns]
@@ -1745,6 +1791,8 @@ def _load_scored(path: str):
     # voor de id-kolom zelf: een als decimaal gelezen `2.347` hoort hier te stranden en niet
     # verderop als een inhoudelijk `volledig`-advies op te duiken.
     df = bes.normaliseer_scored_kolommen(df)
+    if waarschuw:
+        _waarschuw_ontbrekende_kolommen(df, path)
     return bes.normaliseer_training_ids(df, path)
 
 
@@ -2163,7 +2211,9 @@ def modus_voorstellen(scored_path: str, source_path: str, out_path: str | None =
     """
     from collections import Counter
 
-    scored = _load_scored(scored_path)
+    # Geen kolomwaarschuwing: dit ís de stap die `modus_voorstel` en `modules_nb_voorstel`
+    # aanmaakt, dus hier hoort het invoersheet ze nog niet te hebben.
+    scored = _load_scored(scored_path, waarschuw=False)
     src_by_id, cols = load_source(source_path)
 
     # Poort vóór de calls: zonder bronrij valt er niets te beoordelen en zou `scan_vorm` op

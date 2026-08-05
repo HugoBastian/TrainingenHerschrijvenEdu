@@ -773,7 +773,42 @@ def test_load_scored_accepteert_id_en_name():
         pad = os.path.join(d, "prio.xlsx")
         _scored_df(id=[42], name=["Training XML"]).to_excel(pad, index=False)
         assert bes._load_scored(pad)["training_id"].iloc[0] == 42
-        assert rw._load_scored(pad)["training_id"].iloc[0] == 42
+        # Via de helper, want dit sheet mist de modus-kolommen en zou hier naar stderr
+        # waarschuwen -- terecht, maar niet wat deze test meet.
+        assert _laad_scored_met_stderr(pad)[0]["training_id"].iloc[0] == 42
+
+
+def _laad_scored_met_stderr(pad: str):
+    import contextlib
+    import io
+    buf = io.StringIO()
+    with contextlib.redirect_stderr(buf):
+        df = rw._load_scored(pad)
+    return df, buf.getvalue()
+
+
+def test_scoresheet_zonder_modus_kolommen_waarschuwt():
+    """Het ruwe scoresheet leest zonder foutmelding in, maar draait alles op de defaults.
+
+    Dit is de val die een hele batch kostte: `modus` viel terug op `volledig` en `modules_nb`
+    op `stabiel`, terwijl sectie 3b iets anders had voorgesteld. Stil doorgaan mag niet meer.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        pad = os.path.join(d, "prio.xlsx")
+        _scored_df(id=[42], name=["Training XML"]).to_excel(pad, index=False)
+        _, melding = _laad_scored_met_stderr(pad)
+    assert "modus_voorstel" in melding and "modules_nb_voorstel" in melding
+    assert "volledig" in melding and "stabiel" in melding
+
+
+def test_scoresheet_met_modus_kolommen_zwijgt():
+    with tempfile.TemporaryDirectory() as d:
+        pad = os.path.join(d, "met_modus.xlsx")
+        _scored_df(id=[42], name=["Training XML"], modus_voorstel=["format"],
+                   modules_nb_voorstel=["actueel"], modus_reviewer=[""], kern_reviewer=[""],
+                   guidance_reviewer=[""], modules_nb_reviewer=[""]).to_excel(pad, index=False)
+        _, melding = _laad_scored_met_stderr(pad)
+    assert melding == "", melding
 
 
 def test_load_scored_faalt_nog_steeds_zonder_id_kolom():
@@ -797,8 +832,12 @@ def test_hele_floats_worden_weer_gehele_ids():
     with tempfile.TemporaryDirectory() as d:
         pad = os.path.join(d, "prio.xlsx")
         _scored_df(id=[796.0], name=["Training XML"]).to_excel(pad, index=False)
+        import contextlib
+        import io
         for laag in (bes, rw):
-            tid = laag._load_scored(pad)["training_id"].iloc[0]
+            # stderr weg: zie de toelichting bij de duizendtal-test hieronder.
+            with contextlib.redirect_stderr(io.StringIO()):
+                tid = laag._load_scored(pad)["training_id"].iloc[0]
             assert tid == 796 and int(tid) == tid, (laag.__name__, tid)
             assert "." not in str(tid), (laag.__name__, tid)
 
@@ -808,9 +847,14 @@ def test_id_met_duizendtalscheiding_wordt_geweigerd():
     with tempfile.TemporaryDirectory() as d:
         pad = os.path.join(d, "prio.xlsx")
         _scored_df(id=[2.347], name=["Cursus Big Data Foundation"]).to_excel(pad, index=False)
+        import contextlib
+        import io
         for laag in (bes, rw):
             try:
-                laag._load_scored(pad)
+                # stderr weg: `rw._load_scored` waarschuwt hier terecht over de ontbrekende
+                # modus-kolommen, maar dat is niet wat deze test meet.
+                with contextlib.redirect_stderr(io.StringIO()):
+                    laag._load_scored(pad)
             except ValueError as e:
                 assert "2.347" in str(e) and "duizendtal" in str(e), str(e)
             else:
@@ -822,7 +866,7 @@ def test_tekstuele_ids_blijven_ongemoeid():
     with tempfile.TemporaryDirectory() as d:
         pad = os.path.join(d, "prio.xlsx")
         _scored_df(id=["XML-42"], name=["Training XML"]).to_excel(pad, index=False)
-        assert rw._load_scored(pad)["training_id"].iloc[0] == "XML-42"
+        assert _laad_scored_met_stderr(pad)[0]["training_id"].iloc[0] == "XML-42"
 
 
 # ---------------------------------------------------------------------------
@@ -2017,6 +2061,38 @@ def test_sterke_formulering_binnen_de_scope_vuurt_niet():
     assert "zwakke_formulering" not in _codes_in(check_rewrite(rwd, _CTX), "overzicht", FLAG)
 
 
+def test_tweede_zin_zonder_in_deze_training_is_flag():
+    rwd = _good_rewrite()
+    rwd["overzicht"] = "Wil je data kunnen " + vul(30) + "? Je leert " + vul(24) + "."
+    issues = check_rewrite(rwd, _CTX)
+    assert "tweede_zin" in _codes_in(issues, "overzicht", FLAG)
+    assert "tweede_zin" not in _codes(issues, HARD)
+
+
+def test_tweede_zin_met_in_deze_training_vuurt_niet():
+    rwd = _good_rewrite()
+    rwd["overzicht"] = ("Wil je data kunnen " + vul(30) + "? In deze training leer je "
+                        + vul(20) + ".")
+    assert "tweede_zin" not in _codes_in(check_rewrite(rwd, _CTX), "overzicht", FLAG)
+
+
+def test_tweede_zin_accepteert_masterclass_en_een_bijvoeglijk_naamwoord():
+    """§0.0 laat 'Masterclass'/'Workshop' staan, en 'In deze interactieve training' is prima."""
+    for opening in ("Tijdens deze masterclass ", "In deze interactieve training ",
+                    "Tijdens de workshop "):
+        rwd = _good_rewrite()
+        rwd["overzicht"] = "Wil je data kunnen " + vul(30) + "? " + opening + vul(22) + "."
+        assert "tweede_zin" not in _codes_in(check_rewrite(rwd, _CTX), "overzicht", FLAG), opening
+
+
+def test_overzicht_van_een_zin_levert_geen_tweede_zin_flag():
+    """Geen tweede zin = niets om over te oordelen; de lengtecheck vangt dat al."""
+    import rewrite_checks as c
+    rwd = _good_rewrite()
+    assert len(c.zinnen(rwd["overzicht"])) == 1
+    assert "tweede_zin" not in _codes_in(check_rewrite(rwd, _CTX), "overzicht", FLAG)
+
+
 def test_kortste_omschrijving_zonder_na_deze_training_is_flag():
     rwd = _good_rewrite()
     rwd["kortste_omschrijving"] = "Wil je slimmer met data kunnen werken? Je leert het stap voor stap."
@@ -2069,20 +2145,32 @@ def test_duur_check_raakt_geen_module_inhoud():
 def test_modulesband_schuift_mee_met_de_duur():
     import rewrite_checks as c
     assert c.modulesband(1) == (4, 6)
-    assert c.modulesband(2) == (4, 7)
-    assert c.modulesband(3) == (4, 7)
-    assert c.modulesband(5) == (5, 9)
-    assert c.modulesband(None) == (4, 7)   # dagen onbekend -> de brede middenband
+    assert c.modulesband(2) == (4, 6)
+    assert c.modulesband(3) == (4, 6)
+    assert c.modulesband(5) == (5, 8)
+    assert c.modulesband(None) == (4, 6)   # dagen onbekend -> de smalle middenband
 
 
-def test_zeven_modules_mag_bij_drie_dagen_maar_niet_bij_een():
+def _n_modules(n: int) -> list[dict]:
+    return [{"titel": f"Module {i}", "bullets": ["a", "b", "c"] + (["d"] if i % 2 else [])}
+            for i in range(n)]
+
+
+def test_zeven_modules_mag_bij_vijf_dagen_maar_niet_bij_drie():
+    """De band is teruggeschroefd: zeven modules bij een tweedaagse is nu een harde fail."""
     rwd = _good_rewrite()
-    rwd["modules"]["modules"] = [
-        {"titel": f"Module {i}", "bullets": ["a", "b", "c"] + (["d"] if i % 2 else [])}
-        for i in range(7)
-    ]
-    assert "modules_aantal" not in _codes_in(check_rewrite(rwd, {**_CTX, "dagen": 3}), "modules")
+    rwd["modules"]["modules"] = _n_modules(7)
+    assert "modules_aantal" not in _codes_in(check_rewrite(rwd, {**_CTX, "dagen": 5}), "modules")
+    assert "modules_aantal" in _codes_in(check_rewrite(rwd, {**_CTX, "dagen": 3}), "modules", HARD)
     assert "modules_aantal" in _codes_in(check_rewrite(rwd, {**_CTX, "dagen": 1}), "modules", HARD)
+
+
+def test_vijf_modules_is_schoon_op_elke_duur():
+    rwd = _good_rewrite()
+    rwd["modules"]["modules"] = _n_modules(5)
+    for dagen in (1, 2, 3, 5):
+        assert "modules_aantal" not in _codes_in(
+            check_rewrite(rwd, {**_CTX, "dagen": dagen}), "modules")
 
 
 def test_fewshot_toont_de_modulestructuur_met_niveaus():

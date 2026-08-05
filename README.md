@@ -36,7 +36,7 @@ het model.
 | `rewrite_output.py` | Document → CMS-`content`-JSON (HTML) en → markdown met kop 1/2/3. |
 | `rewrite_trainings.py` | Hybride schrijver + orchestratie + I/O. |
 | `herschrijven.ipynb` | Notebook om de pijplijn stap voor stap te draaien en te inspecteren. |
-| `test_rewrite.py` | 110 offline tests (geen API-key nodig). |
+| `test_rewrite.py` | 193 offline tests (geen API-key nodig). |
 
 ## Setup
 
@@ -333,10 +333,17 @@ zakte het aantal schone trainingen van 26 naar 7. Drie van de vier oude `GOUD_VO
 3–6 eist. Een few-shot die de eigen regel schendt is erger dan geen few-shot, dus de selectie is
 vervangen door 3046, 3146, 2737 en 2586.
 
-Datzelfde corpus heeft de modulesband bijgesteld. Met de oude vaste 4–6 viel `modules_aantal`
-**25 keer** om; met de duurafhankelijke band (zie "Lengtes: richtlijn met vangrail") nog **14
-keer**, vrijwel allemaal programma's van 8 of meer. De regel was smaller dan de eigen praktijk,
-en dat trok de schrijver stelselmatig naar de bovengrens.
+Datzelfde corpus heeft de modulesband bijgesteld. Met een vaste 4–6 viel `modules_aantal`
+**25 keer** om; met de ruime duurafhankelijke band (4–7 / 5–9) nog **14 keer**, vrijwel allemaal
+programma's van 8 of meer; met de huidige band (zie "Lengtes: richtlijn met vangrail") weer
+**25 keer**. Dat laatste getal is bewust opgelopen: de band is in ronde 3 teruggeschroefd omdat
+het programma te lang werd, niet omdat het corpus dat vroeg. Dat het gelijk uitkomt met de oude
+vaste 4–6 is logisch — alleen bij vier dagen of meer verschillen ze nog, en dat zijn er vijf.
+
+Dat heeft één neveneffect dat de moeite waard is om te weten. `modules_aantal` staat in
+`STRUCTUUR_CODES`, dus een te ruim programma legt in `scan_vorm` de ondergrens op `format` in
+plaats van `stijl`. In de praktijk verschuift dat weinig: 75 van de 78 landen sowieso al op
+`format` via `_verouderde_vaste_tekst`, dat eerder in de keten staat.
 
 Wat daarbij hoort als open vraag aan de spec, niet als oordeel over het goud: `bullets_aantal`
 valt **172 keer** om over 78 trainingen. Dat is precies het soort cijfer waarvoor de regel hierboven
@@ -486,12 +493,20 @@ schrijft hij het kopje opnieuw.
 | Kortste omschrijving | — | **max. 200 tekens, hard** |
 
 **Het aantal modules schuift mee met de duur** (`checks.modulesband()`), langs dezelfde lijn:
-1 dag → 4–6, 2–3 dagen → 4–7, 4 dagen of meer → 5–9, onbekend → 4–7. Dit is een vangrail en
-geen doel; de schrijfspec en de tool-description noemen daarnaast een *typisch* aantal, want een
-model dat alleen een bereik krijgt kiest stelselmatig de bovenkant. De vorige vaste band van
-4–6 stond smaller dan de eigen catalogus: van de 71 bestaande nieuwe-stijl trainingen met een
-genest programma viel 31% erbuiten, vrijwel allemaal erboven (7 t/m 10). De medianen lopen op
-met de duur (1 dag → 5, 2–3 dagen → 6, 4+ → 7); de huidige banden dekken 85% van dat corpus.
+1 dag → 4–6, 2–3 dagen → 4–6, 4 dagen of meer → 5–8, onbekend → 4–6. De medianen in de eigen
+catalogus lopen op met de duur (1 dag → 5, 2–3 dagen → 6, 4+ → 7); deze banden dekken 71% van
+dat corpus.
+
+Die band is in ronde 3 teruggeschroefd van 4–7 / 5–9, en dat is **een redactiebesluit en geen
+corpusmeting**: het programma werd in de praktijk te lang. De bovenkant van de catalogus is
+bewust niet meer de bovenkant van de band. Wie dit later leest moet niet denken dat de band per
+ongeluk onder het corpus is gezakt — de ondergrens is ongewijzigd.
+
+Wat er tegelijk veranderde: de tool-description noemt nu **één richtgetal** (4 bij één dag, 5
+bij 2–3, 6 vanaf vier) in plaats van een bereik plus een "typisch aantal". Een model dat een
+bereik krijgt kiest stelselmatig de bovenkant, en dat is over de hele eerste batch te zien:
+Overzicht 76/76/76/78 woorden bij een band tot 80, modules 6/6/6/7 bij een band tot 7,
+sub-bullets 4–5 bij een band tot 6. Het bereik staat nu alleen nog in de checks, als vangrail.
 
 **Het Overzicht ging in reviewronde 2 van 55–65 naar 55–80.** Twee signalen wezen dezelfde kant
 op. De catalogus: mediaan 64 woorden, p75 77, p90 94 — maar 29 van de 78 haalden 55–65, dus de
@@ -556,12 +571,43 @@ afraadt. Lange samenstellingen ("datamodellerings-software") evenmin: bij ≥22 
 dubbeling tussen Doelgroep en Voorkennis is met een regex fragieler te vangen dan het probleem
 groot is. Alle drie staan in de schrijfspec en in de beoordelingsspec, waar een oordeel wél kan.
 
+### De check uit ronde 3: de tweede zin van het Overzicht
+
+`tweede_zin` (FLAG) vuurt als de zin ná de "Wil je …"-vraag niet begint met "In deze training"
+of "Tijdens deze training" (een bijvoeglijk naamwoord ertussen mag, en "masterclass"/"workshop"
+ook). Ruis op de eigen 78: **2/78** — de laagste van alle checks tot nu toe, en dat is precies
+het punt. Dit is geen nieuwe regel maar een **bestaand catalogus-patroon dat we kwijt waren**:
+73 van de 78 doen het al zo, en geen van de vier few-shots deed het nog. De eerste batch nam dat
+een-op-een over — vier keer "Je leert …" / "Je werkt met …" — waardoor het antwoord los kwam te
+staan van de vraag erboven.
+
+Dat is de bredere les van die batch: **de few-shot is 6% van de prompt en stuurt aantoonbaar
+meer dan de 94% proza eromheen.** Wijkt de output ergens systematisch af, kijk dan eerst naar
+`bouw_goud_v2.py` en pas daarna naar de spec. `bouw_goud_v2.py` print daarom sinds ronde 3 een
+**vormprofiel** per voorbeeld: dagen, aantal modules met de band erbij, sub-bullets per module,
+woorden in het Overzicht en de tweede zin. De checks bewijzen dat een voorbeeld de regels haalt;
+dit laat zien of het ook de goede kant van de band demonstreert.
+
+### De scoresheet-val
+
+De pijplijn heeft twee scoresheets: het ruwe (`SCORED`) en dat wat sectie 3b oplevert
+(`scoresheet_met_modus.xlsx`). Alles ná 3b hoort het tweede te lezen. Deed het notebook dat niet,
+dan draaide de hele batch stil op de defaults — `modus` viel via `herschreven=0` terug op
+`volledig` en `modules_nb` op `stabiel` — terwijl 3b iets anders had voorgesteld. Dat is één keer
+gebeurd en kostte een batch: drie van de vier trainingen werden volledig herschreven terwijl de
+scan `format` voorstelde, en een training met `modules_nb_voorstel = actueel` kreeg toch de
+stabiele NB.
+
+`_load_scored()` waarschuwt daarom naar stderr zodra `modus_voorstel`, `modules_nb_voorstel` of
+een van de vier reviewerkolommen ontbreekt, mét de gevolgen erbij. `modus_voorstellen()` zelf
+roept hem aan met `waarschuw=False`: dat is de stap die die kolommen juist máákt.
+
 ## Tests
 
 ```bash
 python bouw_goud_v2.py     # few-shot opbouwen; `herschreven/` is gitignored, dus dit hoort
                            # bij een verse checkout. Geen API-key nodig.
-python test_rewrite.py     # 186 offline checks, geen API-key nodig
+python test_rewrite.py     # 193 offline checks, geen API-key nodig
 ```
 
 Getest wordt de deterministische laag: de code-check, de structurele splitsing van
