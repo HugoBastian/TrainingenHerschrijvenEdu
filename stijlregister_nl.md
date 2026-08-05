@@ -52,9 +52,19 @@ onder elkaar leest als een formulier.
 | --- | --- |
 | In staat zijn om [X] te [werkwoord] | Zit al in de vaste introzin van Doelen; **niet herhalen in een bullet** |
 | Weten hoe je [X] kunt [werkwoord] | Overzicht, Inleiding, Kortste omschrijving |
+| Leert [X] te [werkwoord] | Overzicht, Inleiding, Kortste omschrijving. Vooral sterk bij een reeks vaardigheden: "je leert datakwaliteit *te* beoordelen, algoritmen *te* kiezen en uitkomsten *te* vertalen". Herhaal het "te" bij elk element. **Niet in doel-bullets** — die lopen al door op "in staat om" |
 | Inzicht hebben in [X] | Overzicht, Inleiding |
 | Inzicht krijgen in [X] | Overal; als doel-bullet: "Inzicht te krijgen in [X]" |
 | Inzicht ontwikkelen | Overal; als doel-bullet: "Inzicht te ontwikkelen in [X]" |
+
+**De verbindingswoorden zelf.** Een causale constructie heeft een scharnier nodig; deze vier
+doen het werk: **Hierdoor · Waardoor · Doordat · Zo**. Zonder zo'n woord staan er twee zinnen
+naast elkaar en legt de lezer het verband zelf — of niet.
+
+- "Onze trainers zijn dagelijks werkzaam op dit expertisegebied, **waardoor** ze zowel actuele
+  kennis als praktijkervaring hebben."
+- "Je bouwt een eigen webapplicatie. **Hierdoor** ben je na afloop in staat om werkende, goed
+  onderhoudbare code op te leveren."
 
 **Let op de Doelen-bullets.** Die lopen door op "Na deze training ben je in staat om:", dus ze
 moeten in de te-infinitief staan en mogen "in staat" niet herhalen:
@@ -92,6 +102,10 @@ Deze drie mogen de werkwoorden uit §C kracht bijzetten ("een breed beeld van he
 "Volledig" is daarbij het gevaarlijkst — een tweedaagse training maakt zelden iets *volledig*.
 Geen opvulling: staat er zonder het bijvoeglijk naamwoord hetzelfde, laat het dan weg.
 
+Onze eigen vaste bedrijfstrainingtekst gebruikt "volledig" wél ("een lesprogramma dat volledig
+aansluit bij jouw specifieke uitdaging"). Dat is vaste tekst en valt buiten deze afweging; in
+gegenereerde tekst blijft de vangrail hierboven gelden.
+
 ---
 
 ## E. Vergrotende trappen
@@ -119,6 +133,23 @@ niets.
 
 Het is dus een afweging per training, afhankelijk van niveau, persona en wat de deelnemer
 moet of wil leren — geen woord dat je overal instrooit.
+
+**Niet verwarren met "kunnen" (schrijfspec §0.15).** Dat zijn twee verschillende instrumenten.
+"Kunnen" gaat over het **leren** en hoort in het Overzicht, de Inleiding en de Kortste
+omschrijving. De vergrotende trap gaat over de **hoogte van de belofte** en hoort in de Doelen.
+Ze vervangen elkaar niet: "Wil je datamodellen beter opzetten?" lost het ontbrekende "kunnen"
+niet op, en "Gerichter mee te praten over architectuurkeuzes" wordt niet beter van een "kunnen".
+
+---
+
+## F. Kwalificaties bij bijvoeglijke naamwoorden op -baar
+
+**goed** · **makkelijk** · **snel** · **zelf** (als in "door jezelf")
+
+Een kaal "onderhoudbare code" of "uitbreidbare opzet" is een anglicisme: in het Engels staat
+*maintainable* prima alleen, in het Nederlands mist er een maat. Zet er een kwalificatie bij die
+zegt hoe goed of voor wie — "goed onderhoudbare code", "makkelijk uitbreidbare opzet". Zie
+schrijfspec §0.18.
 
 ---
 

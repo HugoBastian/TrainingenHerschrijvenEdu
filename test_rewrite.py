@@ -32,7 +32,9 @@ from rewrite_checks import HARD, FLAG, check_rewrite, hard_fails, flags
 def _good_rewrite() -> dict:
     """Een concept dat ALLE harde checks haalt (0 hard-fails)."""
     return {
-        "overzicht": "Wil je " + " ".join(["data"] * 57) + "?",   # 2 + 57 = 59 woorden
+        # "kunnen" staat er bewust in: dit is het concept dat alle regels haalt, dus het hoort
+        # ook het lerende aspect te demonstreren (schrijfspec Sectie 0.15).
+        "overzicht": "Wil je data kunnen " + " ".join(["data"] * 55) + "?",   # 59 woorden
         "inleiding": " ".join(["onderwerp"] * 195),             # 195 woorden
         "modules": {"modules": [
             {"titel": "Module een", "bullets": ["Onderdeel a", "Onderdeel b", "Onderdeel c"]},
@@ -41,14 +43,14 @@ def _good_rewrite() -> dict:
             {"titel": "Module vier", "bullets": ["Onderdeel a", "Onderdeel b", "Onderdeel c", "Onderdeel d", "Onderdeel e"]},
         ]},
         "aanpak_invulling": "je datagedreven keuzes maakt",
-        "doelgroep": "Deze training is voor iedereen die met data betere keuzes wil maken.",
+        "doelgroep": "Deze training is bedoeld voor iedereen die met data betere keuzes wil maken.",
         "voorkennis": "Specifieke voorkennis voor het volgen van deze training is niet noodzakelijk.",
         "doelen": ["Heldere dashboards te bouwen voor je team",
                    "Ruwe data op te schonen en samen te voegen",
                    "Terugkerende trends te analyseren",
                    "Resultaten te presenteren aan het team"],
         "vervolgstappen_titels": ["Training Power BI"],
-        "kortste_omschrijving": "Wil je slimmer met data werken en betere keuzes maken?",
+        "kortste_omschrijving": "Wil je slimmer met data kunnen werken en betere keuzes maken?",
         "nieuwe_titel": "Training Data-analyse",
     }
 
@@ -143,7 +145,7 @@ def test_lange_zin_is_flag_geen_hardfail():
     rw = _good_rewrite()
     # 40 woorden in één zin: ver boven de richtlijn van ±20, dus een signaal -- maar de
     # schrijver hoort er niet voor terug te moeten.
-    rw["doelgroep"] = "Deze training is voor " + " ".join(["iedereen"] * 37) + "."
+    rw["doelgroep"] = "Deze training is bedoeld voor " + " ".join(["iedereen"] * 37) + "."
     issues = check_rewrite(rw, _CTX)
     assert "zin_lang" in _codes_in(issues, "doelgroep", FLAG)
     assert "zin_lang" not in _codes(issues, HARD)
@@ -192,7 +194,7 @@ def test_programma_bullets_geen_variatie():
 
 def test_doelgroep_professionals():
     rw = _good_rewrite()
-    rw["doelgroep"] = "Deze training is voor professionals die met data werken."
+    rw["doelgroep"] = "Deze training is bedoeld voor professionals die met data werken."
     assert "professionals" in _codes(check_rewrite(rw, _CTX), HARD)
 
 
@@ -217,7 +219,7 @@ def test_professionals_in_de_titel_blijft_toegestaan():
 
 def test_professionals_degradeert_naar_flag_bij_professional_titel():
     rw = _good_rewrite()
-    rw["doelgroep"] = "Deze training is voor iedereen die de PHP Professional-stof wil beheersen."
+    rw["doelgroep"] = "Deze training is bedoeld voor iedereen die de PHP Professional-stof wil beheersen."
     ctx = dict(_CTX, naam="Training PHP Professional")
     codes = _codes(check_rewrite(rw, ctx))
     assert "professionals" in codes
@@ -234,7 +236,7 @@ def test_bezig_met_is_hard():
 def test_meeting_is_flag_geen_hard_fail():
     """Vakterm in Scrum/Agile/Teams-trainingen, dus signaleren en niet blokkeren."""
     rw = _good_rewrite()
-    rw["doelgroep"] = "Deze training is voor iedereen die elke meeting beter wil voorbereiden."
+    rw["doelgroep"] = "Deze training is bedoeld voor iedereen die elke meeting beter wil voorbereiden."
     assert "meeting" in _codes(check_rewrite(rw, _CTX), FLAG)
     assert "meeting" not in _codes(check_rewrite(rw, _CTX), HARD)
 
@@ -639,7 +641,7 @@ def test_kies_vervolgtrainingen_weert_verzonnen_titels():
 
 def test_modules_opening_verdubbelt_soortwoord_niet():
     opening = sjabloon.modules_opening("Opleiding PHP Professional")
-    assert "de Training PHP Professional" in opening
+    assert "de training PHP Professional" in opening
     assert "Opleiding" not in opening
 
 
@@ -649,7 +651,7 @@ def test_modules_opening_verdubbelt_soortwoord_niet():
 
 def test_u_vorm_is_flag_geen_hardfail():
     rw = _good_rewrite()
-    rw["doelgroep"] = "Deze training is voor iedereen die uw data wil benutten."
+    rw["doelgroep"] = "Deze training is bedoeld voor iedereen die uw data wil benutten."
     issues = check_rewrite(rw, _CTX)
     assert "u_vorm" in _codes(issues, FLAG)
     assert "u_vorm" not in _codes(issues, HARD)
@@ -1048,7 +1050,7 @@ def _document() -> dict:
         "inleiding": "Eerste alinea.\n\nTweede alinea.",
         "modules": {"opening": sjabloon.modules_opening("Cursus XML"),
                     "modules": [{"titel": "M1", "bullets": ["a", "b"]}]},
-        "doelgroep": "Deze training is voor iedereen.",
+        "doelgroep": "Deze training is bedoeld voor iedereen.",
         "voorkennis": sjabloon.VOORKENNIS_FALLBACK,
         "aanpak": sjabloon.AANPAK_ALINEA_1.format(invulling="je dit toepast")
                   + "\n\n" + sjabloon.AANPAK_ALINEA_2,
@@ -1116,10 +1118,10 @@ def test_vervolgstappen_zonder_groepen_valt_terug_op_een_vlakke_lijst():
 
 
 def test_soortwoord_wordt_niet_verdubbeld():
-    assert "de Training Opleiding" not in sjabloon.modules_opening("Opleiding PHP Professional")
-    assert sjabloon.modules_opening("Cursus XML").startswith("Tijdens de Training XML")
-    assert sjabloon.modules_opening("Photoshop").startswith("Tijdens de Training Photoshop")
-    assert sjabloon.modules_opening("Masterclass C#").startswith("Tijdens de Masterclass C#")
+    assert "de training opleiding" not in sjabloon.modules_opening("Opleiding PHP Professional").lower()
+    assert sjabloon.modules_opening("Cursus XML").startswith("Tijdens de training XML")
+    assert sjabloon.modules_opening("Photoshop").startswith("Tijdens de training Photoshop")
+    assert sjabloon.modules_opening("Masterclass C#").startswith("Tijdens de masterclass C#")
 
 
 def test_markdown_heeft_kop_1_2_en_3():
@@ -1243,7 +1245,7 @@ def _content(**overrides) -> dict:
                     "<li>Module vier<ul><li>Punt a</li><li>Punt b</li><li>Punt c</li>"
                     "<li>Punt d</li><li>Punt e</li></ul></li>"
                     "</ul>"),
-        "target_audience": "<p>Deze training is voor iedereen die met data keuzes wil maken.</p>",
+        "target_audience": "<p>Deze training is bedoeld voor iedereen die met data keuzes wil maken.</p>",
         "prior_knowledge": "<p>Specifieke voorkennis is niet noodzakelijk.</p>",
         "objectives": ("<p>Na deze training ben je in staat om:</p><ul>"
                        "<li>Datasets te ordenen en te controleren</li>"
@@ -1452,9 +1454,9 @@ def test_actualisatie_tool_heeft_geen_verplichte_kopjes():
 
 
 def test_render_veld_raakt_alleen_het_eigen_cms_veld():
-    sleutel, waarde = uit.render_veld("doelgroep", "Deze training is voor analisten.")
+    sleutel, waarde = uit.render_veld("doelgroep", "Deze training is bedoeld voor analisten.")
     assert sleutel == "target_audience"
-    assert waarde == "<p>Deze training is voor analisten.</p>"
+    assert waarde == "<p>Deze training is bedoeld voor analisten.</p>"
     sleutel, waarde = uit.render_veld("overzicht", "Wil je iets?")
     assert sleutel == "summary" and waarde == "Wil je iets?"      # platte tekst, geen HTML
 
@@ -1490,6 +1492,227 @@ def test_resultaat_legt_vast_onder_welk_regime_het_tot_stand_kwam():
     assert len(rw.spec_versie()) == 12
     # de vingerafdruk verandert mee met de spec, niet met de code
     assert rw.spec_versie() == rw.spec_versie()
+
+
+# ---------------------------------------------------------------------------
+# Templatev2: vaste teksten, Modules-varianten, lopende aanduiding
+# ---------------------------------------------------------------------------
+
+def test_schrijfspec_citeert_de_actuele_vaste_teksten():
+    """De schrijfspec citeert de vaste teksten letterlijk; die twee mogen niet uit elkaar lopen.
+
+    Dit is de enige echte bewaker tegen de drievoudige duplicatie (sjabloon.py, de schrijfspec
+    en het template). Verandert er een vaste tekst en vergeet iemand de spec, dan leest de
+    schrijver een andere zin dan de code invoegt -- en dat is precies het soort verschil dat
+    pas in de output opvalt.
+    """
+    spec = open(rw.SCHRIJFSPEC, encoding="utf-8").read()
+    spec = " ".join(spec.split())
+    # Alleen de teksten die de spec daadwerkelijk citeert; de placeholder-varianten toetsen
+    # we op hun deel vóór de {}.
+    verplicht = [
+        sjabloon.BEDRIJFSTRAINING_KOP,
+        sjabloon.AANPAK_ALINEA_2,
+        sjabloon.VERVOLG_ALINEA_1,
+        sjabloon.VERVOLG_ALINEA_2,
+        sjabloon.VERVOLG_LIJST_INTRO,
+        sjabloon.DOELEN_INTRO,
+        sjabloon.VOORKENNIS_FALLBACK,
+        sjabloon.MODULES_NB_STABIEL.split("{aanduiding}")[1].strip(),
+        sjabloon.MODULES_NB_ACTUEEL.split("{aanduiding}")[1].strip(),
+        sjabloon.AANPAK_ALINEA_1.split("{invulling}")[0].strip(),
+    ]
+    ontbreekt = [t for t in verplicht if " ".join(t.split()) not in spec]
+    assert not ontbreekt, f"schrijfspec citeert verouderde vaste tekst: {ontbreekt}"
+
+
+def test_lopende_aanduiding_zet_soortwoord_in_onderkast():
+    assert sjabloon.lopende_aanduiding("Training PHP Professional") == "de training PHP Professional"
+    assert sjabloon.lopende_aanduiding("Cursus XML") == "de training XML"
+    assert sjabloon.lopende_aanduiding("Masterclass PHP") == "de masterclass PHP"
+    assert sjabloon.lopende_aanduiding("Examentraining CEH") == "de examentraining CEH"
+    assert sjabloon.lopende_aanduiding("Power BI") == "de training Power BI"
+    assert sjabloon.lopende_aanduiding("") == "deze training"
+    # de rest van de titel houdt zijn hoofdletters
+    assert sjabloon.lopende_aanduiding("Training Power BI") == "de training Power BI"
+
+
+def test_modules_nb_varianten():
+    stabiel = sjabloon.modules_opening("Training XML")
+    actueel = sjabloon.modules_opening("Training XML", "actueel")
+    assert "Mocht je vragen hebben" in stabiel
+    assert "snelle ontwikkelingen" in actueel
+    # default is de terughoudende variant
+    assert sjabloon.modules_opening("Training XML", "") == stabiel
+    assert sjabloon.modules_opening("Training XML", "onzin") == stabiel
+    # "in basis" is uit beide verdwenen
+    assert "in basis" not in stabiel and "in basis" not in actueel
+
+
+def test_normaliseer_modules_nb():
+    assert rw.normaliseer_modules_nb("actueel") == "actueel"
+    assert rw.normaliseer_modules_nb("ACTUEEL") == "actueel"
+    assert rw.normaliseer_modules_nb("") == "stabiel"
+    assert rw.normaliseer_modules_nb(None) == "stabiel"
+    assert rw.normaliseer_modules_nb("misschien") == "stabiel"
+
+
+def test_briefing_modules_nb_gezagsvolgorde():
+    b = rw.RewriteBriefing(training_id=1, titel="Training X", persona="A", dagen=2,
+                           kern="k", verdict="rijk", actualiteit_type="", source_text="s")
+    assert b.modules_nb == "stabiel"                       # niets ingevuld
+    b.modules_nb_voorstel = "actueel"
+    assert b.modules_nb == "actueel"                       # voorstel telt
+    b.modules_nb_reviewer = "stabiel"
+    assert b.modules_nb == "stabiel"                       # reviewer wint van voorstel
+
+
+def test_afsluiter_vervalt_zonder_lege_alinea():
+    assert sjabloon.VERVOLG_AFSLUITER == ""
+    html_out = uit.render_vervolgstappen(
+        [sjabloon.VERVOLG_ALINEA_1], ["Power BI"], sjabloon.VERVOLG_AFSLUITER)
+    assert "<p></p>" not in html_out
+    assert not html_out.rstrip().endswith("<p></p>")
+
+
+def test_deelnamecertificaat_kop_met_ongewijzigd_cms_veld():
+    kopje = sjabloon.KOPJES[-1]
+    assert kopje.kop == "Deelnamecertificaat"
+    # het CMS-contract mag NIET meeveranderen met de kopnaam
+    assert kopje.veld == "certificatie" and kopje.cms == "certification"
+
+
+# ---------------------------------------------------------------------------
+# Nieuwe checks: doelgroep-opening, lerend aspect, soortwoord-hoofdletter
+# ---------------------------------------------------------------------------
+
+def test_doelgroep_eist_bedoeld_voor():
+    rwd = _good_rewrite()
+    rwd["doelgroep"] = "Deze training is voor iedereen die met data werkt."
+    codes = [i.code for i in hard_fails(check_rewrite(rwd))]
+    assert "opening" in codes
+    rwd["doelgroep"] = "Deze training is bedoeld voor iedereen die met data werkt."
+    assert "opening" not in [i.code for i in hard_fails(check_rewrite(rwd))]
+
+
+def test_lerend_aspect_is_flag_geen_hardfail():
+    # het schone concept demonstreert het lerende aspect en vuurt dus niet
+    assert "lerend_aspect" not in _codes(check_rewrite(_good_rewrite(), _CTX))
+    rwd = _good_rewrite()
+    rwd["overzicht"] = ("Wil je datamodellen opzetten die kloppen? " + "woord " * 55).strip()
+    issues = check_rewrite(rwd)
+    assert "lerend_aspect" in [i.code for i in flags(issues)]
+    assert "lerend_aspect" not in [i.code for i in hard_fails(issues)]
+
+
+def test_lerend_aspect_accepteert_nederlandse_vormen():
+    import rewrite_checks as c
+    for zin in ("Wil je leren modelleren?", "Wil je dit kunnen opzetten?",
+                "Je leert data te beoordelen.", "Wil je in staat zijn om te modelleren?",
+                "Wil je weten hoe je dit aanpakt?"):
+        assert c._LEREND_RE.search(zin), zin
+    assert not c._LEREND_RE.search("Wil je datamodellen opzetten?")
+
+
+def test_soortwoord_hoofdletter_is_flag():
+    rwd = _good_rewrite()
+    rwd["inleiding"] = "Tijdens de Training XML leer je veel. " + "woord " * 180
+    issues = check_rewrite(rwd)
+    assert "soortwoord_hoofdletter" in [i.code for i in flags(issues)]
+    assert "soortwoord_hoofdletter" not in [i.code for i in hard_fails(issues)]
+
+
+# ---------------------------------------------------------------------------
+# Vaste teksten verversen (het `overnemen`-pad)
+# ---------------------------------------------------------------------------
+
+_OUDE_CONTENT = {
+    "intro": "<p>Geschreven inleiding.</p>\n\n"
+             "<h3>Deze training bieden we ook als bedrijfstraining voor jou en je team</h3>\n"
+             "<p>De inhoud stemmen we dan af op jullie werksituatie, systemen en concrete "
+             "vraagstukken, zodat de training direct aansluit.</p>",
+    "modules": "<p>Tijdens de Training XML komen in basis onderstaande onderwerpen aan bod. "
+               "Afhankelijk van ontwikkelingen op het vakgebied, kan de feitelijke "
+               "trainingsinhoud hier echter van afwijken.</p>\n\n"
+               "<ul>\n  <li>Module A\n    <ul><li>bullet</li></ul>\n  </li>\n</ul>",
+    "setup": "<p>De training is interactief en praktijkgericht opgezet. Je werkt actief aan "
+             "herkenbare situaties. Door te oefenen, bespreken en reflecteren ervaar je hoe "
+             "je XML in de praktijk toepast.</p>\n\n"
+             "<p>De training wordt verzorgd door trainers uit de praktijk.</p>",
+    "follow_up": "<p>Binnen dit vakgebied beschikken wij over ruime praktijkervaring.</p>\n\n"
+                 "<p>Er zijn verschillende vervolgtrainingen die aansluiten.</p>\n\n"
+                 "<p>Wil je je verdiepen, dan sluiten deze aan:</p>\n<ul>\n<li>XSLT</li>\n</ul>"
+                 "\n\n<p>Zo kies je een vervolgstap die past bij jouw rol, interesses en "
+                 "werksituatie.</p>",
+    "certification": "<p>Na het volledig afronden van deze training ontvang je een certificaat "
+                     "van deelname.</p>",
+}
+
+
+def test_ververs_vaste_teksten_vervangt_alle_vijf():
+    nieuw, gewijzigd = uit.ververs_vaste_teksten(_OUDE_CONTENT, "Training XML")
+    assert len(gewijzigd) == 5, gewijzigd
+    for veld in ("intro", "modules", "setup", "follow_up", "certification"):
+        plat = uit._tekst_uit(nieuw[veld])
+        for vervallen in sjabloon.VERVALLEN_VASTE_TEKSTEN:
+            assert vervallen not in plat, f"{veld} houdt nog: {vervallen}"
+
+
+def test_ververs_behoudt_geschreven_tekst():
+    nieuw, _ = uit.ververs_vaste_teksten(_OUDE_CONTENT, "Training XML")
+    # de geschreven inleiding, de modulelijst, de Aanpak-invulling en de catalogustitels
+    assert "Geschreven inleiding." in nieuw["intro"]
+    assert "Module A" in nieuw["modules"] and "<li>bullet</li>" in nieuw["modules"]
+    assert "je XML in de praktijk toepast" in nieuw["setup"]
+    assert "<li>XSLT</li>" in nieuw["follow_up"]
+    assert "Wil je je verdiepen, dan sluiten deze aan:" in nieuw["follow_up"]
+
+
+def test_ververs_is_idempotent():
+    eenmaal, _ = uit.ververs_vaste_teksten(_OUDE_CONTENT, "Training XML")
+    tweemaal, gewijzigd = uit.ververs_vaste_teksten(eenmaal, "Training XML")
+    assert gewijzigd == [], gewijzigd
+    assert eenmaal == tweemaal
+
+
+def test_ververs_respecteert_modules_variant():
+    nieuw, _ = uit.ververs_vaste_teksten(_OUDE_CONTENT, "Training XML", "actueel")
+    assert "snelle ontwikkelingen" in nieuw["modules"]
+
+
+def test_fewshot_haalt_zelf_alle_harde_checks():
+    """Een few-shot die de eigen regels schendt is erger dan geen few-shot.
+
+    Dit is de enige test die het voorbeeldmateriaal zelf toetst. Verandert er een regel,
+    dan valt hij hier om en niet pas in de output van de volgende batch.
+    """
+    import glob
+    bestanden = sorted(glob.glob(os.path.join(rw.GOUD_V2_DIR, "*.json")))
+    assert bestanden, "geen voorbeeldmateriaal in goud_v2"
+    for pad in bestanden:
+        with open(pad, encoding="utf-8") as f:
+            d = json.load(f)
+        titel = d.get("titel", "")
+        concept = rw.goud_naar_check_input(d.get("content") or {}, titel)
+        hard = hard_fails(check_rewrite(concept, {"naam": titel}))
+        assert not hard, f"{os.path.basename(pad)}: {[str(i) for i in hard]}"
+
+
+def test_fewshot_demonstreert_geen_verouderde_vaste_tekst():
+    tekst = rw.goud_voorbeelden(n=len(rw.GOUD_VOORBEELDEN))
+    assert tekst, "few-shot is leeg"
+    for vervallen in sjabloon.VERVALLEN_VASTE_TEKSTEN:
+        assert vervallen not in tekst, f"few-shot toont verouderde vaste tekst: {vervallen}"
+    # en demonstreert wél het lerende aspect uit Sectie 0.15
+    assert "kunnen" in tekst
+
+
+def test_scan_vorm_ziet_verouderde_vaste_tekst():
+    """Een training met de vorige generatie boilerplate mag nooit `overnemen` halen."""
+    scan = rw.scan_vorm(_OUDE_CONTENT, "Training XML")
+    assert scan["ondergrens"] == "format"
+    assert scan["verouderde_vaste_tekst"]
+    assert "vaste sjabloonteksten" in scan["reden"]
 
 
 # ---------------------------------------------------------------------------

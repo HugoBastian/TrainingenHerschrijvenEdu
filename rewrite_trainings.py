@@ -38,6 +38,7 @@ gaat als label mee naar het model, dat de twee groepen langs die grenzen legt.
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import os
 import re
@@ -107,6 +108,7 @@ N_KEYWORD_GARANTIE = 12
 SCHRIJFSPEC = os.path.join(_HERE, "schrijfspec_herschrijven_v1.md")
 HUMANISERING = os.path.join(_HERE, "humanisering_nl.md")
 STIJLREGISTER = os.path.join(_HERE, "stijlregister_nl.md")
+CORRECTIES = os.path.join(_HERE, "correcties_nl.md")
 BEOORDELINGSSPEC = os.path.join(_HERE, "beoordelingsspec_herschrijven_v1.md")
 TEMPLATE_PATH = os.path.join(_HERE, "Template trainingen nieuwe opbouw.md")
 CATALOG_PATH = os.path.join(_HERE, "vervolgtraining.json")
@@ -151,8 +153,19 @@ def hoogste_modus(*modi: str) -> str:
     return max(geldig, key=lambda m: MODUS_RANG[m]) if geldig else MODUS_DEFAULT
 
 
+def normaliseer_modules_nb(waarde: Any) -> str:
+    """Cel- of modelwaarde -> "stabiel" of "actueel". Alles onbekends wordt "stabiel".
+
+    De default is bewust de terughoudende variant: een onterecht voorbehoud onder de modules
+    doet meer kwaad dan een ontbrekend voorbehoud, want het suggereert dat wij zelf niet
+    weten wat we geven. Een lege cel betekent dus "stabiel" en niet "nog niet beslist".
+    """
+    tekst = _cel(waarde).lower()
+    return tekst if tekst in sjabloon.MODULES_NB_VARIANTEN else sjabloon.MODULES_NB_DEFAULT
+
+
 def spec_versie() -> str:
-    """Korte vingerafdruk van de vier bestanden die samen "de regels" zijn.
+    """Korte vingerafdruk van de vijf bestanden die samen "de regels" zijn.
 
     Staat per training in de output. Zodra de spec verandert is "welke goedgekeurde
     trainingen dateren van vóór de huidige regels" precies de vraag die bepaalt wie er een
@@ -161,7 +174,7 @@ def spec_versie() -> str:
     """
     import hashlib
     h = hashlib.sha256()
-    for pad in (SCHRIJFSPEC, HUMANISERING, STIJLREGISTER, TEMPLATE_PATH):
+    for pad in (SCHRIJFSPEC, HUMANISERING, STIJLREGISTER, CORRECTIES, TEMPLATE_PATH):
         try:
             with open(pad, "rb") as f:
                 h.update(f.read())
@@ -597,6 +610,8 @@ class RewriteBriefing:
     guidance_reviewer: str = ""   # kolom `guidance_reviewer`: vrije aanwijzing van de reviewer
     huidige_content: dict = field(default_factory=dict)   # de bestaande CMS-content
     herschreven: bool = False     # kolom `herschreven`: stond al in de nieuwe stijl
+    modules_nb_reviewer: str = ""  # kolom `modules_nb_reviewer`: besluit van een mens
+    modules_nb_voorstel: str = ""  # kolom `modules_nb_voorstel`: uit schat_modus
 
     @property
     def thin(self) -> bool:
@@ -626,6 +641,20 @@ class RewriteBriefing:
     @property
     def modus_van_reviewer(self) -> bool:
         return normaliseer_modus(self.modus_reviewer, default="") in MODUS_RANG
+
+    @property
+    def modules_nb(self) -> str:
+        """Welke NB onder het kopje Modules komt: "stabiel" (default) of "actueel".
+
+        Zelfde gezagsvolgorde als de modus -- reviewer, dan voorstel, dan default -- maar
+        een andere as: dit zegt niets over de kwaliteit van de tekst en alles over het
+        onderwerp. Een lege cel is "stabiel" en niet "onbeslist"; een scoresheet zonder deze
+        kolommen gedraagt zich dus als voorheen, met de terughoudende variant.
+        """
+        val = _cel(self.modules_nb_reviewer).lower()
+        if val not in sjabloon.MODULES_NB_VARIANTEN:
+            val = _cel(self.modules_nb_voorstel).lower()
+        return normaliseer_modules_nb(val)
 
     @property
     def behoudt_tekst(self) -> bool:
@@ -727,6 +756,8 @@ def build_briefing(scored: dict, source_content: dict, naam: str,
         kern_reviewer=_cel(scored.get("kern_reviewer")),
         modus_reviewer=_cel(scored.get("modus_reviewer")),
         modus_voorstel=_cel(scored.get("modus_voorstel")),
+        modules_nb_reviewer=_cel(scored.get("modules_nb_reviewer")),
+        modules_nb_voorstel=_cel(scored.get("modules_nb_voorstel")),
         guidance_reviewer=_cel(scored.get("guidance_reviewer")),
         huidige_content=dict(source_content or {}),
         herschreven=str(scored.get("herschreven", "")).strip() in ("1", "1.0", "True", "true"),
@@ -845,19 +876,35 @@ def _read(path: str) -> str:
         return f.read().strip()
 
 
-# Vier trainingen uit het goud-corpus die élke harde check halen -- inclusief de
-# modules-checks, en dát is nieuw. Zolang `goud_naar_check_input` de modulestructuur
-# oversloeg, waren `modules_aantal`, `bullets_aantal` en `bullets_variatie` op het goud
-# onzichtbaar. Nu ze meetellen, halen er nog maar 7 van de 78 alles, en drie van de vier
-# oude voorbeelden (2730, 3101, 3125) vielen af: die demonstreerden modules met twee
-# sub-bullets terwijl de spec er 3-6 eist. Een few-shot die de eigen regel schendt is erger
-# dan geen few-shot.
+GOUD_DIR = os.path.join(_HERE, "herschreven", "goud")
+GOUD_V2_DIR = os.path.join(_HERE, "herschreven", "goud_v2")
+
+# ---------------------------------------------------------------------------
+# FEW-SHOT -- TIJDELIJK. Vervangen zodra er eigen output ligt die is afgetekend.
+# ---------------------------------------------------------------------------
+#
+# Het oude corpus van 78 kan geen few-shot meer zijn. Het dateert van vóór Templatev2 en
+# vóór de eerste stijlronde: 77 van de 78 openen met "Deze training is voor" in plaats van
+# "is bedoeld voor", geen enkele demonstreert het lerende aspect uit Sectie 0.15, en er haalt
+# er nu nul élke harde check (`checks_over_goud()`). Als voorbeeld zou het precies de vormen
+# tonen die de spec inmiddels verbiedt.
+#
+# Wat er nu staat: de vier nagelezen trainingen, hersteld volgens álle 45 comments uit die
+# ronde plus de nieuwe regels. Ze halen alle checks en staan in het nieuwe template.
+#
+# WAAROM DIT TIJDELIJK IS: dit is gerepareerd materiaal, geen materiaal dat vanaf de eerste
+# zin volgens deze regels is geschreven. Dat verschil zie je terug in een few-shot. Vervang
+# ze zodra er een batch ligt die mét deze spec is gegenereerd:
+#
+#   1. batch van 10-15 trainingen draaien met de huidige spec;
+#   2. `checks_over_goud(GOUD_V2_DIR)` erover;
+#   3. 3-4 laten aftekenen door de schrijfstijl-eigenaar;
+#   4. die hierin zetten, deze vier eruit, GOUD_V2_INTERIM op False.
 #
 # Vaste selectie, want een wisselende few-shot maakt de prompt-cache waardeloos. De eerste
-# twee wegen het zwaarst -- `goud_voorbeelden()` neemt er standaard twee. Draai
-# `checks_over_goud()` opnieuw als je een regel verandert; die meting levert deze lijst.
-GOUD_VOORBEELDEN = (3046, 3146, 2737, 2586)
-GOUD_DIR = os.path.join(_HERE, "herschreven", "goud")
+# twee wegen het zwaarst -- `goud_voorbeelden()` neemt er standaard twee.
+GOUD_V2_INTERIM = True
+GOUD_VOORBEELDEN = ("v2_php", "v2_datamodeling", "v2_bigdata", "v2_jsdesignpatterns")
 
 
 # Het goud dateert van vóór de huidige introzin: 47 van de 78 trainingen openen hun doelen met
@@ -871,10 +918,11 @@ def _actualiseer_doelen_intro(tekst: str) -> str:
     return _GOUD_DOELEN_INTRO_RE.sub(sjabloon.DOELEN_INTRO, tekst, count=1)
 
 
-def goud_voorbeelden(n: int = 2, goud_dir: str = GOUD_DIR) -> str:
-    """Twee voorbeelden uit het goud, als tekstblok voor de gecachete system-prefix.
+def goud_voorbeelden(n: int = 2, goud_dir: str = GOUD_V2_DIR) -> str:
+    """Twee voorbeelden als tekstblok voor de gecachete system-prefix.
 
     Vaste selectie, niet per training: een wisselende prefix maakt de prompt-cache waardeloos.
+    Zie `GOUD_VOORBEELDEN` voor waarom deze selectie tijdelijk is.
     """
     from score_trainings import clean_text
     delen = []
@@ -901,10 +949,16 @@ def goud_voorbeelden(n: int = 2, goud_dir: str = GOUD_DIR) -> str:
 
 
 def build_writer_system() -> list[dict]:
-    prefix = "\n\n---\n\n".join([_read(SCHRIJFSPEC), _read(HUMANISERING), _read(STIJLREGISTER)])
+    prefix = "\n\n---\n\n".join([_read(SCHRIJFSPEC), _read(HUMANISERING), _read(STIJLREGISTER),
+                                 _read(CORRECTIES)])
     voorbeelden = goud_voorbeelden()
     if voorbeelden:
         prefix += "\n\n---\n\n" + voorbeelden
+    else:
+        # `herschreven/` staat in .gitignore, dus na een verse checkout is goud_v2 leeg. Stil
+        # doorgaan zou een merkbaar slechtere batch opleveren zonder dat iemand weet waarom.
+        print(f"LET OP: geen few-shot gevonden in {GOUD_V2_DIR}. "
+              f"Draai `python bouw_goud_v2.py` en probeer opnieuw.", file=sys.stderr)
     instr = ("Je herschrijft één training naar de nieuwe stijl. Volg de schrijfspec hierboven "
              "letterlijk (verplichte openingszinnen, persona-toon, 'je'-vorm). Alle aantallen "
              "woorden -- per kopje én per zin -- zijn richtlijnen: mik erop, maar laat de "
@@ -925,9 +979,12 @@ def build_judge_system() -> list[dict]:
     ooit te zien kreeg -- hij kon LLM-frasen en verboden woorden dus niet handhaven. Schrijver
     en judge horen tegen dezelfde definitie van "goed" te oordelen, dus krijgen ze hier
     letterlijk dezelfde stijlteksten. Het goud gaat níét mee: dat is schrijfmateriaal.
+
+    `correcties_nl.md` gaat wél mee. Dat zijn fout/goed-paren uit echte review-rondes, dus
+    precies de kalibratie die een judge nodig heeft om "net niet raak" van "fout" te scheiden.
     """
     prefix = "\n\n---\n\n".join([_read(BEOORDELINGSSPEC), _read(HUMANISERING),
-                                 _read(STIJLREGISTER)])
+                                 _read(STIJLREGISTER), _read(CORRECTIES)])
     return [{"type": "text", "text": prefix, "cache_control": {"type": "ephemeral"}}]
 
 
@@ -1292,7 +1349,7 @@ def assemble_document(writer_out: dict, b: RewriteBriefing, titels: list[str],
         "overzicht": str(writer_out.get("overzicht", "")).strip(),
         "inleiding": str(writer_out.get("inleiding", "")).strip(),
         "modules": {
-            "opening": sjabloon.modules_opening(titel),
+            "opening": sjabloon.modules_opening(titel, b.modules_nb),
             "modules": (writer_out.get("modules") or {}).get("modules", []),
         },
         "doelgroep": str(writer_out.get("doelgroep", "")).strip(),
@@ -1805,6 +1862,21 @@ STRUCTUUR_CODES = frozenset({
 })
 
 
+def _verouderde_vaste_tekst(content_bron: dict) -> list[str]:
+    """Vaste teksten uit de vórige generatie van het template, gevonden in bestaande content.
+
+    Nodig omdat `rewrite_checks` hier per definitie blind voor is: die kijkt alleen naar wat
+    de schrijver levert, en vaste tekst levert de schrijver nooit. Een training die verder
+    elke check haalt maar nog de oude Aanpak-alinea's draagt, zou dus als `overnemen` door de
+    pipeline glippen en met verouderde boilerplate in het CMS belanden.
+    """
+    plat = " ".join(str(v) for v in (content_bron or {}).values() if isinstance(v, str))
+    plat = re.sub(r"<[^>]+>", " ", plat)
+    plat = html.unescape(plat)
+    plat = re.sub(r"\s+", " ", plat)
+    return [frag for frag in sjabloon.VERVALLEN_VASTE_TEKSTEN if frag in plat]
+
+
 def scan_vorm(content_bron: dict, titel: str = "", dagen: int | None = None,
               verdict: str = "") -> dict:
     """Deterministische ONDERGRENS van de herschrijfmodus. Doet geen API-call.
@@ -1831,8 +1903,17 @@ def scan_vorm(content_bron: dict, titel: str = "", dagen: int | None = None,
     hard = checks.hard_fails(issues)
     lege = [i.section for i in hard if i.code == "ontbreekt"]
     structuur = [i for i in hard if i.code in STRUCTUUR_CODES]
+    verouderd = _verouderde_vaste_tekst(content_bron)
 
-    if not leesbaar:
+    if verouderd:
+        # Vóór de structuurcheck: dit is een harde vaststelling en geen oordeel. De vaste
+        # teksten zijn deterministisch, dus "format" is genoeg -- de code rendert ze opnieuw
+        # en de schrijver hoeft de inhoud niet aan te raken.
+        ondergrens = "format"
+        reden = ("vaste sjabloonteksten zijn de vorige generatie: "
+                 + "; ".join(f'"{v[:60]}…"' for v in verouderd[:3])
+                 + (f" (+{len(verouderd) - 3} meer)" if len(verouderd) > 3 else ""))
+    elif not leesbaar:
         ondergrens, reden = "format", "modulestructuur niet als titel + sub-bullets te lezen"
     elif structuur:
         ondergrens = "format"
@@ -1846,7 +1927,8 @@ def scan_vorm(content_bron: dict, titel: str = "", dagen: int | None = None,
         ondergrens, reden = "stijl", "geen check-fails; conformiteit niet door code vast te stellen"
 
     return {"ondergrens": ondergrens, "reden": reden, "lege_kopjes": lege,
-            "harde_issues": [str(i) for i in hard], "modules_leesbaar": leesbaar}
+            "harde_issues": [str(i) for i in hard], "modules_leesbaar": leesbaar,
+            "verouderde_vaste_tekst": verouderd}
 
 
 SUBMIT_MODUS = {
@@ -1866,8 +1948,20 @@ SUBMIT_MODUS = {
                 "description": "Eén zin, concreet: wát voldoet er niet. Niet 'de stijl kan "
                                "beter' maar 'Overzicht opent niet met een vraag en Doelgroep "
                                "gebruikt de u-vorm'."},
+            "modules_nb": {"type": "string", "enum": list(sjabloon.MODULES_NB_VARIANTEN),
+                "description": "Welke NB hoort onder het kopje Modules? 'stabiel' is de "
+                               "default en past bij verreweg de meeste trainingen. Kies "
+                               "'actueel' ALLEEN als het onderwerp zo snel beweegt dat een "
+                               "programmabeschrijving binnen een jaar achterloopt op de "
+                               "praktijk — denk aan generatieve AI, cloudplatformen of "
+                               "security. Een training over een stabiele taal, methode of "
+                               "norm krijgt 'stabiel', ook als er af en toe een versie "
+                               "uitkomt."},
+            "modules_nb_reden": {"type": "string",
+                "description": "Eén korte zin waarom deze variant. Bij 'actueel': wát "
+                               "veroudert er precies."},
         },
-        "required": ["modus", "reden"],
+        "required": ["modus", "reden", "modules_nb", "modules_nb_reden"],
     },
 }
 
@@ -1893,8 +1987,18 @@ wat met code te betrappen is; hij kan bewijzen dat iets niet voldoet, nooit dat 
 voldoet. Ga daarom nooit onder die ondergrens zitten, maar voel je vrij erboven te gaan als
 je iets ziet wat code niet ziet.
 
-Beoordeel de tekst op de regels hierboven, niet op je eigen smaak. Roep tot slot het tool
-`submit_modus` aan.
+Beoordeel de tekst op de regels hierboven, niet op je eigen smaak.
+
+Je bepaalt daarnaast welke NB onder het kopje Modules hoort. Dat staat volledig los van de
+modus: het gaat niet over de kwaliteit van de tekst maar over het onderwerp.
+
+- `stabiel`  — de default, en de juiste keuze voor verreweg de meeste trainingen. Het
+  programma is wat het is; de NB nodigt uit tot afstemming op de eigen praktijksituatie.
+- `actueel`  — alleen als het expertisegebied zo snel beweegt dat de programmabeschrijving
+  binnen een jaar achterloopt op de praktijk. Zet je die NB er zonder die noodzaak onder,
+  dan doet hij afbreuk aan het geheel: hij suggereert dat wij zelf niet weten wat we geven.
+
+Roep tot slot het tool `submit_modus` aan.
 """
 
 
@@ -1906,7 +2010,8 @@ def build_modus_system() -> list[dict]:
     ergens een drempel of een lijst met codes hoeft te worden bijgewerkt. Eén prefix voor de
     hele batch, dus de cache pakt vanaf de tweede training.
     """
-    prefix = "\n\n---\n\n".join([_read(SCHRIJFSPEC), _read(HUMANISERING), _read(STIJLREGISTER)])
+    prefix = "\n\n---\n\n".join([_read(SCHRIJFSPEC), _read(HUMANISERING), _read(STIJLREGISTER),
+                                 _read(CORRECTIES)])
     return [{"type": "text", "text": SCHAT_MODUS_INSTRUCTIE + "\n\n---\n\n" + prefix,
              "cache_control": {"type": "ephemeral"}}]
 
@@ -1921,12 +2026,17 @@ def schat_modus(client, content_bron: dict, titel: str = "", dagen: int | None =
     bruikbaars, dan blijft de ondergrens staan -- nooit een voorstel dat lichter is dan wat
     de checks al hebben weerlegd.
 
-    Geeft {"modus", "reden", "ondergrens", "scan"} terug.
+    Levert meteen ook de Modules-NB-variant op. Dat is een tweede veld in hetzelfde
+    tool-schema en dus geen extra API-call: dit model leest de brontekst toch al, en de vraag
+    "beweegt dit vakgebied snel?" is precies het soort oordeel waar het hier voor zit.
+
+    Geeft {"modus", "reden", "ondergrens", "scan", "modules_nb", "modules_nb_reden"} terug.
     """
     scan = scan_vorm(content_bron, titel, dagen, verdict)
     ondergrens = scan["ondergrens"]
     uitkomst = {"modus": ondergrens, "reden": scan["reden"], "ondergrens": ondergrens,
-                "scan": scan}
+                "scan": scan, "modules_nb": sjabloon.MODULES_NB_DEFAULT,
+                "modules_nb_reden": ""}
     if client is None or not content_bron or ondergrens == "volledig":
         return uitkomst
 
@@ -1950,6 +2060,8 @@ def schat_modus(client, content_bron: dict, titel: str = "", dagen: int | None =
     if uitkomst["modus"] != voorstel:
         reden = f"{reden} (opgehoogd naar de ondergrens {ondergrens}: {scan['reden']})".strip()
     uitkomst["reden"] = reden or scan["reden"]
+    uitkomst["modules_nb"] = normaliseer_modules_nb(out.get("modules_nb"))
+    uitkomst["modules_nb_reden"] = _cel(out.get("modules_nb_reden"))
     return uitkomst
 
 
@@ -1973,6 +2085,7 @@ def modus_voorstellen(scored_path: str, source_path: str, out_path: str | None =
     client = make_client() if met_llm else None
 
     voorstellen, redenen, ondergrenzen = [], [], []
+    nb_voorstellen, nb_redenen = [], []
     for _, srow in scored.iterrows():
         tid = srow["training_id"]
         src_row = src_by_id.get(tid)
@@ -1984,18 +2097,22 @@ def modus_voorstellen(scored_path: str, source_path: str, out_path: str | None =
         voorstellen.append(uitkomst["modus"])
         redenen.append(uitkomst["reden"])
         ondergrenzen.append(uitkomst["ondergrens"])
+        nb_voorstellen.append(uitkomst["modules_nb"])
+        nb_redenen.append(uitkomst["modules_nb_reden"])
         if verbose:
             afwijking = "" if uitkomst["modus"] == uitkomst["ondergrens"] else \
                 f"  (ondergrens {uitkomst['ondergrens']})"
-            print(f"  {tid:>6}  {naam[:42]:42} -> {uitkomst['modus']:9}{afwijking}")
+            nb = "" if uitkomst["modules_nb"] == sjabloon.MODULES_NB_DEFAULT else "  [NB actueel]"
+            print(f"  {tid:>6}  {naam[:42]:42} -> {uitkomst['modus']:9}{afwijking}{nb}")
 
     scored["modus_voorstel"] = voorstellen
     scored["modus_reden"] = redenen
     scored["modus_ondergrens"] = ondergrenzen
-    if "modus_reviewer" not in scored.columns:
-        scored["modus_reviewer"] = ""
-    if "guidance_reviewer" not in scored.columns:
-        scored["guidance_reviewer"] = ""
+    scored["modules_nb_voorstel"] = nb_voorstellen
+    scored["modules_nb_reden"] = nb_redenen
+    for kolom in ("modus_reviewer", "guidance_reviewer", "modules_nb_reviewer"):
+        if kolom not in scored.columns:
+            scored[kolom] = ""
 
     if verbose:
         print("\nverdeling voorstel:", dict(Counter(voorstellen)))
@@ -2003,6 +2120,12 @@ def modus_voorstellen(scored_path: str, source_path: str, out_path: str | None =
         anders = sum(1 for v, o in zip(voorstellen, ondergrenzen) if v != o)
         print(f"voorstel wijkt af van de ondergrens bij {anders}/{len(voorstellen)} "
               f"-- juist die rijen zijn het nalezen waard")
+        nb_telling = dict(Counter(nb_voorstellen))
+        print("verdeling Modules-NB:", nb_telling)
+        n_actueel = nb_telling.get("actueel", 0)
+        if n_actueel > len(nb_voorstellen) / 3:
+            print(f"LET OP: {n_actueel} keer 'actueel'. Die NB hoort de uitzondering te zijn; "
+                  f"lees die rijen na voordat je ze doorzet.")
     if out_path:
         scored.to_excel(out_path, index=False)
         if verbose:
@@ -2270,6 +2393,12 @@ def neem_over(b: RewriteBriefing, client=None) -> tuple[RewriteResult, dict]:
         flags += [f"vervolgstappen-titel aangepast: {g}" for g in gewijzigd]
     if naam != titel:
         flags.append(f"titel aangepast: {naam} -> {titel}")
+
+    # Vaste teksten altijd verversen, ook op dit pad. "Overnemen" gaat over de geschreven
+    # tekst; de boilerplate is van ons en volgt het template. Zonder dit zou een training die
+    # niemand aanraakt met de vorige generatie vaste teksten in het CMS blijven staan.
+    content, ververst = uit.ververs_vaste_teksten(content, titel, b.modules_nb)
+    flags += [f"vaste tekst bijgewerkt: {v}" for v in ververst]
 
     reden = "voldoet al aan het actuele format"
     toegepast: list[str] = []

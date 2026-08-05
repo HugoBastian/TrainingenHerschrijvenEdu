@@ -6,17 +6,29 @@
 
 ## Inleiding
 
-### **Deze training bieden we ook als bedrijfstraining voor jou en je team**
+### **Deze training als bedrijfstraining voor jou en je team?**
 
-De inhoud stemmen we dan af op jullie werksituatie, systemen en concrete vraagstukken, zodat de training direct aansluit op wat er binnen de organisatie speelt. Zo ontstaat een gerichte en praktische training waarmee je de volgende dag direct aan de slag kunt.
+Elk vraagstuk en elke situatie is anders; daarom staan tijdens een bedrijfstraining jouw organisatie en (bedrijfs)vraagstukken centraal. In goed overleg stellen we een lesprogramma samen dat volledig aansluit bij jouw (jullie!) specifieke uitdaging, wensen en dagelijkse werkpraktijk.
 
 ---
 
 ## Modules
 
+Hier staat één van twee openingszinnen. De keuze is inhoudelijk, niet stilistisch.
+
+**Variant `stabiel` — de default.** Het programma is wat het is; de NB nodigt uit tot afstemming op de eigen praktijksituatie.
+
+Tijdens {aanduiding} komen onderstaande onderwerpen aan bod. NB: Mocht je vragen hebben over de actuele inhoud of deze aangepast willen zien op jouw specifieke praktijksituatie of trainingsbehoefte, bel ons dan gerust: we spreken de mogelijkheden graag met je door.
+
+**Variant `actueel` — alleen bij een snel bewegend expertisegebied.** Gebruik deze uitsluitend voor trainingen waarbij de tekst op de website in no-time achterhaald is door de ontwikkelingen op het vakgebied. Staat de NB er zonder die noodzaak, dan doet hij afbreuk aan het geheel.
+
+Tijdens {aanduiding} komen onderstaande onderwerpen aan bod. NB: Afhankelijk van snelle ontwikkelingen op dit expertisegebied, kan de werkelijke trainingsinhoud hier van afwijken. Bel ons gerust voor meer informatie over de actuele inhoud.
+
 ---
 
 ## Doelgroep
+
+Deze training is bedoeld voor …
 
 ---
 
@@ -26,9 +38,9 @@ De inhoud stemmen we dan af op jullie werksituatie, systemen en concrete vraagst
 
 ## Aanpak
 
-De training is interactief en praktijkgericht opgezet. Je werkt actief aan herkenbare situaties, met veel ruimte voor vragen en eigen voorbeelden. Door te oefenen, bespreken en reflecteren ervaar je hoe \[…..\]
+De training is praktisch en interactief van opzet, met veel ruimte voor jouw vragen en werksituatie. Je gaat aan de slag met passende praktijkvoorbeelden. Door actief te oefenen, te analyseren en te evalueren, maak je je de materie stap voor stap eigen en ervaar je hoe \[…..\]
 
-De training wordt verzorgd door trainers uit de praktijk, die ervaring hebben in verschillende organisatiecontexten. We houden altijd rekening met jouw verwachtingen, zodat de training aansluit bij wat voor jou relevant is.
+Onze trainers zijn, naast trainer, in hun dagelijks werk expert op hun trainingsonderwerp. Ze beschikken dus niet alleen over de meest actuele kennis, maar hebben ook essentiële praktijkervaring. Hierdoor zijn ze in staat om een waardevolle vertaalslag te maken van kennis naar toepassing binnen jouw organisatie en werksituatie.
 
 ---
 
@@ -42,15 +54,17 @@ Na deze training ben je in staat om:
 
 ## Vervolgstappen
 
-Binnen dit vakgebied beschikken wij over ruime praktijkervaring en specialistische kennis. Zoek je meer diepgang of een andere insteek? Neem gerust contact met ons op voor een vrijblijvende verkenning. We denken graag met je mee.
+Binnen dit expertisegebied beschikken wij over ruime kennis en praktijkervaring. Zoek je meer diepgang of een (compleet) andere insteek? Neem dan gerust contact met ons op voor een vrijblijvende verkenning. We denken graag met je mee!
 
-Er zijn verschillende vervolgtrainingen die aansluiten op specifieke onderwerpen, toepassingen en werkcontexten.
+Er zijn verschillende vervolgtrainingen, die aansluiten op specifieke onderwerpen, toepassingen en werkcontexten.
 
 Zo bieden we onder andere:
 
 * ..  
 * ..  
 * ..
+
+Levert de retrieval twee groepen op (verdiepen en verbreden), dan krijgt elke groep een eigen introzin in plaats van de regel hierboven. Die zin appelleert aan een noodzaak, een uitdaging of een doelstelling — niet aan rol of interesse.
 
 ---
 
@@ -59,7 +73,6 @@ Zo bieden we onder andere:
 …  
 ---
 
-## Certificatie
+## Deelnamecertificaat
 
-Na het volledig afronden van deze training ontvang je een certificaat van deelname.
-
+Na afronding van deze training ontvang je een certificaat van deelname.

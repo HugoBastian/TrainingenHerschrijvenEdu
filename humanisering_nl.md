@@ -12,6 +12,13 @@ De harde regels van de stijlgids gelden onverkort: geen marketingtaal, geen supe
 geen plafond (schrijfspec §0.4). Afwisseling telt hier zwaarder dan het getal — een rij
 zinnen van gelijke lengte is zélf een LLM-signaal, net als de patronen hieronder.
 
+**Alles hier geldt voor tekst die de schrijver zélf produceert.** De vaste sjabloonteksten in
+`sjabloon.py` vallen erbuiten: die zijn letterlijk aangeleverd door de schrijfstijl-eigenaar en
+worden niet gecontroleerd en niet beoordeeld. Een paar ervan overtreden §B en §C — `AANPAK_ALINEA_2`
+bevat "niet alleen … maar ook", "essentiële" en "waardevolle", en `VERVOLG_ALINEA_1` eindigt op
+een uitroepteken. Dat is een bewuste keuze voor onze eigen boilerplate en **verruimt niets** aan
+wat de schrijver mag schrijven. Kopieer die constructies dus niet naar gegenereerde tekst.
+
 ---
 
 ## A. Verboden openings- en vulzinnen (flag → herschrijven)
@@ -52,6 +59,19 @@ woorden gaan er altijd uit.
 - **"je houdt je bezig met"** — vult een zin zonder iets te zeggen; noem de handeling. [hard]
 - **"meeting"** — gebruik "overleg", "sessie" of "bijeenkomst". [flag] Het blijft een flag
   omdat het in Scrum-, Agile- en Teams-trainingen een vakterm kan zijn.
+- **"Deze training is voor …"** — de doelgroep opent met "Deze training is **bedoeld** voor …".
+  [hard] Zie schrijfspec §6; hier staat hij omdat het een woordkeuze is, geen structuurregel.
+- **"de Training X" midden in een zin** — het soortwoord is daar een gewoon zelfstandig
+  naamwoord: "de training PHP Professional", "de masterclass PHP". [flag] Als kop 1 blijft het
+  uiteraard "Training PHP Professional".
+- **"vakgebied"** — wij schrijven "expertisegebied". [flag]
+
+### Woorden die we juist wél gebruiken
+
+Geen verbod maar een voorkeur, en vaak genoeg van toepassing om hem hier vast te leggen:
+**werksituatie** en **werkpraktijk**. Waar je een abstractie zou schrijven over de omgeving van
+de deelnemer ("realistische situaties", "de dagelijkse context"), is een van deze twee bijna
+altijd concreter en beter.
 
 ## E. Toon-correcties (herschrijven, geen harde flag)
 

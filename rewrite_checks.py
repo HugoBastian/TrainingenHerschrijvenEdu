@@ -165,7 +165,19 @@ def _startswith_ci(text: str, prefix: str) -> bool:
 # ---------------------------------------------------------------------------
 
 def _all_text_fields(rw: dict) -> list[tuple[str, str]]:
-    """(sectie, tekst) voor elk tekstueel veld, incl. modules- en doelen-onderdelen."""
+    """(sectie, tekst) voor elk tekstueel veld, incl. modules- en doelen-onderdelen.
+
+    Dit zijn uitsluitend de velden die de *schrijver* levert. Vaste sjabloonteksten komen
+    hier bewust niet in voor, en dat is geen omissie: een paar ervan overtreden onze eigen
+    regels. `sjabloon.AANPAK_ALINEA_2` bevat "niet alleen ... maar ook" (een BANNED_PATTERN
+    hieronder) plus "essentiele" en "waardevolle"; `VERVOLG_ALINEA_1` eindigt op een
+    uitroepteken. Die teksten zijn letterlijk aangeleverd door de schrijfstijl-eigenaar en
+    het template is daarin leidend.
+
+    De asymmetrie is dus het ontwerp: de patronen mogen hard op eigen proza vuren juist
+    omdat vaste tekst nooit langs deze functie komt. Breid dit niet uit naar het
+    samengestelde document -- dan flagt elke training voor altijd zijn eigen boilerplate.
+    """
     out: list[tuple[str, str]] = []
     for key in ("overzicht", "inleiding", "aanpak_invulling",
                 "doelgroep", "voorkennis", "kortste_omschrijving"):
@@ -412,9 +424,11 @@ def check_doelgroep(rw: dict, ctx: dict | None = None) -> list[Issue]:
     if not t:
         return []
     issues = []
-    if not _startswith_ci(t, "deze training is voor"):
+    # "bedoeld voor" i.p.v. "is voor": dat zegt dat wij de training op deze lezer hebben
+    # gericht. Het verschil tussen een constatering en een uitnodiging.
+    if not _startswith_ci(t, "deze training is bedoeld voor"):
         issues.append(Issue("doelgroep", HARD, "opening",
-                            'moet beginnen met "Deze training is voor …".'))
+                            'moet beginnen met "Deze training is bedoeld voor …".'))
     # "professionals" stond hier als losse doelgroep-regel; die geldt inmiddels voor élk
     # kopje en zit in check_verboden_woorden, inclusief de uitzondering op de trainingstitel.
     if sentence_count(t) > 1:
@@ -516,6 +530,60 @@ def check_verboden_woorden(rw: dict, ctx: dict | None = None) -> list[Issue]:
     return issues
 
 
+# Het lerende aspect (schrijfspec Sectie 0.15): "kunnen", "leert ... te ...", "in staat".
+# Bewust ruim: elke vorm die het verworven vermogen zichtbaar maakt telt mee.
+_LEREND_RE = re.compile(
+    r"\b(?:kun|kunt|kunnen|kunje|kan|leer|leert|leren|geleerd|in staat|weten hoe"
+    r"|inzicht (?:te )?(?:krijgen|ontwikkelen))\b",
+    re.I,
+)
+
+# "de Training X" midden in een zin. Daar is het soortwoord een gewoon zelfstandig naamwoord
+# en geen deel van een titel. Kop 1 valt hier niet onder: dat is geen tekstveld.
+_SOORTWOORD_HOOFDLETTER_RE = re.compile(
+    r"\b(?:de|het|een|deze|die)\s+(Training|Masterclass|Workshop|Examentraining)\b"
+)
+
+
+def check_lerend_aspect(rw: dict, ctx: dict | None = None) -> list[Issue]:
+    """Overzicht en Kortste omschrijving maken het leren expliciet.
+
+    Wij trainen; de deelnemer levert het resultaat. "Wil je je eigen website bouwen?" belooft
+    dat wij de site bouwen, "... kunnen bouwen" niet. In de eerste review-ronde ontbrak dit
+    in vier van de vier Overzichten -- vandaar een check.
+
+    FLAG en niet HARD: de uitzondering uit Sectie 0.15 bestaat echt (de deelnemer bouwt het
+    eindproduct tijdens de training en neemt het mee), maar hij is zeldzaam genoeg om hem
+    bij de menselijke review langs te laten komen.
+    """
+    issues = []
+    for key in ("overzicht", "kortste_omschrijving"):
+        t = _norm(rw.get(key))
+        if t and not _LEREND_RE.search(t):
+            issues.append(Issue(key, FLAG, "lerend_aspect",
+                                "maakt het lerende aspect niet expliciet: geen 'kunnen', "
+                                "'leert ... te ...' of 'in staat'. Wij trainen, de deelnemer "
+                                "levert het resultaat (schrijfspec Sectie 0.15)."))
+    return issues
+
+
+def check_soortwoord_hoofdletter(rw: dict, ctx: dict | None = None) -> list[Issue]:
+    """"de training PHP Professional", niet "de Training PHP Professional".
+
+    De code-gegenereerde Modules-openingszin doet dit al goed (`lopende_aanduiding`); dit
+    vangt de schrijver die het in de Inleiding of het Overzicht alsnog met een hoofdletter
+    zet, meestal door de titel letterlijk over te nemen.
+    """
+    issues = []
+    for section, text in _all_text_fields(rw):
+        m = _SOORTWOORD_HOOFDLETTER_RE.search(text)
+        if m:
+            issues.append(Issue(section, FLAG, "soortwoord_hoofdletter",
+                                f"'{m.group(0)}': midden in een zin krijgt het soortwoord een "
+                                f"kleine letter ('de {m.group(1).lower()} ...')."))
+    return issues
+
+
 def check_soortwoorden(rw: dict) -> list[Issue]:
     """Niks heet nog een opleiding of een cursus -- alles is een training.
 
@@ -550,7 +618,9 @@ def check_rewrite(rewrite: dict, ctx: dict | None = None) -> list[Issue]:
     issues += check_kortste_omschrijving(rw, ctx)
     issues += check_vervolgstappen(rw, ctx)
     issues += check_soortwoorden(rw)
+    issues += check_soortwoord_hoofdletter(rw, ctx)
     issues += check_verboden_woorden(rw, ctx)
+    issues += check_lerend_aspect(rw, ctx)
     issues += check_generic(rw)
     issues += check_zinlengte(rw, ctx)
     return issues

@@ -29,9 +29,23 @@ oordeelt tegen de schrijfspec; hij bedenkt geen nieuwe regels.
 > gedachten door elkaar haalt en daardoor moeilijk leest, is dat een inhoudelijk punt — en
 > dan noem je die reden, niet het woordaantal.
 
-> Onder deze spec staan `humanisering_nl.md` en `stijlregister_nl.md` — dezelfde twee
-> bestanden die de schrijver kreeg. Waar deze spec ernaar verwijst, kun je ze dus echt
-> nalezen in plaats van gokken.
+> Onder deze spec staan `humanisering_nl.md`, `stijlregister_nl.md` en `correcties_nl.md` —
+> dezelfde bestanden die de schrijver kreeg. Waar deze spec ernaar verwijst, kun je ze dus echt
+> nalezen in plaats van gokken. `correcties_nl.md` is daarbij het nuttigst: het bevat echte
+> fout/goed-paren uit eerdere review-rondes, dus je ziet precies waar de grens ligt.
+
+> **Vaste sjabloonteksten beoordeel je niet.** [hard] Het concept bevat secties die de code
+> heeft ingevoegd en die de schrijver niet kan veranderen: de Modules-openingszin, de twee
+> Aanpak-alinea's, het bedrijfstrainingblok onder Inleiding, de Voorkennis-fallbackzin, de
+> Doelen-introzin, het Vervolgstappen-boilerplate en de Deelnamecertificaat-zin. Ze staan
+> letterlijk zoals de schrijfstijl-eigenaar ze heeft aangeleverd.
+>
+> Een paar ervan overtreden regels die voor de schrijver wél gelden: de tweede Aanpak-alinea
+> bevat "niet alleen … maar ook", "essentiële" en "waardevolle", en de eerste
+> Vervolgstappen-alinea eindigt op een uitroepteken. **Meld dat niet als fout en vraag er geen
+> revisie op.** De schrijver kan er niets aan doen en een revisieronde erop is weggegooid geld.
+> Wat je wél beoordeelt: of de schrijver die constructies heeft **overgenomen** in zijn eigen
+> tekst. Dat is wel een fout.
 
 ---
 
@@ -64,14 +78,27 @@ de brontekst, dan is dat goed — dat is de afgesproken voorrangsregel, en je ku
 nazien. Meldt de schrijver in `notities` een `kern-conflict:`, zet dan `human_queue` met die
 melding als `human_reden`; het is een signaal voor een mens, geen revisie voor de schrijver.
 
-- **Overzicht (1):** echte "Wil je …"-haak? voordelen i.p.v. losse features? persona-toon? geen marketing? Staat er "kunnen" waar wij handvatten bieden maar de deelnemer het resultaat levert ("je eigen website *kunnen* bouwen")?
+- **Overzicht (1):** echte "Wil je …"-haak? voordelen i.p.v. losse features? persona-toon? geen marketing?
+  **Drie punten die hier het vaakst misgaan:**
+  (a) *Het lerende aspect* (schrijfspec §0.15). Staat er "kunnen" of "leert … te …"? Dit is de standaardvorm, niet een afweging; weglaten mag alleen als de deelnemer het eindproduct tijdens de training bouwt en meeneemt. "Wil je datamodellen opzetten?" belooft dat wij het model maken.
+  (b) *Bevat de openingsvraag het doel*, of alleen de handeling? Zonder het waarom is de vraag een echo van de titel.
+  (c) *Hangt de belofte aan het zwaartepunt uit de kern*, of aan een afgeleide opbrengst die toevallig ook waar is? Een verschoven zwaartepunt verkoopt de verkeerde training — `fail`, ook als de zin goed geschreven is.
 - **Inleiding (2):** verdiepend t.o.v. (1), geen herhaling? praktijkgericht? tools ondergeschikt aan wat de deelnemer leert? Landen de USP's in één van de twee registers uit `stijlregister_nl.md` §A ("wat wij bieden" / "wat jij mag verwachten"), met "we" of "je" als onderwerp?
+  **Alinea-indeling:** meerdere alinea's zijn de norm (richtlijn drie), met een knip bij elke onderwerpwisseling. Eén blok van 200 woorden is een `fail`, ook als de zinnen goed zijn. De passage over de trainers hoort altijd een nieuwe alinea te beginnen.
 - **Modules (3):** modules niet-overlappend en dekkend voor het aantal dagen? actief geformuleerd? sub-bullets parallel en samen een sluitend verhaal? Staan de sub-bullets op het niveau van de kern, of is een dunne bron aangevuld met diepte die de training niet levert?
-- **Doelgroep (5):** op *bereiken* gericht, geen functietitels/"professionals"?
+- **Doelgroep (5):** opent met "Deze training is **bedoeld voor** …"? op *bereiken* gericht, geen functietitels/"professionals"?
 - **Voorkennis (6):** juiste keuze wel/niet-voorkennis gezien niveau/programma?
 - **Doelen (7):** staat elke bullet in de infinitief mét "te", zodat hij doorloopt op "Na deze training ben je in staat om:"? Concreet en realistisch, geen vage "inzicht toepassen"?
   **Let extra op stelligheid.** Die introzin is stellig en maakt overpromising makkelijk. Past de belofte bij het niveau uit de kern en het aantal dagen, of had hier een vergrotende trap gemoeten ("gerichter mee te praten" i.p.v. "te beheersen", zie `stijlregister_nl.md` §E)? Bij een introducerend niveau is die vergrotende trap de eerlijke vorm; levert de training een concrete vaardigheid op, dan mag de belofte juist direct zijn. Kijk hierbij naar het niveau, niet naar de persona — persona A gaat over toon en zegt niets over hoe diep de training gaat. Dit is een oordeel dat de code niet kan geven — het is expliciet jouw taak.
-- **Kortste omschrijving (9):** dezelfde belofte als (1), ingedikt, echte "Wil je …"-haak? Dezelfde "kunnen"-afweging als bij (1).
+  **Geen "kunnen" in de bullets.** Die lopen al door op "in staat om", dus "te kunnen bouwen" dubbelt net zo goed als "in staat te zijn om". Dit is het enige kopje waar het lerende aspect níét apart benoemd hoeft te worden.
+- **Kortste omschrijving (9):** dezelfde belofte als (1), ingedikt, echte "Wil je …"-haak? Zelfde lerende aspect als bij (1).
+
+**Vier dingen die je in élk kopje met lopende tekst weegt:**
+
+1. **Causaal verband** (schrijfspec §0.12). Staat er minstens één zin die de opbrengst aan de training koppelt, met een echt verbindingswoord (Hierdoor · Waardoor · Doordat · Zo)? Twee zinnen naast elkaar zetten telt niet. Dit is de meest gemiste regel en tegelijk de regel die onze toegevoegde waarde zichtbaar maakt.
+2. **Loze verwijzingen** (§0.16). Is elk "het proces", "de aanpak", "dit" te herleiden tot iets dat er staat? Moet je zelf invullen waar het naar wijst, dan is het een `fail`.
+3. **Onbekende vaktermen** (§0.17). Staat er een term die niet in de brontekst en niet in de titel voorkomt en die zonder uitleg wordt gebruikt?
+4. **Nederlands idioom** (§0.18). Overgankelijke werkwoorden zonder lijdend voorwerp; weggelaten "te" of "kunnen" in een opsomming; een kaal bijvoeglijk naamwoord op -baar; "de Training X" met een hoofdletter midden in een zin.
 
 De vaste secties (Aanpak 6, Vervolgstappen 8, het bedrijfstrainingblok onder Inleiding en
 Certificatie 10) beoordeel je niet op schrijfkwaliteit — die plaatst de code. Check bij

@@ -27,6 +27,7 @@ programma met geneste `<ul>` -- geen `<h3>` per module.
 from __future__ import annotations
 
 import html
+import re
 from typing import Any
 
 import sjabloon
@@ -146,6 +147,103 @@ def render_veld(veld: str, waarde: Any, ctx: dict | None = None) -> tuple[str, s
         raise KeyError(f"kopje {veld!r} is niet los te renderen; kies uit "
                        f"{sorted(_VELD_RENDER)}")
     return VELD_NAAR_CMS[veld], _VELD_RENDER[veld](waarde, ctx or {})
+
+
+# ---------------------------------------------------------------------------
+# Vaste teksten verversen in bestaande content
+# ---------------------------------------------------------------------------
+
+_H3_BLOK_RE = re.compile(r"\s*<h3>.*", re.S | re.I)
+_EERSTE_P_RE = re.compile(r"<p>.*?</p>", re.S | re.I)
+# De invulling loopt tot de eerste punt: "... ervaar je hoe |je XML in de praktijk toepast|."
+# Niet tot het eind van de alinea -- daar staat alinea 2 achteraan geplakt.
+_INVULLING_RE = re.compile(r"ervaar je hoe\s+([^.]+)\.", re.I)
+
+# Vaste alinea's van het kopje Vervolgstappen, huidig én vervallen. Herkend op hun eerste
+# woorden, want de staart van zo'n alinea is vaker met de hand bijgeschaafd dan de kop.
+_VERVOLG_VASTE_OPENINGEN = (
+    "Binnen dit expertisegebied beschikken wij",
+    "Binnen dit vakgebied beschikken wij",
+    "Er zijn verschillende vervolgtrainingen",
+    "Zo kies je een vervolgstap",
+)
+
+
+def _tekst_uit(html_fragment: str) -> str:
+    """Ruwe HTML -> platte tekst, voor het herkennen van vaste alinea's."""
+    plat = re.sub(r"<[^>]+>", "", html_fragment or "")
+    return re.sub(r"\s+", " ", html.unescape(plat)).strip()
+
+
+def ververs_vaste_teksten(content: dict, titel: str,
+                          modules_nb: str = sjabloon.MODULES_NB_DEFAULT) -> tuple[dict, list[str]]:
+    """Zet de vaste sjabloonteksten in bestaande content terug op de actuele versie.
+
+    Nodig voor het `overnemen`-pad. Dat pad laat `content` bewust byte-voor-byte staan, zodat
+    een goede tekst niet slechter wordt van een herschrijfronde -- maar vaste teksten zijn
+    geen tekst van de schrijver. Verandert het template, dan horen ze mee te veranderen, ook
+    in een training die verder niemand aanraakt. Zonder deze stap belandt een training met de
+    vorige generatie boilerplate ongewijzigd in het CMS.
+
+    Alleen de deterministische delen worden vervangen; de geschreven tekst eromheen blijft
+    staan. Geeft (nieuwe content, lijst met wat er is ververst) terug.
+    """
+    nieuw = dict(content or {})
+    gewijzigd: list[str] = []
+
+    def _zet(sleutel: str, waarde: str, label: str):
+        if nieuw.get(sleutel) != waarde and waarde:
+            nieuw[sleutel] = waarde
+            gewijzigd.append(label)
+
+    # Deelnamecertificaat: volledig vast, geen variabelen.
+    _zet("certification", f"<p>{_esc(sjabloon.CERTIFICATIE)}</p>", "Deelnamecertificaat")
+
+    # Inleiding: alles vanaf de <h3> is het bedrijfstrainingblok en wordt vervangen. De
+    # geschreven inleiding erboven blijft ongemoeid.
+    intro = nieuw.get("intro") or ""
+    if "<h3" in intro.lower():
+        geschreven = _H3_BLOK_RE.sub("", intro).strip()
+        _zet("intro", "\n".join([
+            geschreven, "",
+            f"<h3>{_esc(sjabloon.BEDRIJFSTRAINING_KOP)}</h3>",
+            f"<p>{_esc(sjabloon.BEDRIJFSTRAINING_TEKST)}</p>",
+        ]).strip(), "bedrijfstrainingblok")
+
+    # Modules: alleen de openingszin (de eerste <p>), niet de modulelijst eronder.
+    modules = nieuw.get("modules") or ""
+    if _EERSTE_P_RE.search(modules):
+        opening = sjabloon.modules_opening(titel, modules_nb)
+        _zet("modules", _EERSTE_P_RE.sub(f"<p>{_esc(opening)}</p>", modules, count=1),
+             "Modules-openingszin")
+
+    # Aanpak: twee vaste alinea's rond één geschreven invulling. Die invulling zit achter
+    # "ervaar je hoe ..." en is het enige wat we willen behouden.
+    setup = nieuw.get("setup") or ""
+    if setup:
+        m = _INVULLING_RE.search(_tekst_uit(setup))
+        invulling = (m.group(1).strip() if m else "") or sjabloon.AANPAK_FALLBACK
+        if not m:
+            gewijzigd.append("LET OP: Aanpak-invulling niet teruggevonden, fallback gebruikt")
+        _zet("setup", _paragrafen(
+            sjabloon.AANPAK_ALINEA_1.format(invulling=invulling) + "\n\n"
+            + sjabloon.AANPAK_ALINEA_2, scheiding="\n\n"), "Aanpak")
+
+    # Vervolgstappen: de vaste alinea's ervoor en de vervallen afsluiter erachter. De
+    # catalogustitels en hun groep-intro's blijven precies zoals ze staan.
+    follow = nieuw.get("follow_up") or ""
+    if follow and "<ul" in follow.lower():
+        # Op inhoud filteren, niet op positie: een groep-intro zit soms in hetzelfde blok
+        # als zijn <ul> en soms erboven, dus tellen levert de verkeerde grens op. Wat blijft
+        # staan is alles wat geen vaste alinea is -- dus de titels en hun eigen intro's.
+        blokken = [b for b in re.split(r"\n\s*\n", follow) if b.strip()]
+        staart = [b for b in blokken
+                  if not _tekst_uit(b).startswith(_VERVOLG_VASTE_OPENINGEN)]
+        kop = [f"<p>{_esc(sjabloon.VERVOLG_ALINEA_1)}</p>",
+               f"<p>{_esc(sjabloon.VERVOLG_ALINEA_2)}</p>"]
+        _zet("follow_up", "\n\n".join(kop + staart), "Vervolgstappen-boilerplate")
+
+    return nieuw, gewijzigd
 
 
 def document_to_content(document: dict, source_content: dict | None = None) -> dict:

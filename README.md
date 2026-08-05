@@ -259,7 +259,19 @@ python rewrite_trainings.py --goud --source "/pad/naar/bronsheet.xlsx" --out-dir
 
 Schrijft de trainingen met `herschreven=1` weg naar `herschreven/goud/<id>.json`. Dat is
 referentiemateriaal om spec en judge aan te kalibreren — géén voorschrift; het template en de
-schrijfspec zijn leidend. Het corpus heeft twee toepassingen:
+schrijfspec zijn leidend.
+
+> **Sinds Templatev2 is dit corpus alleen nog meetlat, geen voorbeeld.** Het dateert van vóór
+> het nieuwe template én vóór de eerste stijlronde. Concreet: 77 van de 78 openen met "Deze
+> training is voor" in plaats van "is bedoeld voor", geen enkele demonstreert het lerende
+> aspect uit schrijfspec §0.15, en er haalt er nu **nul** élke harde check. Als few-shot zou
+> het precies de vormen tonen die de spec inmiddels verbiedt. De few-shot komt daarom uit
+> `herschreven/goud_v2/` — zie hieronder.
+>
+> Lees de nieuwe `doelgroep: opening`-fails (77×) dus niet als regressie: dat is de regel die
+> verandert, niet het goud dat slechter wordt.
+
+Het corpus heeft twee toepassingen:
 
 ```python
 rw.checks_over_goud()    # hoe vaak faalt elke harde regel op de 78 trainingen?
@@ -290,8 +302,38 @@ modules-checks weglaat, zodat beide getallen naast elkaar staan.
 
 Het goud dateert van vóór de huidige Doelen-introzin: 47 van de 78 openen nog met "Na deze
 training heb je handvatten om:". `goud_voorbeelden()` vervangt die regel bij het opbouwen van
-de few-shot door `sjabloon.DOELEN_INTRO`, zodat het voorbeeld niet de zin demonstreert die de
-schrijfspec verbiedt. De bullets eronder staan al in de te-infinitief en lopen ongewijzigd door.
+de few-shot door `sjabloon.DOELEN_INTRO`. Dat is sinds de overstap naar `goud_v2` een vangnet
+in plaats van een noodzaak — het blijft staan voor wie `goud_dir` terugzet op het oude corpus.
+
+### 3b. Few-shot: `goud_v2` (tijdelijk)
+
+```bash
+python bouw_goud_v2.py     # herbouwt herschreven/goud_v2/ uit de bron in het script
+```
+
+Vier trainingen die als eerste door de nieuwe pipeline gingen en daarna zijn nagelezen: PHP
+Professional, Data Modeling, Big Data Foundation en JavaScript Design Patterns. Alle 45
+comments uit die ronde zijn erin verwerkt, plus de regels die daaruit zijn gedistilleerd. Ze
+staan in het nieuwe template, halen alle harde checks en gaan als few-shot mee in de
+gecachete system-prefix van de schrijver.
+
+**Dit is bewust tijdelijk** (`GOUD_V2_INTERIM = True`). Het is *gerepareerd* materiaal, niet
+materiaal dat vanaf de eerste zin volgens deze regels is geschreven — en dat verschil zie je
+terug in wat een few-shot voordoet. Het vervangingspad:
+
+1. een batch van 10–15 trainingen draaien met de huidige spec;
+2. `checks_over_goud(rw.GOUD_V2_DIR)` erover;
+3. 3–4 laten aftekenen door de schrijfstijl-eigenaar;
+4. die in `herschreven/goud_v2/` zetten, deze vier eruit, `GOUD_V2_INTERIM = False`.
+
+`test_fewshot_haalt_zelf_alle_harde_checks` bewaakt intussen dat het voorbeeldmateriaal zijn
+eigen regels haalt. Verander je een regel en valt die test om, dan is het voorbeeld het
+probleem — niet de test.
+
+**Let op bij de lengtebanden.** Die zijn gekalibreerd op het oude corpus, dus op tekst zónder
+"kunnen"-framing en zónder causale slotzin. Beide toevoegingen maken tekst langer, dus de
+Overzicht-band (55–65) kan te laag komen te liggen. Niet vooraf bijstellen: meet op de eerste
+nieuwe batch met `lengtes_over_goud()` en besluit dan.
 
 ### De stijl-lagen
 
@@ -300,13 +342,32 @@ Stijl zit bewust in drie soorten lagen, met een strikte werkverdeling:
 | Laag | Waar | Voor |
 | --- | --- | --- |
 | Vaste tekst | `sjabloon.py` | Zinnen die de code invoegt; de schrijver raakt ze niet aan. |
-| Prompt | `schrijfspec` (regels) · `humanisering_nl.md` (verboden) · `stijlregister_nl.md` (register) | Alles wat oordeel vraagt. Gaat naar schrijver én judge. |
+| Prompt | `schrijfspec` (regels) · `humanisering_nl.md` (verboden) · `stijlregister_nl.md` (register) · `correcties_nl.md` (fout/goed-paren) | Alles wat oordeel vraagt. Gaat naar schrijver én judge. |
 | Check | `rewrite_checks.py` | Alleen wat deterministisch te betrappen is. |
 
 Positieve stijlvoorkeur ("gebruik een vergrotende trap waar het doel begrip is") hoort per
 definitie in de promptlaag: code kan niet zien of een woord raak gekozen is. Een verbodslijst
 hoort in beide — de tekst in `humanisering_nl.md`, de regex in `rewrite_checks.py`. Die twee
 zijn een handmatige spiegel; wijk je in de één af, dan lopen schrijver en check uiteen.
+
+`correcties_nl.md` is de nieuwste laag en groeit per review-ronde. Het bevat echte fout/goed-
+paren met de motivering erbij, want de ❌-zin is meestal niet fóut maar net niet raak — en dat
+verschil is met een regel moeilijker over te brengen dan met een contrast. Zet er een paar in
+zodra een correctie **twee keer** terugkomt; een eenmalige opmerking hoort in de training zelf.
+
+### Vaste tekst valt buiten de taalregels
+
+Een paar aangeleverde sjabloonzinnen overtreden regels die voor de schrijver wél gelden:
+`AANPAK_ALINEA_2` bevat "niet alleen … maar ook" (een `BANNED_PATTERN`), plus "essentiële" en
+"waardevolle"; `VERVOLG_ALINEA_1` eindigt op een uitroepteken. Het template is daarin leidend,
+dus dat blijft zo. Het is op drie plekken expliciet gemaakt, en die horen bij elkaar:
+
+- `_all_text_fields()` scant alléén velden van de schrijver, nooit vaste tekst;
+- de schrijfspec (§5, §13) zegt dat de vaste tekst geen voorbeeld is voor eigen proza;
+- de beoordelingsspec verbiedt de judge er revisie op te vragen.
+
+Haal je één van de drie weg, dan flagt elke training voor altijd zijn eigen boilerplate — of
+gaat de schrijver de constructie kopiëren omdat hij hem als huisstijl leest.
 
 ### Notebook
 
@@ -400,7 +461,9 @@ geen stijlafweging in.
 ## Tests
 
 ```bash
-python test_rewrite.py     # 110 offline checks, geen API-key nodig
+python bouw_goud_v2.py     # few-shot opbouwen; `herschreven/` is gitignored, dus dit hoort
+                           # bij een verse checkout. Geen API-key nodig.
+python test_rewrite.py     # 149 offline checks, geen API-key nodig
 ```
 
 Getest wordt de deterministische laag: de code-check, de structurele splitsing van
