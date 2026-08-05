@@ -65,6 +65,16 @@ woorden gaan er altijd uit.
   naamwoord: "de training PHP Professional", "de masterclass PHP". [flag] Als kop 1 blijft het
   uiteraard "Training PHP Professional".
 - **"vakgebied"** — wij schrijven "expertisegebied". [flag]
+- **"plaatsen"** als werkwoord voor wat de deelnemer leert — "begrippen kunnen plaatsen", "het
+  model plaatsen binnen …". [flag] Het zegt niets: plaatsen wáár, en wat kun je er dan mee?
+  Schrijf wat de deelnemer werkelijk doet: "de opbouw van het model doorgronden", "het verschil
+  tussen X en Y benoemen", "weten wanneer je X inzet". Zie schrijfspec §0.19.
+- **"in elkaar zit"** — "ervaar je hoe een analysetraject in elkaar zit". [flag] Ook een
+  onderkant-formulering. "hoe een analysetraject is opgebouwd" zegt hetzelfde en is wél een
+  respectabele constructie, die je bovendien kunt versterken met een bijwoord.
+- **"(gerichter) meepraten"** als de belofte van een training. [flag] Ook als het waar is, is
+  het geen belofte waarvoor iemand betaalt. Zeg binnen dezelfde scope wat de deelnemer écht
+  overhoudt: "een stevige basis leggen in …", "de structuur van X volledig begrijpen".
 
 ### Woorden die we juist wél gebruiken
 
@@ -112,3 +122,70 @@ zet (vandaag )?(nog )?de eerste stap
 > Onderhoud: breid uit op basis van wat je in de eerste batch-output terugziet. Houd
 > vakspecifieke uitzonderingen (bijv. "cruciaal pad" in projectmanagement) in gedachten —
 > daarom flag, geen hard-fail.
+
+---
+
+## G. Anglicismen en onnodige leenwoorden (flag)
+
+Schrijf in natuurlijk, idiomatisch Nederlands. Twee dingen gaan mis, en ze vragen een ander
+oordeel:
+
+**G1. Structurele anglicismen** — een Engelse constructie letterlijk vertaald. Die klinkt
+Nederlands maar is het niet, en dat is precies waarom een LLM ze produceert. Voorbeelden uit
+reviewronde 2:
+
+❌ "Daarna **werk je door** de categorieën waarin patterns worden ingedeeld"
+✅ "Daarna **neem je** de categorieën **door** waarin je patronen indeelt"
+
+❌ "Je leert het onderscheid tussen een conceptueel en een logisch model **kennen**"
+✅ "Je leert **onderscheid te maken** tussen een conceptueel en een logisch model"
+
+**G2. Leenwoorden waar een gewoon Nederlands woord staat.** Hier telt of het een echte vakterm
+is. `Skills`, `stakeholders` en `mindset` hebben een Nederlandse tegenhanger die niets verliest;
+`governance`, `compliance`, `performance` en `deployment` zijn in onze catalogus gewoon de term.
+Bij twijfel: staat het woord in de brontekst of de trainingstitel, dan is het een vakterm.
+
+**De middenweg bij een ingeburgerde Engelse term.** Gebruik het Engels als **hele term** en het
+Nederlands als **los woord**. Uit de review op JavaScript Design Patterns:
+
+> "Ik zou in een lopende zin, zoals 'hoe zo'n pattern is opgebouwd', wel patroon gebruiken. Dus
+> wel design pattern als volledige term, maar patroon als los woord."
+
+✅ "Je leert de belangrijkste **design patterns** te benoemen en te doorgronden hoe zo'n
+**patroon** is opgebouwd."
+
+### `ANGLICISMEN` (machine-leesbaar, voor `rewrite_checks.py`)
+
+Regex → Nederlandse tegenhanger. Hoofdletter-ongevoelig, **flag**. Bewust conservatief: alleen
+gevallen met een schoon alternatief. Wat een echte vakterm kán zijn (`best practices`,
+`governance`, `performance`, `deployment`) staat er niet in.
+
+```
+werk(?:t|en)?\s+(?:je|we)\s+door\s+de  = neem je de … door
+onderscheid\b[^.]{0,30}\bkennen        = onderscheid maken tussen
+\bin lijn met\b                        = volgens / passend bij
+op (?:een )?(?:dagelijkse|wekelijkse|regelmatige) basis = dagelijks / wekelijks / regelmatig
+\badresseer(?:t|en|d|de)?\b            = aanpakken / behandelen
+\bimpacteer(?:t|en|d|de)?\b            = raken / beïnvloeden
+\bcontrole (?:te )?nemen over\b        = de regie nemen over
+\bzo snel als mogelijk\b               = zo snel mogelijk
+\b(?:support|deliver|challeng|shar|align|committ)(?:en|t|de)\b = ondersteunen / opleveren / bevragen / delen / afstemmen / vastleggen
+\bskills\b                             = vaardigheden
+\bstakeholders?\b                      = belanghebbenden / betrokkenen
+\bmindset\b                            = houding / denkwijze
+\binsights?\b                          = inzichten
+\bchallenges\b                         = uitdagingen / knelpunten
+\btooling\b                            = gereedschap / hulpmiddelen
+\bhands[- ]on\b                        = praktisch
+\bissues\b                             = knelpunten
+\bawareness\b                          = bewustzijn
+\bownership\b                          = eigenaarschap
+\blearnings\b                          = lessen / inzichten
+\balignment\b                          = afstemming
+\bdeep[- ]dive\b                       = verdieping
+\bend[- ]to[- ]end\b                   = van begin tot eind
+```
+
+> Onderhoud: net als §F groeit deze lijst per review-ronde. Vuurt een patroon op de eigen
+> catalogus vaker dan ongeveer één op de vijf trainingen, kijk dan eerst of het geen vakterm is
+> — meet met een scriptje over `herschreven/goud/` voordat je hem toevoegt.

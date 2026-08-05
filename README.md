@@ -373,10 +373,11 @@ terug in wat een few-shot voordoet. Het vervangingspad:
 eigen regels haalt. Verander je een regel en valt die test om, dan is het voorbeeld het
 probleem — niet de test.
 
-**Let op bij de lengtebanden.** Die zijn gekalibreerd op het oude corpus, dus op tekst zónder
-"kunnen"-framing en zónder causale slotzin. Beide toevoegingen maken tekst langer, dus de
-Overzicht-band (55–65) kan te laag komen te liggen. Niet vooraf bijstellen: meet op de eerste
-nieuwe batch met `lengtes_over_goud()` en besluit dan.
+**Dat vermoeden over de lengtebanden is inmiddels bevestigd.** Ze waren gekalibreerd op het oude
+corpus, dus op tekst zónder "kunnen"-framing en zónder causale slotzin, en dat maakte de
+Overzicht-band te krap. Reviewronde 2 bevestigde het van de andere kant; de band staat nu op
+55–80 (zie "Lengtes: richtlijn met vangrail"). Voor de Inleiding is dezelfde meting nog niet
+gedaan — meet die op de eerste nieuwe batch met `lengtes_over_goud()` en besluit dan.
 
 ### De stijl-lagen
 
@@ -478,7 +479,7 @@ schrijft hij het kopje opnieuw.
 
 | Kopje | Doelband | Vangrail |
 | --- | --- | --- |
-| Overzicht | 55–65 woorden | 45–90 |
+| Overzicht | 55–80 woorden | 45–110 |
 | Inleiding | 180–210 woorden (1 dag: 170–200 · 4+ dagen: 190–230) | 150–260 (4+ dagen: 150–280) |
 | Zin (lopende tekst) | ±20 woorden gemiddeld | geen — alleen een FLAG boven 35 |
 | Voorkennis | zo compact mogelijk, meestal één of twee zinnen | geen — alleen een FLAG boven 45 woorden |
@@ -491,6 +492,15 @@ model dat alleen een bereik krijgt kiest stelselmatig de bovenkant. De vorige va
 4–6 stond smaller dan de eigen catalogus: van de 71 bestaande nieuwe-stijl trainingen met een
 genest programma viel 31% erbuiten, vrijwel allemaal erboven (7 t/m 10). De medianen lopen op
 met de duur (1 dag → 5, 2–3 dagen → 6, 4+ → 7); de huidige banden dekken 85% van dat corpus.
+
+**Het Overzicht ging in reviewronde 2 van 55–65 naar 55–80.** Twee signalen wezen dezelfde kant
+op. De catalogus: mediaan 64 woorden, p75 77, p90 94 — maar 29 van de 78 haalden 55–65, dus de
+band stond onder de eigen praktijk. En de review: *"lengtebeperking is geen doel op zich; liever
+wat langer, maar een complete intro in de materie, dan korter door de bocht"* — bij één van de
+drie beoordeelde trainingen ontbrak een heel onderwerp uit het programma in het Overzicht. De
+ondergrens blijft staan: te kort betekent nog steeds dat er inhoud mist. Gemeten met
+`lengtes_over_goud()`: de doelband gaat van 29/78 (37%) naar 44/78 (56%), de vangrail van
+65/78 naar 75/78 (96%).
 
 **Voorkennis stond eerder op "één zin, [flag]".** Die regel flagde precies het antwoord dat de
 schrijfspec zelf aanbeveelt ("Enige ervaring met […] is vereist. Mocht je hier vragen over
@@ -517,12 +527,41 @@ oordeelt bewust niet over lengte. Het onderliggende principe staat boven aan §0
 schrijfspec: **bij twijfel gaat functie vóór vorm**, behalve bij de harde regels, want daar zit
 geen stijlafweging in.
 
+### De taalchecks uit reviewronde 2
+
+Vier signalen, alle vier **FLAG** — ze gaan naar de judge en de menselijke review en nooit terug
+naar de schrijver. Dat is bewust: elk van de vier vraagt een oordeel dat een regex niet kan
+geven. Tussen haakjes staat hoe vaak ze op de eigen 78 vuren, want dat is de maat voor of een
+check ruis of signaal is.
+
+| Check | Wat | Op het goud |
+| --- | --- | --- |
+| `anglicisme` | Letterlijk vertaalde constructies ("werk je door de …", "onderscheid kennen") en leenwoorden met een schone Nederlandse tegenhanger ("skills", "stakeholders"). Lijst in `humanisering_nl.md` §G. Hooguit één per veld. | 25/78 |
+| `zwakke_formulering` | Beloftes "aan de onderkant": "plaatsen", "in elkaar zit", "meepraten", "zelfstandig". De boodschap noemt het sterkere alternatief. | 18/78 |
+| `contactzin_zonder_dan` | "neem gerust contact" i.p.v. "neem **dan** gerust contact". | 35/78 |
+| `geen_na_deze_training` | De Kortste omschrijving mist "Na deze training …" na de openingsvraag. | 77/78 |
+
+Die laatste twee getallen zijn hoog en dat klopt: het zijn nieuwe regels, geen corpuspatronen.
+Bij `anglicisme` is de lijst juist wél op het corpus gekalibreerd — wat een echte vakterm kan
+zijn blijft eruit (`best practices` 13/78 en het staat in onze eigen schrijfspec, `governance`
+15/78, `compliance` 7/78, `performance` 8/78). Voeg je een patroon toe, meet het dan eerst over
+`herschreven/goud/`; vuurt het vaker dan ongeveer één op de vijf, dan is het waarschijnlijk een
+vakterm.
+
+**Wat bewust géén check is geworden.** De slotzin-constructie ("Hierdoor ben je in staat om …"
+i.p.v. een kaal "Hierdoor kun je …") staat in 0 van de 78 slotzinnen — een check zou het hele
+corpus flaggen én elke training in dezelfde zin duwen, precies wat `stijlregister_nl.md` §B
+afraadt. Lange samenstellingen ("datamodellerings-software") evenmin: bij ≥22 tekens raakt dat
+45 van de 78 trainingen met woorden die niemand splitst ("organisatievraagstukken"). En de
+dubbeling tussen Doelgroep en Voorkennis is met een regex fragieler te vangen dan het probleem
+groot is. Alle drie staan in de schrijfspec en in de beoordelingsspec, waar een oordeel wél kan.
+
 ## Tests
 
 ```bash
 python bouw_goud_v2.py     # few-shot opbouwen; `herschreven/` is gitignored, dus dit hoort
                            # bij een verse checkout. Geen API-key nodig.
-python test_rewrite.py     # 149 offline checks, geen API-key nodig
+python test_rewrite.py     # 186 offline checks, geen API-key nodig
 ```
 
 Getest wordt de deterministische laag: de code-check, de structurele splitsing van

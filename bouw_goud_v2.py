@@ -28,11 +28,12 @@ TRAININGEN = [
         "dagen": 5,
         "modules_nb": "stabiel",
         "overzicht": (
-            "Wil je professioneel leren programmeren in PHP en zelfstandig een webapplicatie "
+            "Wil je professioneel leren programmeren in PHP en zelf een webapplicatie "
             "kunnen bouwen die je daarna goed kunt onderhouden? Je werkt van functioneel naar "
             "objectgeoriënteerd programmeren en zet een MySQL-database op die je in je "
-            "applicatie gebruikt. Je leert veilig te programmeren en bouwt een eigen "
-            "webwinkel. Hierdoor lever je na afloop werkende, goed onderhoudbare code op."
+            "applicatie gebruikt. Je leert veilig te programmeren, beheert je afhankelijkheden "
+            "met Composer en bouwt een eigen webwinkel. Hierdoor ben je in staat om werkende, "
+            "goed onderhoudbare code op te leveren."
         ),
         "inleiding": (
             "PHP draait achter een groot deel van het web, van kleine sites tot complexe "
@@ -90,12 +91,12 @@ TRAININGEN = [
         ],
         "doelgroep": (
             "Deze training is bedoeld voor iedereen die vanaf de basis wil leren programmeren "
-            "in PHP en zelfstandig webapplicaties wil kunnen bouwen."
+            "in PHP en zelf webapplicaties wil kunnen bouwen."
         ),
         "voorkennis": sjabloon.VOORKENNIS_FALLBACK,
         "aanpak_invulling": "je losse PHP-scripts uitbouwt tot een werkende, veilige webapplicatie",
         "doelen": [
-            "Zelfstandig PHP-scripts te ontwerpen en te schrijven",
+            "Werkende PHP-code te ontwerpen, te schrijven en te debuggen",
             "Een relationele database in MySQL op te zetten en te bevragen",
             "Objectgeoriënteerd te programmeren met eigen en externe classes",
             "Veilig te programmeren met inputvalidatie en prepared statements",
@@ -111,8 +112,8 @@ TRAININGEN = [
         ],
         "kortste_omschrijving": (
             "Wil je professioneel leren programmeren in PHP en zelf een webapplicatie kunnen "
-            "bouwen? Je werkt van functioneel naar objectgeoriënteerd en levert een werkend "
-            "project op."
+            "bouwen? Na deze training weet je hoe je objectgeoriënteerd en veilig werkende "
+            "code oplevert."
         ),
     },
     # -------------------------------------------------------------------
@@ -123,15 +124,17 @@ TRAININGEN = [
         "modules_nb": "stabiel",
         "overzicht": (
             "Wil je zelf datamodellen kunnen opzetten en bestaande modellen kunnen "
-            "beoordelen, zodat je datastructuren betrouwbaar blijven als je systeem groeit? "
-            "Je werkt met conceptuele, logische en fysieke modellen, met ER-diagrammen en met "
-            "normalisatie tot en met 3NF. Je leert relaties correct vast te leggen en de "
-            "vertaling naar een fysieke implementatie te maken. Hierdoor houd je grip op de "
-            "kwaliteit van je datastructuren."
+            "beoordelen, zodat je datastructuren altijd betrouwbaar blijven, ook als het "
+            "systeem groeit? Je werkt met conceptuele, logische en fysieke modellen, met "
+            "ER-diagrammen en met normalisatie tot en met 3NF, en je maakt kennis met "
+            "stermodelleren volgens Kimball. Je leert relaties correct vast te leggen en te "
+            "vertalen naar een fysieke implementatie. Hierdoor ben je in staat om je "
+            "ontwerpkeuzes te onderbouwen en de kwaliteit van je datastructuren te bewaken."
         ),
         "inleiding": (
-            "Data modeling begint met de vraag welke structuur je nodig hebt voordat je gaat "
-            "bouwen. In deze training werk je aan drie modelniveaus. Het conceptuele model bakent "
+            "Data modeling begint bij de vraag hoe je je data kunt structureren, nog voor je "
+            "begint te bouwen. In deze training verdiep je je in drie modelniveaus. Het "
+            "conceptuele model bakent "
             "de scope af, het logische model verfijnt de structuur en het fysieke model "
             "vertaalt naar datastores. Je legt entiteiten, attributen en sleutels vast en "
             "kiest de juiste cardinaliteit bij 1:1, 1:N en N:N.\n\n"
@@ -177,25 +180,28 @@ TRAININGEN = [
             {"titel": "Multidimensionaal modelleren met sterschema's (Kimball)", "bullets": [
                 "De opbouw van een sterschema volgens Kimball doorgronden",
                 "Multidimensionaal en relationeel modelleren vergelijken",
-                "Sterschema's plaatsen binnen cloud-datawarehouse- en lakehouse-omgevingen",
+                "De rol van sterschema's binnen cloud-datawarehouse- en lakehouse-omgevingen bepalen",
                 "Data Vault verkennen als aanvulling naast Kimball",
                 "Document-datamodellen bekijken als contrast met het relationele model",
             ]},
-            {"titel": "Tooling en praktijk", "bullets": [
-                "Kennismaken met datamodelleringssoftware",
+            {"titel": "Gereedschap en praktijk", "bullets": [
+                "Kennismaken met datamodellerings-software",
                 "Een eerste model opzetten in de tool",
                 "Oefenen met ERD's op basis van concrete eisen",
                 "Testcases opstellen en het model daarmee toetsen",
             ]},
         ],
+        # Doelgroep en Voorkennis staan pal onder elkaar en mogen elkaar niet herhalen
+        # (schrijfspec Sectie 6/7): de Doelgroep zegt wat je wilt bereiken, de Voorkennis noemt
+        # de concrete voorwaarde.
         "doelgroep": (
-            "Deze training is bedoeld voor iedereen met technische ervaring in "
-            "informatiesystemen en databases die datamodellen wil kunnen lezen, beoordelen en "
-            "zelf opzetten."
+            "Deze training is bedoeld voor iedereen die datamodellen wil kunnen lezen, "
+            "beoordelen en zelf opzetten bij het ontwerpen van informatiesystemen en databases."
         ),
         "voorkennis": (
             "Enige ervaring met informatiesystemen en databases en een analytische manier van "
-            "werken is vereist; heb je hier vragen over, neem dan gerust contact met ons op."
+            "werken is vereist. Mocht je hier vragen over hebben, neem dan gerust contact met "
+            "ons op."
         ),
         "aanpak_invulling": "ontwerpkeuzes in een datamodel doorwerken in de uiteindelijke database",
         "doelen": [
@@ -216,8 +222,8 @@ TRAININGEN = [
                         "Master Power BI - Ontwerpintelligentie met Data Modeling & Stermodelleren"]},
         ],
         "kortste_omschrijving": (
-            "Wil je zelf datamodellen kunnen opzetten en beoordelen? Je werkt met conceptuele, "
-            "logische en fysieke modellen, ER-diagrammen en normalisatie tot 3NF."
+            "Wil je zelf datamodellen kunnen opzetten en beoordelen? Na deze training beheers "
+            "je conceptuele, logische en fysieke modellen, ER-diagrammen en normalisatie tot 3NF."
         ),
     },
     # -------------------------------------------------------------------
@@ -231,8 +237,8 @@ TRAININGEN = [
             "bruikbare conclusies leiden? Je leert het CRISP-DM-model toe te passen als vaste "
             "route door elk analysevraagstuk. Je leert datakwaliteit te beoordelen, passende "
             "algoritmen en tools te kiezen en uitkomsten te vertalen naar rapportages. "
-            "Hierdoor kun je een analysetraject gestructureerder doorlopen, van businessvraag "
-            "tot ingebruikname."
+            "Hierdoor ben je in staat om een analysetraject gestructureerd te doorlopen, van "
+            "businessvraag tot ingebruikname, en om de keuzes daarin te onderbouwen."
         ),
         "inleiding": (
             "Zonder vaste methode blijft data-analyse een reeks losse acties. CRISP-DM geeft "
@@ -243,11 +249,11 @@ TRAININGEN = [
             "leer je waarop je een model beoordeelt voordat het in gebruik gaat.\n\n"
             "Daarnaast krijg je overzicht van het speelveld eromheen. Je verkent begrippen als "
             "data mining, machine learning en predictive analytics, en je kijkt naar de "
-            "infrastructuur waarop analyses draaien. Ook introduceren we kort wat generatieve "
-            "AI betekent voor het analyseproces. We staan stil bij governance en bij de eisen "
-            "die de AVG stelt aan het gebruik van persoonsgegevens. Tot besluit behandelen we "
-            "datavisualisatie en rapportage, zodat je bevindingen landen bij wie beslissingen "
-            "neemt.\n\n"
+            "infrastructuur waarop analyses draaien. We introduceren daarbij kort wat "
+            "generatieve AI betekent voor het analyseproces. We staan stil bij governance en "
+            "bij de eisen die de AVG stelt aan het gebruik van persoonsgegevens. Aan het eind "
+            "van de training behandelen we datavisualisatie en rapportage, zodat je "
+            "bevindingen landen bij wie beslissingen neemt.\n\n"
             "Onze trainers zijn dagelijks werkzaam op dit expertisegebied. Hierdoor combineren "
             "ze de theorie met voorbeelden uit hun eigen projecten en herken je de afwegingen "
             "die ze bespreken. We laten de training aansluiten bij de onderwerpen en datasets "
@@ -256,7 +262,7 @@ TRAININGEN = [
         "modules": [
             {"titel": "Big data en data-analyse in kaart brengen", "bullets": [
                 "Doorgronden wat big data betekent voor sturing op strategie en bedrijfsprocessen",
-                "Begrippen plaatsen: data mining, machine learning, predictive analytics",
+                "Data mining, machine learning en predictive analytics van elkaar onderscheiden",
                 "Overzicht opbouwen van beschikbare methoden, modellen en algoritmen",
                 "Infrastructuur en tools vergelijken, met cloud dataplatformen als voorbeeld",
                 "Kort verkennen wat generatieve AI toevoegt aan het analyseproces",
@@ -322,8 +328,8 @@ TRAININGEN = [
         ],
         "kortste_omschrijving": (
             "Wil je grip krijgen op grote datasets en analyses kunnen opzetten die tot "
-            "bruikbare conclusies leiden? Je past het CRISP-DM-model toe, van databegrip tot "
-            "rapportage."
+            "bruikbare conclusies leiden? Na deze training pas je het CRISP-DM-model toe, van "
+            "businessvraag tot rapportage."
         ),
     },
     # -------------------------------------------------------------------
@@ -333,104 +339,108 @@ TRAININGEN = [
         "dagen": 3,
         "modules_nb": "stabiel",
         "overzicht": (
-            "Wil je design patterns in JavaScript gericht kunnen inzetten, zodat je code "
-            "overzichtelijk en goed onderhoudbaar blijft naarmate je applicatie groeit? Je "
-            "leert de structuur achter patterns te doorgronden en ze toe te passen in moderne "
-            "JavaScript-code. Je werkt met ES6-modules, React- en Vue-componenten en "
-            "TypeScript. Hierdoor kun je onderbouwd het best passende pattern kiezen."
+            "Wil je design patterns in JavaScript gericht kunnen inzetten, zodat je "
+            "applicaties professioneel opgezet, goed onderhoudbaar en makkelijk uit te breiden "
+            "blijven? Je leert de structuur achter zo'n patroon te doorgronden en het toe te "
+            "passen in moderne JavaScript-code. Je werkt met ES6-modules, React- en "
+            "Vue-componenten en TypeScript. Hierdoor ben je in staat om onderbouwd het best "
+            "passende patroon te kiezen en die keuze te verdedigen."
         ),
         "inleiding": (
-            "In deze training werk je van de structuur van een pattern naar de toepassing "
+            "In deze training werk je van de structuur van een patroon naar de toepassing "
             "ervan in code. Je start bij de vraag wanneer een oplossing zich genoeg bewezen "
-            "heeft om een pattern te heten, en wanneer het nog een veelbelovend idee is. "
-            "Oplossingen die juist averechts werken leer je herkennen aan hun symptomen in "
-            "bestaande code. Daarna breng je de categorieën in kaart waarin je patterns "
+            "heeft om een design pattern te heten, en wanneer het nog een veelbelovend idee "
+            "is. Oplossingen die juist averechts werken leer je herkennen aan hun symptomen in "
+            "bestaande code. Daarna neem je de categorieën door waarin je die patronen "
             "indeelt, zodat je sneller het best passende type kunt kiezen.\n\n"
             "We nemen modern JavaScript als uitgangspunt: ES6-modules in plaats van losse "
-            "namespacing-constructies. Daarnaast kijk je naar patterns zoals je die in React- "
-            "en Vue-componenten terugziet. Ook TypeScript komt aan bod, met interfaces, "
-            "generics en decorators als aanvulling op de klassieke patterns. Kom je oudere "
+            "namespacing-constructies. Daarnaast kijk je naar de patronen zoals je die in "
+            "React- en Vue-componenten terugziet. Ook TypeScript komt aan bod, met interfaces, "
+            "generics en decorators als aanvulling op de klassieke oplossingen. Kom je oudere "
             "codebases tegen, dan koppelen we die aan hun moderne variant. Hierdoor lees je "
             "verouderde code zonder die stijl over te nemen.\n\n"
             "Onze trainers werken zelf dagelijks aan JavaScript-applicaties. Je mag rekenen op "
-            "een training waarin we theorie en code afwisselen en waarin we ingaan op "
+            "een training waarin we theorie en praktijk afwisselen en waarin we ingaan op "
             "vraagstukken uit jouw eigen codebase. We laten de voorbeelden aansluiten bij het "
             "framework en de architectuur waarmee je werkt. Aan het eind van de training bouw "
-            "je een eigen applicatie, waarin je je patternkeuzes onderbouwt en toetst op "
+            "je een eigen applicatie, waarin je je keuzes onderbouwt en toetst op "
             "onderhoudbaarheid."
         ),
         "modules": [
             {"titel": "Fundamenten van design patterns", "bullets": [
-                "Onderscheiden van bewezen patterns, veelbelovende ideeën en de rule of three",
-                "Ontleden van de structuur van een pattern",
+                "Onderscheiden van bewezen patronen, veelbelovende ideeën en de rule of three",
+                "Ontleden van de structuur van een patroon",
                 "Herkennen van oplossingen die averechts werken in bestaande code",
-                "Beschrijven van een eigen pattern volgens een vaste opzet",
+                "Beschrijven van een eigen patroon volgens een vaste opzet",
             ]},
-            {"titel": "Categorieën en patternkeuze", "bullets": [
-                "Indelen van patterns in categorieën",
-                "Vergelijken van patterns die op elkaar lijken",
-                "Kiezen van het best passende pattern op basis van het probleem",
+            {"titel": "Categorieën en de keuze voor een patroon", "bullets": [
+                "Indelen van patronen in categorieën",
+                "Vergelijken van patronen die op elkaar lijken",
+                "Kiezen van het best passende patroon op basis van het probleem",
                 "Onderbouwen van je keuze richting je team",
             ]},
-            {"titel": "Patterns in modern JavaScript", "bullets": [
-                "Toepassen van patterns met ES6-modules",
+            {"titel": "Patronen in modern JavaScript", "bullets": [
+                "Toepassen van patronen met ES6-modules",
                 "Vervangen van namespacing-constructies door native modulescoping",
                 "Opzetten van een modulaire applicatiestructuur",
-                "Werken met closures, prototypes en klassen als basis voor patterns",
+                "Werken met closures, prototypes en klassen als basis voor je patronen",
                 "Isoleren van afhankelijkheden tussen modules",
-                "Herkennen van patterns in oudere codebases en hun moderne variant",
+                "Herkennen van patronen in oudere codebases en hun moderne variant",
             ]},
-            {"titel": "Patterns met TypeScript", "bullets": [
-                "Combineren van typering met de klassieke patterns",
+            {"titel": "Patronen met TypeScript", "bullets": [
+                "Combineren van typering met de klassieke design patterns",
                 "Vastleggen van contracten met interfaces",
-                "Inzetten van generics voor herbruikbare patterns",
+                "Inzetten van generics voor herbruikbare patronen",
                 "Toepassen van decorators om gedrag toe te voegen",
             ]},
-            {"titel": "MV-patterns en componentframeworks", "bullets": [
+            {"titel": "MV-patronen en componentframeworks", "bullets": [
                 "Scheiden van model, view en applicatielogica",
-                "Toepassen van patterns in React-componenten",
-                "Toepassen van patterns in Vue-componenten",
+                "Toepassen van patronen in React-componenten",
+                "Toepassen van patronen in Vue-componenten",
                 "Beheren van state en communicatie tussen componenten",
-                "Beoordelen wanneer een framework het pattern al voor je regelt",
+                "Beoordelen wanneer een framework het patroon al voor je regelt",
             ]},
             {"titel": "Praktijkcase: je eigen applicatie", "bullets": [
                 "Opzetten van de architectuur van je eigen applicatie",
-                "Kiezen en implementeren van passende patterns",
+                "Kiezen en implementeren van passende patronen",
                 "Refactoren van code die averechts werkende constructies bevat",
                 "Toetsen van je opzet op onderhoudbaarheid en uitbreidbaarheid",
             ]},
         ],
+        # De Doelgroep noemde eerst "iedereen die al in JavaScript ontwikkelt" en herhaalde
+        # daarmee de Voorkennis eronder. Nu staat hier wat iemand wil bereiken en daar de
+        # concrete voorwaarde (schrijfspec Sectie 6/7).
         "doelgroep": (
-            "Deze training is bedoeld voor iedereen die al in JavaScript ontwikkelt en "
-            "applicaties wil kunnen opzetten met herbruikbare ontwerpoplossingen die goed "
-            "onderhoudbaar blijven."
+            "Deze training is bedoeld voor iedereen die zijn JavaScript-code beter wil "
+            "structureren met bewezen ontwerpoplossingen die goed onderhoudbaar blijven."
         ),
         "voorkennis": (
             "Ervaring met ontwikkelen in JavaScript is vereist, waaronder werken met functies, "
-            "objecten en modules; heb je hier vragen over, neem dan gerust contact met ons op."
+            "objecten en modules. Mocht je hier vragen over hebben, neem dan gerust contact "
+            "met ons op."
         ),
         "aanpak_invulling": (
-            "een pattern je code eenvoudiger maakt en waar het onnodige complexiteit toevoegt"
+            "een patroon je code eenvoudiger maakt en waar het onnodige complexiteit toevoegt"
         ),
         "doelen": [
             "De belangrijkste JavaScript design patterns te benoemen en hun structuur te ontleden",
             "Constructies die je code onnodig ingewikkeld maken te herkennen en te herschrijven",
-            "Patterns toe te passen in modern JavaScript met ES6-modules",
-            "Patterns te implementeren in React- en Vue-componenten",
-            "TypeScript in te zetten met interfaces, generics en decorators bij je patternkeuzes",
+            "Patronen toe te passen in modern JavaScript met ES6-modules",
+            "Patronen te implementeren in React- en Vue-componenten",
+            "TypeScript in te zetten met interfaces, generics en decorators bij je ontwerpkeuzes",
         ],
         "groepen": [
             {"intro": "Moet je design patterns direct toepassen in JavaScript-applicaties, dan "
                       "sluiten deze trainingen aan:",
              "titels": ["Node.js", "TypeScript", "Secure coding Javascript voor Webapplicaties"]},
-            {"intro": "Sta je voor de uitdaging om patterns in een bredere "
-                      "architectuurcontext te plaatsen, dan bieden deze trainingen inzicht:",
+            {"intro": "Sta je voor de uitdaging om die patronen in een bredere "
+                      "architectuurcontext te doorgronden, dan bieden deze trainingen inzicht:",
              "titels": ["Software Architectuur", "Design Patterns",
                         "Domain Driven Design voor DevOps Teams"]},
         ],
         "kortste_omschrijving": (
-            "Wil je design patterns in JavaScript gericht kunnen inzetten? Je doorgrondt de "
-            "structuur achter patterns en past ze toe in ES6-modules, React, Vue en TypeScript."
+            "Wil je design patterns in JavaScript gericht kunnen inzetten? Na deze training "
+            "weet je hoe je ze kiest en toepast in ES6-modules, React, Vue en TypeScript."
         ),
     },
 ]

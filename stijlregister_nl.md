@@ -50,12 +50,25 @@ onder elkaar leest als een formulier.
 
 | Constructie | Waar |
 | --- | --- |
-| In staat zijn om [X] te [werkwoord] | Zit al in de vaste introzin van Doelen; **niet herhalen in een bullet** |
+| In staat zijn om [X] te [werkwoord] | Overzicht, Inleiding. Zit ook al in de vaste introzin van Doelen; **daar niet herhalen in een bullet** |
+| Stelt je in staat om [X] te [werkwoord] | Overzicht, Inleiding. De variant met ons als onderwerp: de training doet iets met de deelnemer |
 | Weten hoe je [X] kunt [werkwoord] | Overzicht, Inleiding, Kortste omschrijving |
 | Leert [X] te [werkwoord] | Overzicht, Inleiding, Kortste omschrijving. Vooral sterk bij een reeks vaardigheden: "je leert datakwaliteit *te* beoordelen, algoritmen *te* kiezen en uitkomsten *te* vertalen". Herhaal het "te" bij elk element. **Niet in doel-bullets** — die lopen al door op "in staat om" |
 | Inzicht hebben in [X] | Overzicht, Inleiding |
 | Inzicht krijgen in [X] | Overal; als doel-bullet: "Inzicht te krijgen in [X]" |
 | Inzicht ontwikkelen | Overal; als doel-bullet: "Inzicht te ontwikkelen in [X]" |
+
+**Een kaal "kun je" is te weinig voor de slotzin.** In de zin die de opbrengst aan de training
+koppelt — de laatste zin van het Overzicht en van de Inleiding — mist "kunnen" alleen de kracht:
+het kan ook als suggestie gelezen worden. Zet daar een van de eerste drie constructies uit de
+tabel neer. Juist door telkens terug te komen op "je bent in staat om" of "je weet hoe je …
+kunt", maak je keer op keer zichtbaar wat de training oplevert.
+
+- ❌ "Hierdoor kun je na afloop een pattern kiezen en verdedigen."
+- ✅ "Hierdoor ben je in staat om een pattern te kiezen en die keuze te verdedigen."
+- ✅ "Hierdoor weet je hoe je het best passende pattern kiest en die keuze onderbouwt."
+
+Wissel de vormen wél af over de kopjes heen; vier keer dezelfde zin leest als een formulier.
 
 **De verbindingswoorden zelf.** Een causale constructie heeft een scharnier nodig; deze vier
 doen het werk: **Hierdoor · Waardoor · Doordat · Zo**. Zonder zo'n woord staan er twee zinnen
@@ -88,6 +101,19 @@ versterken · in kaart brengen · verankeren · aanscherpen · internaliseren
 Kies wat bij het onderwerp en het niveau past. "Internaliseren" in een Excel-basistraining is
 even mis als "opzetten" in een strategische masterclass.
 
+**Ook een introducerende training heeft sterke werkwoorden.** Dat het niveau laag ligt, is geen
+reden om mager te formuleren — het begrenst wát je belooft, niet hoe sterk je het opschrijft
+(schrijfspec §0.19). Deze vier doen het goed bij een foundation- of basistraining en blijven
+netjes binnen de scope:
+
+**de opbouw van X doorgronden** · **een stevige basis leggen in X** · **de structuur van X
+volledig begrijpen** · **de basis van X beheersen**
+
+Wat je daar níét voor gebruikt: *plaatsen* ("begrippen kunnen plaatsen"), *meepraten*
+("gerichter meepraten over"), *in elkaar zitten* ("ervaren hoe X in elkaar zit") en *werken aan*
+("in deze training werk je aan X"). Die staan allemaal aan de onderkant van wat waar is, en
+iemand betaalt goed geld voor de training. Zie `humanisering_nl.md` §D.
+
 ---
 
 ## D. Versterkende bijvoeglijke naamwoorden
@@ -99,8 +125,17 @@ Deze drie mogen de werkwoorden uit §C kracht bijzetten ("een breed beeld van he
 
 **Guardrail:** alleen als het feitelijk klopt. Ze grenzen aan de superlatieven die
 `schrijfspec_herschrijven_v1.md` §0.2 verbiedt, en aan de overpromising die §8 verbiedt.
-"Volledig" is daarbij het gevaarlijkst — een tweedaagse training maakt zelden iets *volledig*.
 Geen opvulling: staat er zonder het bijvoeglijk naamwoord hetzelfde, laat het dan weg.
+
+**"Volledig" vraagt een afgebakend object.** Het gaat mis zodra het over de stof als geheel
+gaat — een tweedaagse training beheerst zelden een onderwerp *volledig*. Maar het klopt prima
+bij iets dat wél af te bakenen is en dat binnen de scope van de training helemaal aan bod komt:
+
+- ✅ "je begrijpt de structuur van het CRISP-DM-model volledig" (het model is afgebakend en
+  komt er helemaal in voor)
+- ❌ "je beheerst data-analyse volledig" (het onderwerp is niet af te bakenen)
+
+Dat onderscheid is precies wat §0.19 bedoelt: sterk formuleren binnen de scope, niet erbuiten.
 
 Onze eigen vaste bedrijfstrainingtekst gebruikt "volledig" wél ("een lesprogramma dat volledig
 aansluit bij jouw specifieke uitdaging"). Dat is vaste tekst en valt buiten deze afweging; in
@@ -123,7 +158,16 @@ niets.
 
 - Als het doel meer inzicht of meer begrip is — dus op het meest basale niveau.
 - Bij brede overzichtstrainingen, gericht op begrip en op samenwerken buiten het eigen
-  werkveld. Daar is "gerichter meepraten" een eerlijker belofte dan "beheersen".
+  werkveld.
+
+**Wat een vergrotende trap níét is: een excuus voor een zwak werkwoord.** Hij regelt de
+*hoogte* van de belofte, niet de *kracht* van de formulering — die twee staan los van elkaar
+en je hebt ze allebei nodig. "Gerichter mee te praten over data-analyse" is daarom geen goed
+doel: niet omdat "gerichter" fout is, maar omdat "meepraten" aan de onderkant staat (§C,
+schrijfspec §0.19). Combineer de vergrotende trap met een werkwoord dat gewicht draagt:
+
+- ❌ "Gerichter mee te praten over de architectuurkeuzes in je organisatie"
+- ✅ "De architectuurkeuzes in je organisatie scherper te doorgronden en te beoordelen"
 
 **Wanneer niet nodig:**
 
@@ -138,7 +182,7 @@ moet of wil leren — geen woord dat je overal instrooit.
 "Kunnen" gaat over het **leren** en hoort in het Overzicht, de Inleiding en de Kortste
 omschrijving. De vergrotende trap gaat over de **hoogte van de belofte** en hoort in de Doelen.
 Ze vervangen elkaar niet: "Wil je datamodellen beter opzetten?" lost het ontbrekende "kunnen"
-niet op, en "Gerichter mee te praten over architectuurkeuzes" wordt niet beter van een "kunnen".
+niet op, en "Architectuurkeuzes scherper te doorgronden" wordt niet beter van een "kunnen".
 
 ---
 

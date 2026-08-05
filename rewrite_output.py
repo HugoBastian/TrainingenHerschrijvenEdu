@@ -72,8 +72,13 @@ def render_inleiding(tekst: Any) -> str:
 
 
 def render_modules(opening: str, modules: list[dict]) -> str:
-    """Kopje 3: openingszin + geneste <ul> (module -> sub-bullets)."""
-    delen = [f"<p>{_esc(opening)}</p>", "<ul>"]
+    """Kopje 3: openingszin + geneste <ul> (module -> sub-bullets).
+
+    De opening gaat door `_paragrafen` en niet door één vaste <p>: sinds reviewronde 2 staat
+    de NB in een eigen alinea (`sjabloon.MODULES_NB_*`), en dat is in het CMS gewoon een
+    tweede <p>-blok.
+    """
+    delen = [_paragrafen(opening), "<ul>"]
     for module in modules or []:
         titel = _esc(module.get("titel", ""))
         bullets = [b for b in (module.get("bullets") or []) if str(b or "").strip()]
@@ -150,7 +155,8 @@ def render_veld(veld: str, waarde: Any, ctx: dict | None = None) -> tuple[str, s
 # ---------------------------------------------------------------------------
 
 _H3_BLOK_RE = re.compile(r"\s*<h3>.*", re.S | re.I)
-_EERSTE_P_RE = re.compile(r"<p>.*?</p>", re.S | re.I)
+# De modulelijst begint bij de eerste <ul>; alles ervóór is de opening van het kopje.
+_EERSTE_UL_RE = re.compile(r"<ul\b", re.I)
 # De invulling loopt tot de eerste punt: "... ervaar je hoe |je XML in de praktijk toepast|."
 # Niet tot het eind van de alinea -- daar staat alinea 2 achteraan geplakt.
 _INVULLING_RE = re.compile(r"ervaar je hoe\s+([^.]+)\.", re.I)
@@ -282,12 +288,15 @@ def ververs_vaste_teksten(content: dict, titel: str,
             f"<p>{_esc(sjabloon.BEDRIJFSTRAINING_TEKST)}</p>",
         ]), "bedrijfstrainingblok")
 
-    # Modules: alleen de openingszin (de eerste <p>), niet de modulelijst eronder.
+    # Modules: alleen de opening, niet de modulelijst eronder. De grens is de eerste <ul> en
+    # niet de eerste </p>: de opening bestaat sinds reviewronde 2 uit twee alinea's (zin + NB),
+    # en op een deel van de bestaande content staat er nog een derde <p> tussen. Alles vóór de
+    # lijst wordt opnieuw opgebouwd, alles vanaf de lijst blijft byte-voor-byte staan.
     modules = nieuw.get("modules") or ""
-    if _EERSTE_P_RE.search(modules):
+    m_lijst = _EERSTE_UL_RE.search(modules)
+    if m_lijst:
         opening = sjabloon.modules_opening(titel, modules_nb)
-        _zet("modules", _EERSTE_P_RE.sub(f"<p>{_esc(opening)}</p>", modules, count=1),
-             "Modules-openingszin")
+        _zet("modules", _paragrafen(opening) + modules[m_lijst.start():], "Modules-openingszin")
 
     # Aanpak: twee vaste alinea's rond één geschreven invulling. Die invulling zit achter
     # "ervaar je hoe ..." en is het enige wat we willen behouden.

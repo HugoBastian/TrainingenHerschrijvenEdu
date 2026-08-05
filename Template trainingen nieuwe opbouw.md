@@ -18,11 +18,17 @@ Hier staat één van twee openingszinnen. De keuze is inhoudelijk, niet stilisti
 
 **Variant `stabiel` — de default.** Het programma is wat het is; de NB nodigt uit tot afstemming op de eigen praktijksituatie.
 
-Tijdens {aanduiding} komen onderstaande onderwerpen aan bod. NB: Mocht je vragen hebben over de inhoud of deze aangepast willen zien op jouw specifieke praktijksituatie of trainingsbehoefte, bel ons dan gerust: we spreken de mogelijkheden graag met je door.
+Tijdens {aanduiding} komen onderstaande onderwerpen aan bod.
+
+NB: Mocht je vragen hebben over de inhoud of deze aangepast willen zien op jouw specifieke praktijksituatie of trainingsbehoefte, bel ons dan gerust: we spreken de mogelijkheden graag met je door.
 
 **Variant `actueel` — alleen bij een snel bewegend expertisegebied.** Gebruik deze uitsluitend voor trainingen waarbij de tekst op de website in no-time achterhaald is door de ontwikkelingen op het vakgebied. Staat de NB er zonder die noodzaak, dan doet hij afbreuk aan het geheel.
 
-Tijdens {aanduiding} komen onderstaande onderwerpen aan bod. NB: Afhankelijk van snelle ontwikkelingen op dit expertisegebied, kan de werkelijke trainingsinhoud hier van afwijken. Bel ons gerust voor meer informatie over de actuele inhoud.
+Tijdens {aanduiding} komen onderstaande onderwerpen aan bod.
+
+NB: Afhankelijk van snelle ontwikkelingen op dit expertisegebied, kan de werkelijke trainingsinhoud hier van afwijken. Bel ons gerust voor meer informatie over de actuele inhoud.
+
+De NB staat in beide varianten in een **eigen alinea**.
 
 ---
 

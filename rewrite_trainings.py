@@ -778,13 +778,27 @@ SUBMIT_REWRITE = {
         "type": "object",
         "properties": {
             "overzicht": {"type": "string",
-                "description": "Kopje Overzicht. Één alinea, richtlijn 55-65 woorden, begint met "
-                               "'Wil je …'. Geen bullets. De richtlijn is een streeflengte, geen "
-                               "quotum: een paar woorden eroverheen is prima, afgeknepen zinnen niet."},
+                "description": "Kopje Overzicht. Één alinea, richtlijn 55-80 woorden, begint met "
+                               "'Wil je …'. Geen bullets. Lengte is hier geen doel op zich: liever "
+                               "wat langer en een complete introductie in de materie, dan kort door "
+                               "de bocht. Blijft een wezenlijk onderwerp van de training buiten "
+                               "beeld, dan is het te kort. Twee dingen die hier het vaakst misgaan: "
+                               "(1) de openingsvraag dekt maar één deelaspect in plaats van het "
+                               "zwaartepunt van de training; (2) de werkwoorden staan aan de "
+                               "onderkant — 'begrippen kunnen plaatsen', 'gerichter meepraten', "
+                               "'ervaren hoe X in elkaar zit'. Kies binnen dezelfde scope het "
+                               "sterkste ware werkwoord: 'de opbouw van X doorgronden', 'een stevige "
+                               "basis leggen in X'. De slotzin staat in de in-staat-vorm ('Hierdoor "
+                               "ben je in staat om …'), niet in een kaal 'Hierdoor kun je …'."},
             "inleiding": {"type": "string",
                 "description": "Kopje Inleiding. Richtlijn 180-210 woorden (bij een training van "
                                "4 dagen of meer mag het richting 230), verdiepend op Overzicht. "
                                "Ook hier telt de formulering zwaarder dan het exacte aantal. "
+                               "De zin die de openingsvraag beantwoordt noemt de training ('Tijdens "
+                               "deze training …'), zonder de duur. Maak 'je' het onderwerp — niet "
+                               "'welke techniek bij welk vraagstuk hoort' maar 'met welke technieken "
+                               "je die data omzet in bruikbare informatie'. Slotzin in de "
+                               "in-staat-vorm, net als bij Overzicht. "
                                "Schrijf NIET het bedrijfstrainingblok; dat plaatst de code."},
             "modules": {
                 "type": "object",
@@ -810,11 +824,18 @@ SUBMIT_REWRITE = {
                 "required": ["modules"],
             },
             "doelgroep": {"type": "string",
-                "description": "Kopje Doelgroep. Één zin, begint met 'Deze training is voor …'. Geen functietitels/'professionals'."},
+                "description": "Kopje Doelgroep. Één zin, begint met 'Deze training is bedoeld voor "
+                               "…'. Geen functietitels/'professionals'. Gericht op wat iemand wil "
+                               "bereiken, niet op wie iemand is — dat scheelt ook dubbeling met "
+                               "Voorkennis, dat er pal onder staat."},
             "voorkennis": {"type": "string",
                 "description": "Kopje Voorkennis. Compact: één zin waar dat kan, twee als er een "
-                               "voorbehoud of een contactzin bij hoort. Laat leeg als geen "
-                               "voorkennis nodig is (code plaatst de fallbackzin)."},
+                               "voorbehoud of een contactzin bij hoort. Die contactzin luidt 'neem "
+                               "DAN gerust contact met ons op'. Herhaal niet wat de Doelgroep al "
+                               "zegt: staat daar 'iedereen die al in JavaScript ontwikkelt', dan "
+                               "voegt 'ervaring met JavaScript is vereist' niets toe — noem hier de "
+                               "concrete voorwaarde. Laat leeg als geen voorkennis nodig is (code "
+                               "plaatst de fallbackzin)."},
             "aanpak_invulling": {"type": "string",
                 "description": "Kopje Aanpak. Alleen de [.....]-invulling: één woord of enkele "
                                "woorden. De code plakt jouw tekst achter de vaste zin '... maak "
@@ -827,11 +848,18 @@ SUBMIT_REWRITE = {
                                "vaste introzin 'Na deze training ben je in staat om:' — dus "
                                "'Dashboards te bouwen die de juiste vraag beantwoorden', niet "
                                "'Dashboards bouwen'. Herhaal 'in staat' niet; dat staat al in de "
-                               "introzin. Hoofdletter aan het begin, zonder de introzin."},
+                               "introzin. Hoofdletter aan het begin, zonder de introzin. Een "
+                               "vergrotende trap ('scherper', 'gerichter') mag de belofte op maat "
+                               "houden, maar vervangt geen sterk werkwoord: 'de opbouw van X "
+                               "scherper te doorgronden', niet 'gerichter mee te praten over X'."},
             "kortste_omschrijving": {"type": "string",
                 "description": "Kopje Kortste omschrijving. Maximaal 200 tekens — als enige lengte "
                                "een harde grens (Edudex kapt langere tekst af). Begint met "
-                               "'Wil je …'. Ingedikte versie van Overzicht."},
+                               "'Wil je …'. De zin daarna begint met 'Na deze training …' ('Na deze "
+                               "training weet je hoe je …'); dit fragment staat vaak los van de rest "
+                               "van de pagina, dus het moment waarop de opbrengst er is hoort in de "
+                               "zin zelf. Past dat niet binnen de 200 tekens, dan gaat de grens "
+                               "voor. Ingedikte versie van Overzicht."},
             "nieuwe_titel": {"type": "string",
                 "description": "Optioneel. De code maakt zelf al een titel in de nieuwe stijl "
                                "('Cursus XML' -> 'Training XML'). Lever hier alleen iets als dat "

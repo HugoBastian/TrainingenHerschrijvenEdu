@@ -48,16 +48,37 @@ tekens van de Kortste omschrijving staan vast, want daar zit geen stijlafweging 
 13. **Elk element van een opsomming loopt zelfstandig door op de introzin.** Herhaal het voorzetsel ("te", "om", "van") en houd de constructie parallel, zodat elk element los gelezen kan worden. Geldt voor bullets én voor opsommingen in lopende tekst: "Je kunt datavraagstukken gestructureerd analyseren, beleid vertalen naar de praktijk, adviseren over datakwaliteit en governance, en bijdragen aan de professionalisering van Data Stewardship" — elk deel hangt daar zelfstandig aan "je kunt".
 14. **Lengtes zijn richtlijnen, geen quota.** De woordaantallen per kopje zeggen hoe lang een kopje ongeveer hoort te zijn — mik erop, maar schrijf de zin af. Kom je een paar woorden boven de richtlijn uit omdat de formulering dat nodig heeft, dan is dat goed: de code laat een ruime marge en meldt de afwijking alleen bij de menselijke review. **Wat níét mag: een zin afknijpen, een bijzin schrappen of een precies woord weglaten om het aantal te halen.** Dat kost de tekst meer dan de afwijking oplevert. Blijf je juist ver ónder de richtlijn, dan is dat wél een signaal — er ontbreekt inhoud, en die vul je aan met een gedachte die er nog niet staat, niet met vulwoorden. **Eén uitzondering: de 200 tekens van de Kortste omschrijving (§10) zijn wél hard**; die grens komt van Edudex, niet van ons. [richtlijn]
 15. **Maak het lerende aspect expliciet.** Alles wat de deelnemer ná de training doet, formuleer je als een **verworven vermogen**: "kunnen", "leert … te …", "in staat zijn om". Wij trainen; de deelnemer levert het resultaat. "Wil je datamodellen *kunnen* opzetten?" is waar; "Wil je datamodellen opzetten?" belooft dat wij het model maken. Dit is de standaardvorm, niet een afweging. **Weglaten mag alleen** als de deelnemer het eindproduct daadwerkelijk tíjdens de training bouwt en meeneemt; dan verzwakt "kunnen" de zin. Waarom dit zo zwaar telt: het maakt in weinig woorden zichtbaar dat dit leerstof is en geen dienstverlening — expliciet én impliciet tegelijk, en dat is precies wat een Overzicht van 60 woorden nodig heeft.
-    **Twee grenzen.** (a) *Niet in de Doelen-bullets*: die lopen door op "Na deze training ben je in staat om:", dus "te kunnen bouwen" dubbelt. (b) *Niet verwarren met de vergrotende trap* (§8, `stijlregister_nl.md` §E): "kunnen" gaat over het **leren**, de vergrotende trap over de **hoogte van de belofte**. Ze vervangen elkaar niet.
+    **Drie grenzen.** (a) *Niet in de Doelen-bullets*: die lopen door op "Na deze training ben je in staat om:", dus "te kunnen bouwen" dubbelt. (b) *Niet verwarren met de vergrotende trap* (§8, `stijlregister_nl.md` §E): "kunnen" gaat over het **leren**, de vergrotende trap over de **hoogte van de belofte**. Ze vervangen elkaar niet. (c) *In de slotzin is een kaal "kun je" te weinig*: daar staat de in-staat-vorm ("Hierdoor ben je in staat om …", "Zo weet je hoe je … kunt"). Zie §2 en §3.
 16. **Geen loze verwijzingen.** Een aanwijzend voornaamwoord of een bepaalde naamwoordgroep — "het proces", "de aanpak", "deze stap", "dit" — moet in dezelfde zin of de zin ervóór benoemd zijn. "Je houdt overzicht over het hele proces" laat de lezer raden welk proces; "je houdt overzicht over het hele analysetraject, van businessvraag tot deployment" niet. Kun je het niet benoemen zonder de zin te overladen, dan is de verwijzing zelf overbodig.
 17. **Vaktermen die de lezer niet kent, gebruik je niet zonder omschrijving.** Staat een term niet in de brontekst en niet in de trainingstitel, dan laat je hem weg of beschrijf je hem in gewone woorden. "Je start bij de vraag wanneer een oplossing een pattern is en wanneer het een proto-pattern blijft" verliest de lezer bij het tweede woord. Bij persona B en C ligt die drempel lager dan bij A, maar ook persona A leest geen termen die alleen de auteur kent.
-18. **Nederlands idioom.** Vijf dingen die telkens misgaan:
+18. **Nederlands idioom.** Acht dingen die telkens misgaan:
     - **Overgankelijke werkwoorden krijgen een lijdend voorwerp.** "Door te oefenen, bespreken en reflecteren" — "bespreken" hangt in de lucht; "te overleggen" of "voorbeelden te bespreken" niet.
     - **Herhaal het voorzetsel én het hulpwerkwoord in een opsomming**, ook in lopende tekst. Niet "leert datakwaliteit beoordelen, algoritmen kiezen en uitkomsten vertalen", maar "leert datakwaliteit **te** beoordelen, passende algoritmen **te** kiezen en uitkomsten **te** vertalen". Hetzelfde geldt voor "kunnen": staat het in het eerste element, dan staat het in alle. Zie ook §0.13.
     - **Bijvoeglijke naamwoorden op -baar krijgen een kwalificatie.** In het Engels kan "maintainable code"; in het Nederlands is "onderhoudbare code" kaal. Schrijf "goed onderhoudbare code", "makkelijk uitbreidbare opzet".
     - **Let op lidwoord en verbuiging bij leenwoorden.** JavaScript is een het-woord: "modern JavaScript", niet "moderne JavaScript".
     - **Geen opvulconnectieven als structuur.** "Tot slot", "Daarnaast", "Dit betekent dat" alleen als ze een echte verhouding aanduiden. Bedoel je letterlijk het einde van de training, schrijf dan "Aan het eind van de training".
+    - **Geen anglicismen: geen Engelse constructie letterlijk vertaald.** Die klinkt Nederlands maar is het niet, en dat is precies waarom een LLM ze produceert. Zie `humanisering_nl.md` §G voor de lijst.
+      **Fout:** "Daarna **werk je door** de categorieën waarin patterns worden ingedeeld." · **Goed:** "Daarna **neem je** de categorieën **door** waarin je patronen indeelt."
+      **Fout:** "Je leert het onderscheid tussen een conceptueel en een logisch model **kennen**." · **Goed:** "Je leert **onderscheid te maken** tussen een conceptueel en een logisch model."
+    - **Een ingeburgerde Engelse term gebruik je als hele term, niet als los woord.** "design pattern" blijft "design pattern"; noem je het los, dan schrijf je "patroon". Hetzelfde voor "user story" / "verhaal", "unit test" / "test". En vervang een leenwoord waar een gewoon Nederlands woord staat: "skills" → vaardigheden, "stakeholders" → belanghebbenden, "mindset" → houding. Is het een echte vakterm — staat het zo in de brontekst of de titel, zoals "governance", "deployment", "compliance" — dan blijft het staan.
+      **Goed:** "Je leert de belangrijkste **design patterns** te benoemen en te doorgronden hoe zo'n **patroon** is opgebouwd."
+    - **Lange samenstellingen krijgen een verbindingsstreepje op een logische plek.** "datamodelleringssoftware" leest niet; "datamodellerings-software" wel. Zet het streepje op de naad tussen de twee delen, niet middenin een woord. Alleen waar het de leesbaarheid echt helpt: "organisatievraagstukken" en "verantwoordelijkheden" zijn gewoon lange woorden en blijven heel.
 19. **Kies het woord dat de opbrengst op ware grootte benoemt** — niet het kleinste ware woord. Bouwt de deelnemer een webapplicatie, schrijf dan "applicatie" en niet "scripts". Onderschatten is net zo onnauwkeurig als overdrijven, en het kost ons meer.
+
+    **Dit is de meest gemaakte fout in de tekst, en hij heet "aan de onderkant schrijven".** De belofte klopt wel, maar hij is zo mager geformuleerd dat er geen training uit spreekt. Iemand legt goed geld neer; binnen de scope van de training mag dus benoemd worden hoe goed wat wij aanleren is.
+
+    **Let op wat hier níét verandert: het niveau.** §1a blijft onverkort gelden — schrijf nooit boven het niveau van de kern. Wat je aanpast is het **werkwoord waarmee je dat niveau opschrijft**, niet de hoogte van de belofte. "Begrippen kunnen plaatsen" en "de opbouw van het model doorgronden" beloven precies hetzelfde; alleen het tweede leest als een training.
+
+    | Aan de onderkant | Op ware grootte |
+    | --- | --- |
+    | "de begrippen rond Big Data kunnen **plaatsen**" | "de **opbouw** van een data-analysetraject **doorgronden**" |
+    | "**gerichter meepraten** over data-analyse" | "een **stevige basis leggen** als data-analist" |
+    | "ervaren hoe een traject **in elkaar zit**" | "doorgronden hoe een traject **is opgebouwd**" |
+    | "in deze training **werk je aan** datamodellen" | "in deze training **verdiep je je in** datamodellen" |
+    | "weten welk model in welke fase **iets oplevert**" | "weten welk model in welke fase **waardevol is**" |
+    | "een analysetraject **beter volgen**" | "een analysetraject **doorgronden** en beoordelen" |
+
+    Vier formuleringen die het bij een introducerende of foundation-training goed doen, omdat ze sterk zijn zónder boven de scope uit te komen: **"de opbouw van X doorgronden"**, **"een stevige basis leggen in X"**, **"je begrijpt de structuur van X volledig"**, **"je beheerst de basis van X"**. Variaties hierop mogen; de eis is dat de formulering sterk is binnen de scope. Ze gaan prima samen met de vergrotende trap uit §8 — die twee sluiten elkaar niet uit.
 20. **Vaste woordenschat.** Deze woorden zijn een keuze, geen toeval:
     | Gebruik | Niet |
     | --- | --- |
@@ -66,14 +87,21 @@ tekens van de Kortste omschrijving staan vast, want daar zit geen stijlafweging 
     | dagelijks werkzaam op dit expertisegebied | (alleen) "uit de praktijk" |
     | "Deze training is bedoeld voor …" | "Deze training is voor …" |
     | "de training PHP Professional" (lopend, kleine letter) | "de Training PHP Professional" |
+    | "**Daarnaast** kijk je naar datakwaliteit" | "Je kijkt **ook** naar datakwaliteit" |
+    | "neem **dan** gerust contact met ons op" | "neem gerust contact met ons op" |
+    | "we wisselen **theorie en praktijk** af" | "we wisselen theorie en **eigen code** af" |
 
-    Die laatste: midden in een zin is het soortwoord een gewoon zelfstandig naamwoord en geen deel van een titel. Als kop 1 blijft het uiteraard "Training PHP Professional".
+    Toelichting bij vier ervan. *"de training PHP Professional"*: midden in een zin is het soortwoord een gewoon zelfstandig naamwoord en geen deel van een titel; als kop 1 blijft het uiteraard "Training PHP Professional". *"Daarnaast"*: in een opsomming hangt "ook" er los bij, terwijl "daarnaast" zegt dat er iets aan de rij wordt toegevoegd. *"dan"*: dat woord hoort bij de voorwaarde ervoor ("Mocht je hier vragen over hebben, neem **dan** …"). *"theorie en praktijk"*: dat is de vaste term, ook als de training over code, modellen of gesprekken gaat — een specifieker woord impliceert minder in plaats van meer.
 21. **Noem de duur van de training nooit in de tekst.** [hard] Geen "in deze training van twee dagen", geen "een tweedaagse training", geen "na drie dagen". Het aantal dagen krijg je wél mee in de briefing en je gebruikt het ook — om te bepalen hoeveel programma er past, hoe hoog de belofte in de Doelen mag liggen en hoe lang de Inleiding wordt (§0.14, §4, §8). Maar het staat als apart veld bij de training, los van deze tekst, en het wordt met enige regelmaat bijgesteld. Staat het aantal middenin een alinea, dan gaat het bij zo'n aanpassing mee de mist in en ziet niemand het.
 
     **Fout:** "In deze training van twee dagen krijg je een overzicht van de methoden, modellen en algoritmen."
     **Goed:** "In deze training krijg je een overzicht van de methoden, modellen en algoritmen."
 
     Dit geldt óók als de brontekst de duur wel noemt: laat hem dan weg.
+22. **Een directe vraag eindigt op een vraagteken, ook midden in een alinea.** Zet je na een dubbele punt een vraag in de je-vorm, dan is dat een echte vraag en geen opsomming.
+
+    **Fout:** "Je kijkt naar datakwaliteit: welke eisen stel je aan je data voordat je er beslissingen op baseert, en hoe raken governance en privacywetgeving daaraan."
+    **Goed:** "Je kijkt naar datakwaliteit: welke eisen stel je aan je data voordat je er beslissingen op baseert, en hoe raken governance en privacywetgeving daaraan?"
 
 ---
 
@@ -100,7 +128,7 @@ De kern die je meekrijgt bevat het **niveau** van de training: wat de deelnemer 
 
 | Niveau | Werkwoorden in de bron | Jouw register |
 | --- | --- | --- |
-| Introducerend | "maak je kennis met", "we introduceren", "we geven een overzicht", "je leert hoe X is opgebouwd"; titelwoorden als *Foundation*, *Basis* | kennismaken met, herkennen, benoemen, plaatsen, overzicht krijgen van, weten wanneer je iets inzet, de opbouw van X doorgronden |
+| Introducerend | "maak je kennis met", "we introduceren", "we geven een overzicht", "je leert hoe X is opgebouwd"; titelwoorden als *Foundation*, *Basis* | de opbouw van X doorgronden, een stevige basis leggen in X, de structuur van X volledig begrijpen, de basis van X beheersen, herkennen, benoemen, onderscheiden, weten wanneer je iets inzet |
 | Toepassend | "je past toe", "je voert uit", "je werkt met", "je stelt op" | toepassen, opzetten, uitvoeren, beoordelen, kiezen, opstellen |
 | Verdiepend | "je ontwerpt", "je richt in", "je optimaliseert", "je automatiseert"; titelwoorden als *Advanced*, *Professional*, *Expert* | ontwerpen, inrichten, optimaliseren, automatiseren, afwegen tussen alternatieven |
 
@@ -109,6 +137,8 @@ De kern die je meekrijgt bevat het **niveau** van de training: wat de deelnemer 
 **Fout (tweedaagse introductietraining):** "Een model in gebruik nemen en het beheer en de monitoring inrichten" — de bron zegt dat je leert *hoe het proces is opgebouwd*.
 **Goed:** "Herkennen welke stappen een analyseproces doorloopt en waarom die volgorde werkt."
 
+**Introducerend is geen reden om mager te formuleren.** Het niveau begrenst *wat* je belooft, niet *hoe sterk* je het opschrijft (§0.19). Een foundation-training levert een stevige basis op en dat mag zo heten: "je begrijpt de structuur van het CRISP-DM-model volledig" blijft binnen de scope, "je kunt de begrippen plaatsen" en "je praat gerichter mee" zeggen minder dan waar is. De werkwoorden in de kolom hierboven staan in die volgorde met opzet — de sterkste eerst.
+
 ---
 
 ## 2. Kopje 1 — Overzicht  `overzicht`  *(CMS: summary)*
@@ -116,18 +146,25 @@ De kern die je meekrijgt bevat het **niveau** van de training: wat de deelnemer 
 **Doel:** overtuigende intro die direct duidelijk maakt waarom de training relevant is en wat de deelnemer eraan heeft.
 
 Dit is het kopje met de hoogste dichtheid: **in weinig woorden veel zeggen, expliciet én
-impliciet.** Daar is de richtlijn van 55–65 woorden op gebouwd. Vul niet op om de band te
-halen, en knijp niets af om eronder te blijven.
+impliciet.** De richtlijn is 55–80 woorden. Vul niet op om de band te halen — maar knijp al
+helemaal niets af om eronder te blijven: **lengte is hier geen doel op zich.** Liever wat
+langer en een complete introductie in de materie, dan kort door de bocht en "lekker kort".
+Blijft er een onderwerp buiten dat wel een wezenlijk deel van de training is, dan is het
+Overzicht te kort, hoe goed de zinnen ook zijn.
 
 **Regels (checkbaar):**
-- **Lengte: één compacte alinea, richtlijn 55–65 woorden.** Zie §0.14: de richtlijn wijkt voor de formulering, niet andersom. [richtlijn]
+- **Lengte: één compacte alinea, richtlijn 55–80 woorden.** Zie §0.14: de richtlijn wijkt voor de formulering, niet andersom. [richtlijn]
 - **Begint met een vraag die start met "Wil je …".** [hard]
 - **Die openingsvraag bevat het doel, niet alleen de handeling.** Waaróm zou je dit willen kunnen? "Wil je design patterns gericht kunnen inzetten?" noemt de handeling en laat het doel weg; "Wil je design patterns gericht kunnen inzetten, zodat je code overzichtelijk blijft naarmate je applicatie groeit?" niet. Zonder dat waarom is de vraag een echo van de titel.
+- **En dat doel dekt de kern, niet één deelaspect.** Dit is de eerste zin die iemand van ons leest en daarmee ons visitekaartje; hij moet in één keer raak zijn. Draait de training om professioneel applicatieontwerp — onderhoudbaarheid, integratie, uitbreidbaarheid — dan is "zodat je code overzichtelijk blijft naarmate je applicatie groeit" één van die dingen en niet het geheel. Kies de formulering die de hele belofte draagt.
+- **De werkwoorden in de eerste twee zinnen dragen gewicht (§0.19).** "Plaatsen", "weten welke X bij welke Y hoort" en "meepraten" zijn hier het duurst: ze staan op de plek waar de lezer beslist of hij verder leest. Kies binnen de scope het sterkste ware werkwoord.
 - Geen opsommingen/bullets. [hard]
 - **Het lerende aspect staat er expliciet in (§0.15): "kunnen", "leert … te …".** Dit is de standaardvorm in dit kopje; weglaten alleen als de deelnemer het eindproduct tijdens de training bouwt en meeneemt.
 - **Bij een reeks vaardigheden: de leer-constructie boven de kale tegenwoordige tijd.** Niet "Je beoordeelt datakwaliteit, kiest passende algoritmen en vertaalt uitkomsten naar rapportages", maar "Je leert datakwaliteit te beoordelen, passende algoritmen en tools te kiezen en uitkomsten te vertalen naar rapportages". Let op het herhaalde "te" (§0.18).
 - **De belofte hangt aan het zwaartepunt uit de kern**, niet aan een afgeleide opbrengst. Zegt de kern dat de training draait om zélf modelleren, dan is "datamodellen kunnen opzetten" de belofte en niet "ontwerpkeuzes onderbouwen en discussies verkorten" — hoe waar dat laatste ook is. Een zwaartepunt dat verschuift, verkoopt de verkeerde training.
-- **De slotzin draagt het causale verband (§0.12).** Niet nog een opsomming van wat er langskomt, maar wat de deelnemer daardoor kan.
+- **De slotzin draagt het causale verband (§0.12), en wel in de in-staat-vorm.** Niet nog een opsomming van wat er langskomt, maar wat de deelnemer daardoor kan — en dat zeg je met "Hierdoor **ben je in staat om** …", "Hierdoor **stelt de training je in staat om** …" of "Zo **weet je hoe je** … kunt". Een kaal "Hierdoor **kun** je een pattern kiezen" mist de kracht: "kunnen" alleen kan ook als suggestie gelezen worden. Juist door in elk kopje terug te komen op "je bent in staat om" maak je keer op keer zichtbaar wat de training oplevert. Wissel de vormen af, zodat het geen formulier wordt (`stijlregister_nl.md` §B).
+  **Fout:** "Hierdoor kun je na afloop een pattern kiezen en verdedigen."
+  **Goed:** "Hierdoor ben je in staat om een pattern te kiezen en die keuze te verdedigen."
 - Vertaal leerdoelen naar *voordelen* voor de deelnemer (niet letterlijk overnemen); benoem meerdere praktische toepassingen, natuurlijk verweven.
 - Nadruk op: slimmer werken, kwaliteit verhogen, meer grip op het werk.
 - Focus op vaardigheden en impact, niet op losse tools/functionaliteiten — **maar** als de training draait om een specifieke tool/taal/software, benoem die expliciet.
@@ -145,6 +182,11 @@ halen, en knijp niets af om eronder te blijven.
 - **Lengte: richtlijn 180–210 woorden in totaal.** De richtlijn schuift mee met de omvang van de training: bij één dag mag hij korter (±170–200), bij vier dagen of meer langer (±190–230) — een langere training heeft simpelweg meer te vertellen. Zie §0.14. [richtlijn]
 - **Meerdere alinea's zijn de norm, richtlijn drie.** Eén blok van 200 woorden leest als een muur, ook als de zinnen goed zijn. Knip bij elke onderwerpwisseling: wat je leert → hoe de training is opgebouwd → de trainers en de afstemming op jouw context. **De passage over de trainers begint altijd een nieuwe alinea** — die wisselt van onderwerp (van de stof naar de mensen) en hoort nooit achter een zin over de inhoud aan te schuiven.
 - Verdiepend t.o.v. het Overzicht; geen herhaling ervan.
+- **De zin die de openingsvraag beantwoordt noemt de training.** "Tijdens deze training …", "In deze training leer je …" — dat verankert de belofte aan ons aanbod in plaats van aan de lezer zelf. Zonder duur erbij (§0.21).
+- **Maak "je" het onderwerp; dat is hier een doel op zich (§0.3).** Een constructie waarin de deelnemer niet voorkomt, is bijna altijd te kort door de bocht.
+  **Fout:** "Je weet welke techniek bij welk vraagstuk hoort." · **Goed:** "Je weet met welke technieken je deze data kunt omzetten in bruikbare informatie."
+  **Fout:** "… en zie je per fase welke technieken en tools in beeld komen." · **Goed:** "… en zie je per fase van welke technieken en tools je je kunt bedienen."
+- **De slotzin van dit kopje staat in dezelfde in-staat-vorm als die van het Overzicht** (§2). Ook hier is een kaal "kun je" te vrijblijvend.
 - Schrijf **niet** het blok "Deze training als bedrijfstraining voor jou en je team?"; dat plaatst de code als kop 3 onder dit kopje. [hard]
 - Dek in de tekst: (a) wat je leert/ontwikkelt vertaald naar concrete voordelen; (b) hoe de training is opgebouwd (praktijkgericht, voorbeelden, trainers uit de praktijk); (c) mogelijkheid tot afstemming op organisatie/team (zonder het woord "maatwerk").
 - **Schrijf (b) en (c) in één van de twee registers uit `stijlregister_nl.md` §A**: "wat wij bieden" (onderwerp: we) of "wat jij mag verwachten" (onderwerp: je). Wissel ze af, zodat de tekst niet eenzijdig wordt. Zo landen de USP's als concrete belofte in plaats van als losse claim.
@@ -159,9 +201,18 @@ halen, en knijp niets af om eronder te blijven.
 
 **Vaste openingszin (plaatst de code — jij schrijft 'm niet, maar hij staat vóór jouw modules).** Er zijn twee varianten en de code kiest; `stabiel` is de default.
 
-> **stabiel** — "Tijdens de training [naam] komen onderstaande onderwerpen aan bod. NB: Mocht je vragen hebben over de actuele inhoud of deze aangepast willen zien op jouw specifieke praktijksituatie of trainingsbehoefte, bel ons dan gerust: we spreken de mogelijkheden graag met je door."
+> **stabiel** — "Tijdens de training [naam] komen onderstaande onderwerpen aan bod.
 >
-> **actueel** — "Tijdens de training [naam] komen onderstaande onderwerpen aan bod. NB: Afhankelijk van snelle ontwikkelingen op dit expertisegebied, kan de werkelijke trainingsinhoud hier van afwijken. Bel ons gerust voor meer informatie over de actuele inhoud."
+> NB: Mocht je vragen hebben over de inhoud of deze aangepast willen zien op jouw specifieke praktijksituatie of trainingsbehoefte, bel ons dan gerust: we spreken de mogelijkheden graag met je door."
+>
+> **actueel** — "Tijdens de training [naam] komen onderstaande onderwerpen aan bod.
+>
+> NB: Afhankelijk van snelle ontwikkelingen op dit expertisegebied, kan de werkelijke trainingsinhoud hier van afwijken. Bel ons gerust voor meer informatie over de actuele inhoud."
+
+De NB staat in beide varianten in een **eigen alinea**; de code rendert hem als tweede `<p>`.
+En let op het verschil in de eerste variant: daar staat "vragen over de **inhoud**", zonder
+"actuele". De actualiteit is precies wat de tweede variant afdekt — staat het voorbehoud in
+allebei, dan roept de stabiele variant een vraag op die hij zelf niet beantwoordt.
 
 De variant `actueel` geldt **alleen** voor trainingen waarbij de tekst op de website in no-time achterhaald is door de ontwikkelingen op het expertisegebied. Staat dat voorbehoud er zonder die noodzaak, dan doet het afbreuk aan het geheel: het programma is meestal gewoon wat het is.
 
@@ -188,7 +239,7 @@ De code voegt onderstaande **twee vaste alinea's** in. Het enige wat jij levert 
 
 > De training is praktisch en interactief van opzet, met veel ruimte voor jouw vragen en werksituatie. Je gaat aan de slag met passende praktijkvoorbeelden. Door actief te oefenen, te analyseren en te evalueren, maak je je de materie stap voor stap eigen en ervaar je hoe **[…..]**.
 >
-> Onze trainers zijn, naast trainer, in hun dagelijks werk expert op hun trainingsonderwerp. Ze beschikken dus niet alleen over de meest actuele kennis, maar hebben ook essentiële praktijkervaring. Hierdoor zijn ze in staat om een waardevolle vertaalslag te maken van kennis naar toepassing binnen jouw organisatie en werksituatie.
+> Onze trainers zijn, naast trainer, dagelijks werkzaam op dit expertisegebied. Ze beschikken dus niet alleen over de meest actuele kennis, maar hebben ook essentiële praktijkervaring. Hierdoor zijn ze in staat om een waardevolle vertaalslag te maken van kennis naar toepassing binnen jouw organisatie en werksituatie.
 
 **Regel:** lever alleen de `[….]`-invulling (praktijkgericht, geen module-inhoud herhalen).
 
@@ -224,8 +275,11 @@ De code voegt onderstaande **twee vaste alinea's** in. Het enige wat jij levert 
 **Regels (checkbaar):**
 - **Zo compact als de inhoud toelaat.** Meestal één zin; twee mag als er een voorbehoud of een contactzin bij hoort — zie het voorbeeld hieronder, dat er zelf uit twee bestaat. Loopt het verder uit dan ongeveer 45 woorden, dan staat er meer dan een voorwaarde. [flag]
 - **Geen voorkennis nodig →** exact: "Specifieke voorkennis voor het volgen van deze training is niet noodzakelijk." (code-fallback; jij hoeft dit niet te schrijven) [hard bij deze keuze]
-- **Wel voorkennis nodig →** in de trant van: "Enige ervaring in het werken met [....] is vereist. Mocht je hier vragen over hebben, neem gerust contact met ons op."
+- **Wel voorkennis nodig →** in de trant van: "Enige ervaring in het werken met [....] is vereist. Mocht je hier vragen over hebben, neem **dan** gerust contact met ons op." (Dat "dan" hoort erbij; zie §0.20.)
 - Bepaal wel/niet-voorkennis op basis van het niveau uit de kern (§1a) en het programma; bij twijfel: geen voorkennis (fallback). Een introducerende training vraagt zelden voorkennis.
+- **Voorkennis en Doelgroep mogen elkaar niet dubbelen.** Ze staan pal onder elkaar op de pagina, dus de lezer leest ze als één blok. Zegt de Doelgroep al "iedereen die al in JavaScript ontwikkelt", dan voegt "Ervaring met JavaScript is vereist" niets toe en roept het eerder de vraag op wat het verschil is. Los het op door de Doelgroep te richten op wat iemand wil *bereiken* en de Voorkennis op de concrete voorwaarde — of, als er echt niets bij komt, door hier de fallbackzin te gebruiken.
+  **Fout:** Doelgroep "… voor iedereen die al in JavaScript ontwikkelt en zijn code beter wil structureren." + Voorkennis "Ervaring in het werken met JavaScript is vereist."
+  **Goed:** Doelgroep "… voor iedereen die zijn JavaScript-code beter wil structureren met bewezen ontwerpoplossingen." + Voorkennis "Ervaring met ontwikkelen in JavaScript is vereist, waaronder werken met functies, objecten en modules. Mocht je hier vragen over hebben, neem dan gerust contact met ons op."
 
 ---
 
@@ -241,14 +295,18 @@ De code voegt onderstaande **twee vaste alinea's** in. Het enige wat jij levert 
 - **Voeg hier géén "kunnen" toe.** [flag] §0.15 vraagt het lerende aspect expliciet te maken in het Overzicht, de Inleiding en de Kortste omschrijving — maar hier zit het al in de introzin. "Na deze training ben je in staat om … een webapplicatie te kunnen bouwen" dubbelt net zo goed als "in staat". Schrijf "een webapplicatie te bouwen".
 - **Elke bullet begint met een hoofdletter.** [hard]
 - **Concreet en realistisch; geen overpromising, niet absoluut.** Let hier scherp op: "ben je in staat om" is een stellige introzin. Beloof alleen wat de training in het aantal dagen echt oplevert. **Dit is het kopje waar het niveau uit §1a het hardst telt** — een doel is een belofte, en een belofte boven het niveau is de duurste fout in de hele tekst. Gebruik de werkwoorden uit het register van het niveau.
-- **Vergrotende trappen waar het doel begrip is.** Gebruik "beter, sneller, effectiever, gerichter, scherper …" (zie `stijlregister_nl.md` §E) wanneer het doel meer inzicht of meer begrip is, en bij brede overzichtstrainingen gericht op samenwerken buiten het eigen werkveld. Zo'n vergrotende trap belooft een verbetering ten opzichte van hoe iemand het nu doet — eerlijker dan "beheersen". **Bij een introducerend niveau (§1a) is dit de standaardvorm**, geen afweging: daar is "gerichter mee kunnen praten over" waar is en "beheersen" niet. Levert de training juist een concrete, harde vaardigheid op — toepassend of verdiepend niveau — beloof die dan gewoon direct; een vergrotende trap verzwakt hem daar onnodig.
+- **Vergrotende trappen waar het doel begrip is.** Gebruik "beter, sneller, effectiever, gerichter, scherper …" (zie `stijlregister_nl.md` §E) wanneer het doel meer inzicht of meer begrip is, en bij brede overzichtstrainingen gericht op samenwerken buiten het eigen werkveld. Zo'n vergrotende trap belooft een verbetering ten opzichte van hoe iemand het nu doet — eerlijker dan "beheersen". Bij een introducerend niveau (§1a) is dit de gebruikelijke vorm. Levert de training juist een concrete, harde vaardigheid op — toepassend of verdiepend niveau — beloof die dan gewoon direct; een vergrotende trap verzwakt hem daar onnodig.
+  **Maar: een vergrotende trap vervangt nooit een sterk werkwoord (§0.19).** Hij regelt de *hoogte* van de belofte, niet de *kracht* van de formulering. "Gerichter mee te praten over data-analyse" is daarom geen goed doel — niet omdat de vergrotende trap fout is, maar omdat "meepraten" aan de onderkant staat. "De opbouw van een analysetraject scherper te doorgronden" doet allebei goed.
 - **Vermijd vage formuleringen** zoals "Inzicht toepassen". [flag]
+- **Is iets een mogelijkheid, formuleer het dan ook zo.** Een bullet die eerst een eventualiteit noemt en die daarna als vaststaand behandelt, klopt niet.
+  **Fout:** "Anti-patterns in bestaande code op te sporen en te onderbouwen waarom ze problemen geven"
+  **Goed:** "Anti-patterns in bestaande code op te sporen en te onderbouwen waarom deze problemen zouden kunnen veroorzaken"
 - Baseer de doelen op de omschrijving + het programma.
 
 **Goed:**
 - "Datasets op te schonen en samen te voegen voor analyse"
 - "Jezelf voor te bereiden op onderhandelingen door doelen en grenzen helder te formuleren"
-- "Gerichter mee te praten over de architectuurkeuzes in je organisatie" (begripsdoel, vergrotende trap)
+- "De architectuurkeuzes in je organisatie scherper te doorgronden en te beoordelen" (begripsdoel, vergrotende trap mét een sterk werkwoord)
 
 **Fout:** "Dashboards bouwen die de juiste vraag beantwoorden" — dit is de kale infinitief zonder "te"; achter "…in staat om:" loopt die zin niet.
 
@@ -287,6 +345,9 @@ Levert de retrieval twee groepen (verdiepen en verbreden), dan komt er per groep
 - **Wordt afgeleid ván kopje 1 (Overzicht)** (dezelfde kern/belofte, ingedikt). Genereer dit kopje **ná** het Overzicht.
 - **Maximaal 200 tekens inclusief spaties — langer mag écht niet.** Dit is de enige lengte in deze spec zonder marge: Edudex kapt langere tekst af, dus een overschrijding verdwijnt letterlijk uit beeld. Past je zin niet, laat dan een hele gedachte vallen in plaats van de zin af te knijpen. [hard]
 - **Begint met een vraag die start met "Wil je …".** [hard]
+- **De zin ná die vraag begint met "Na deze training …".** [flag] Dit fragment staat vaak los van de rest van de pagina, dus het moment waarop de opbrengst er is moet in de zin zelf staan. "Na deze training weet je hoe je …", "Na deze training ben je in staat om …". Past dat niet binnen de 200 tekens, dan gaat de tekengrens voor — laat dan liever een hele gedachte vallen.
+  **Fout:** "Wil je design patterns in JavaScript gericht kunnen inzetten? Je leert de belangrijkste patterns te benoemen en toe te passen."
+  **Goed:** "Wil je design patterns in JavaScript gericht kunnen inzetten? Na deze training weet je hoe je ze benoemt, kiest en toepast."
 - **Zelfde lerende aspect als bij kopje 1** (§0.15, §2): "Wil je professioneel leren programmeren in PHP en zelf een webapplicatie **kunnen** bouwen?" Wij bieden de handvatten, de deelnemer levert het resultaat.
 - Persona-toon; actief; geen marketingtaal.
 

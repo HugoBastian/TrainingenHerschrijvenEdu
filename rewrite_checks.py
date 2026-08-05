@@ -109,6 +109,70 @@ _BANNED_RE = [re.compile(p, re.I) for p in BANNED_PATTERNS]
 MARKETING_WORDS = ["de beste", "uniek", "gegarandeerd", "ongeëvenaard", "toonaangevend",
                    "wereldklasse", "state-of-the-art", "next-level", "game-changer"]
 
+# Anglicismen en onnodige leenwoorden (humanisering_nl.md Sectie G) -> FLAG.
+#
+# Twee soorten in één lijst, met de Nederlandse tegenhanger erbij zodat de boodschap bruikbaar
+# is: structureel vertaalde constructies ("werk je door de categorieen") en leenwoorden waar een
+# gewoon Nederlands woord staat ("skills", "stakeholders").
+#
+# Bewust conservatief en op de eigen catalogus gemeten. Wat een echte vakterm kan zijn blijft
+# eruit: "best practices" (13/78 trainingen, en het staat in onze eigen schrijfspec Sectie 1a),
+# "governance" (15/78), "compliance" (7/78), "performance" (8/78), "impact" (15/78), "scope"
+# (4/78). De structurele patronen hieronder vuren op het goud 0 tot 2 keer; de leenwoorden
+# raken samen ongeveer een kwart van de trainingen. Vandaar FLAG en nooit HARD.
+ANGLICISMEN: tuple[tuple[str, str], ...] = (
+    (r"werk(?:t|en)?\s+(?:je|we)\s+door\s+de", "neem je de … door"),
+    (r"onderscheid\b[^.]{0,30}\bkennen\b", "onderscheid maken tussen"),
+    (r"\bin lijn met\b", "volgens / passend bij"),
+    (r"op (?:een )?(?:dagelijkse|wekelijkse|regelmatige) basis", "dagelijks / wekelijks / regelmatig"),
+    (r"\badresseer(?:t|en|de|d)?\b", "aanpakken / behandelen"),
+    (r"\bimpacteer(?:t|en|de|d)?\b", "raken / beïnvloeden"),
+    (r"\bcontrole (?:te )?nemen over\b", "de regie nemen over"),
+    (r"\bzo snel als mogelijk\b", "zo snel mogelijk"),
+    (r"\b(?:support|deliver|challeng|shar|align|committ)(?:en|t|de)\b",
+     "ondersteunen / opleveren / bevragen / delen / afstemmen / vastleggen"),
+    (r"\bskills\b", "vaardigheden"),
+    (r"\bstakeholders?\b", "belanghebbenden / betrokkenen"),
+    (r"\bmindset\b", "houding / denkwijze"),
+    (r"\binsights?\b", "inzichten"),
+    (r"\bchallenges\b", "uitdagingen / knelpunten"),
+    (r"\btooling\b", "gereedschap / hulpmiddelen"),
+    (r"\bhands[- ]on\b", "praktisch"),
+    (r"\bissues\b", "knelpunten"),
+    (r"\bawareness\b", "bewustzijn"),
+    (r"\bownership\b", "eigenaarschap"),
+    (r"\blearnings\b", "lessen / inzichten"),
+    (r"\balignment\b", "afstemming"),
+    (r"\bdeep[- ]dive\b", "verdieping"),
+    (r"\bend[- ]to[- ]end\b", "van begin tot eind"),
+)
+_ANGLICISME_RE = [(re.compile(p, re.I), nl) for p, nl in ANGLICISMEN]
+
+# Formuleringen "aan de onderkant" (humanisering_nl.md Sectie D, schrijfspec Sectie 0.19) -> FLAG.
+#
+# De grootste groep opmerkingen uit reviewronde 2: de belofte klopt wel, maar hij is zo mager
+# geformuleerd dat er geen training uit spreekt. Per patroon staat het sterkere alternatief in
+# de boodschap -- dat is het hele punt, want het niveau mag niet omhoog, alleen de formulering.
+#
+# Gemeten op het goud: "plaatsen" 9/78, "zelfstandig" 11/78, "in elkaar zit" en "meepraten"
+# allebei 0/78. Flag en geen hard fail: "plaatsen" kan legitiem zijn ("modules plaatsen in een
+# tijdlijn"), en of "zelfstandig" hier iets toevoegt is een oordeel.
+ZWAKKE_FORMULERINGEN: tuple[tuple[str, str], ...] = (
+    (r"\bplaats(?:en|t)\b",
+     "'plaatsen' zegt niet wat de deelnemer kan; schrijf 'de opbouw van X doorgronden', "
+     "'het verschil tussen X en Y benoemen' of 'weten wanneer je X inzet'"),
+    (r"\bin elkaar (?:zit|zitten|steekt)\b",
+     "schrijf 'hoe X is opgebouwd' -- dezelfde belofte, wél een respectabele constructie"),
+    (r"\b(?:mee te praten|meepraten|mee praten)\b",
+     "'meepraten' is geen belofte waarvoor iemand betaalt; zeg binnen dezelfde scope wat de "
+     "deelnemer écht overhoudt ('een stevige basis leggen in …', 'de structuur van X volledig "
+     "begrijpen')"),
+    (r"\bzelfstandig\b",
+     "'zelfstandig' voegt alleen iets toe als de deelnemer daarna géén derde partij meer nodig "
+     "heeft; is dat zo, schrijf dat dan ('zonder tussenkomst van derden')"),
+)
+_ZWAK_RE = [(re.compile(p, re.I), uitleg) for p, uitleg in ZWAKKE_FORMULERINGEN]
+
 # Alles heet een training. "Examentraining" bevat geen van deze woorden en mag dus blijven.
 _SOORTWOORD_RE = re.compile(
     r"\b(?:cursus(?:sen|se)?|opleiding(?:en)?|gebruikerscursus|examencursus|leergang(?:en)?)\b",
@@ -274,6 +338,65 @@ def check_duurvermelding(rw: dict, ctx: dict | None = None) -> list[Issue]:
     return issues
 
 
+def check_anglicismen(rw: dict, ctx: dict | None = None) -> list[Issue]:
+    """Zuiver Nederlands: geen letterlijk vertaalde constructies, geen onnodige leenwoorden.
+
+    Expliciet gevraagd in reviewronde 2 ("er moet in de reviewrondes een anglicismecheck
+    komen"). De judge doet het inhoudelijke deel -- die ziet een anglicisme dat hier niet op
+    staat; deze lijst vangt de vormen die vaak genoeg terugkomen om ze op te schrijven.
+
+    Hooguit één issue per veld: een tekst met drie leenwoorden heeft één probleem, niet drie.
+    """
+    issues: list[Issue] = []
+    for section, text in _all_text_fields(rw):
+        for rx, nederlands in _ANGLICISME_RE:
+            m = rx.search(text)
+            if m:
+                issues.append(Issue(section, FLAG, "anglicisme",
+                                    f"'{m.group(0)}' -- schrijf Nederlands: {nederlands} "
+                                    f"(zie humanisering_nl.md Sectie G)."))
+                break
+    return issues
+
+
+def check_zwakke_formulering(rw: dict, ctx: dict | None = None) -> list[Issue]:
+    """De belofte klopt, maar hij staat "aan de onderkant" (schrijfspec Sectie 0.19).
+
+    Dit gaat níét over het niveau -- dat blijft precies zo hoog als de kern zegt. Het gaat over
+    het werkwoord waarmee je dat niveau opschrijft. "Begrippen kunnen plaatsen" en "de opbouw
+    van het model doorgronden" beloven hetzelfde; alleen het tweede leest als een training.
+    """
+    issues: list[Issue] = []
+    for section, text in _all_text_fields(rw):
+        for rx, uitleg in _ZWAK_RE:
+            m = rx.search(text)
+            if m:
+                issues.append(Issue(section, FLAG, "zwakke_formulering",
+                                    f"'{m.group(0)}': {uitleg}."))
+                break
+    return issues
+
+
+# De contactzin krijgt altijd "dan": "Mocht je hier vragen over hebben, neem dan gerust contact
+# met ons op." Zonder dat woord hangt de hoofdzin los van de voorwaarde ervoor. Onze eigen
+# `VERVOLG_ALINEA_1` doet het al goed; de Voorkennis-tekst van de schrijver niet.
+#
+# Op het goud staat de vorm zonder "dan" in 36 van de 78 trainingen -- dat is geschreven tekst
+# uit de vorige generatie en geen boilerplate, dus die verandert alleen bij een herschrijving.
+_CONTACTZIN_RE = re.compile(r"\bneem\s+(?!dan\b)\w*\s*gerust\s+contact\b", re.I)
+
+
+def check_contactzin(rw: dict, ctx: dict | None = None) -> list[Issue]:
+    issues: list[Issue] = []
+    for section, text in _all_text_fields(rw):
+        m = _CONTACTZIN_RE.search(text)
+        if m:
+            issues.append(Issue(section, FLAG, "contactzin_zonder_dan",
+                                f"'{m.group(0)}…' -- schrijf 'neem dan gerust contact met ons "
+                                f"op'; het 'dan' hoort bij de voorwaarde ervoor."))
+    return issues
+
+
 def check_zinlengte(rw: dict, ctx: dict | None = None) -> list[Issue]:
     issues: list[Issue] = []
     for key in _PROZA_VELDEN:
@@ -353,8 +476,16 @@ class Band:
     rail_hi: int
 
 
+# Het Overzicht stond op 55-65 en dat was smaller dan de eigen catalogus: van de 78 trainingen
+# in de nieuwe stijl haalden er 29 die band, terwijl de mediaan op 64 woorden ligt, p75 op 77 en
+# p90 op 94. De reviewer verwoordde in ronde 2 hetzelfde van de andere kant: "lengtebeperking is
+# geen doel op zich -- liever wat langer, maar een complete intro in de materie, dan korter door
+# de bocht". Een van de drie Overzichten miste daardoor een heel onderwerp uit de training.
+#
+# 55-80 volgt het corpus tot p75 (dekking van 37% naar 65%); de vangrail schuift mee naar 110.
+# De ondergrens blijft staan: te kort betekent nog steeds dat er inhoud ontbreekt.
 BANDEN: dict[str, Band] = {
-    "overzicht": Band(55, 65, 45, 90),
+    "overzicht": Band(55, 80, 45, 110),
     "inleiding": Band(180, 210, 150, 260),
 }
 
@@ -570,6 +701,17 @@ def check_doelen(rw: dict, ctx: dict | None = None) -> list[Issue]:
     return issues
 
 
+# De Kortste omschrijving is een vraag plus het antwoord erop, en dat antwoord begint met "Na
+# deze training …". Drie keer expliciet gevraagd in reviewronde 2, met "structureel" erbij: de
+# lezer ziet dit fragment vaak zonder de rest van de pagina, dus het moment waarop de opbrengst
+# er is moet in de zin zelf staan.
+#
+# FLAG en geen HARD: geen van de 77 bestaande omschrijvingen doet dit (het is een nieuwe regel,
+# geen corpuspatroon) en de mediaan zit op 181 van de maximaal 200 tekens. Botst de constructie
+# met die harde grens, dan wint de grens -- Edudex kapt af.
+_NA_DEZE_TRAINING_RE = re.compile(r"\bna\s+(?:afloop van\s+)?(?:deze|de)\s+training\b", re.I)
+
+
 def check_kortste_omschrijving(rw: dict, ctx: dict | None = None) -> list[Issue]:
     t = _norm(rw.get("kortste_omschrijving"))
     if not t:
@@ -583,6 +725,11 @@ def check_kortste_omschrijving(rw: dict, ctx: dict | None = None) -> list[Issue]
     if not _startswith_ci(t, "wil je"):
         issues.append(Issue("kortste_omschrijving", HARD, "opening",
                             'moet beginnen met een vraag die start met "Wil je …".'))
+    if not _NA_DEZE_TRAINING_RE.search(t):
+        issues.append(Issue("kortste_omschrijving", FLAG, "geen_na_deze_training",
+                            'de zin na de openingsvraag begint met "Na deze training …" '
+                            '(bv. "Na deze training weet je hoe je …"). Past dat niet binnen '
+                            'de 200 tekens, dan gaat de grens voor.'))
     return issues
 
 
@@ -726,6 +873,9 @@ def check_rewrite(rewrite: dict, ctx: dict | None = None) -> list[Issue]:
     issues += check_generic(rw)
     issues += check_zinlengte(rw, ctx)
     issues += check_duurvermelding(rw, ctx)
+    issues += check_anglicismen(rw, ctx)
+    issues += check_zwakke_formulering(rw, ctx)
+    issues += check_contactzin(rw, ctx)
     return issues
 
 

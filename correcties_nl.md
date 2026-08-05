@@ -10,7 +10,8 @@ meestal niet fóut — hij is net niet raak, en dat verschil is precies wat hier
 
 > Onderhoud: dit bestand groeit per review-ronde. Voeg een paar toe zodra een correctie
 > **twee keer** terugkomt; een eenmalige opmerking hoort in de training zelf thuis, niet hier.
-> Ronde 1 (4 trainingen, 45 comments) staat hieronder.
+> Ronde 1 (4 trainingen, 45 comments) staat hieronder, ronde 2 (3 trainingen, 45 comments)
+> daaronder vanaf §14.
 
 ---
 
@@ -216,3 +217,219 @@ iets bereikt worden.
 ✅ Wil je verdiepen, verbreden of juist werken aan een specifieke vraag …
 
 > "Verdiepen" en "verbreden" houden dat "verder" al in.
+
+---
+---
+
+# Ronde 2 — 3 trainingen, 45 comments
+
+De tweede lezing, op tekst die al met alle regels hierboven is geschreven. Dat zie je terug:
+de fouten uit ronde 1 komen niet meer voor. Wat er nu ligt gaat één laag dieper — over
+werkwoordkeuze, over idioom en over de vraag of de belofte groot genoeg is opgeschreven.
+
+---
+
+## 14. Aan de onderkant schrijven (schrijfspec §0.19) — de grootste groep
+
+Tien van de 45 comments. Het patroon is telkens hetzelfde: de zin klopt, maar hij is zo mager
+geformuleerd dat er geen training uit spreekt. **Het niveau verandert hierbij niet** — §1a
+blijft gelden. Wat verandert is het werkwoord waarmee je dat niveau opschrijft.
+
+❌ Wil je de begrippen, methoden en tools rond Big Data kunnen **plaatsen**?
+✅ Wil je de opbouw van een data-analysetraject kunnen **doorgronden**?
+
+> "In de eerste zinnen van elke trainingbeschrijving moeten we asap ons visitekaartje afgeven.
+> Dat betekent dat we spot-on werkwoorden moeten gebruiken: 'plaatsen' is een nietszeggend
+> werkwoord."
+
+❌ Hierdoor kun je **gerichter meepraten** over data-analyse.
+✅ Hierdoor leg je een **stevige basis** als data-analist.
+
+> "'Gerichter meepraten' is, ook als dat is wat het oplevert, waarschijnlijk niet een belofte
+> waar iemand veel geld voor gaat neertellen."
+
+❌ … en ervaar je hoe een data-analysetraject **in elkaar zit**.
+✅ … en ervaar je hoe een data-analysetraject **is opgebouwd**.
+
+> "'Weten/doorgronden hoe iets is opgebouwd' is ook aan de onderkant, maar is in ieder geval
+> een respectabele constructie en kan ook ge-upgrade worden met bijvoeglijke naamwoorden."
+
+❌ In deze training **werk je aan** datamodellen die houvast geven.
+✅ In deze training **verdiep je je in** datamodellen die houvast geven.
+
+> "Je bent niet op je werk, dus er moet iets bovenop. Het is niet iets vrijblijvends tenslotte."
+
+❌ … en weet daardoor welk model in welke ontwerpfase **iets oplevert**.
+✅ … en weet daardoor welk model in welke ontwerpfase **waardevol is**.
+
+❌ … kun je een analysetraject in je eigen organisatie **beter volgen** en beoordelen.
+✅ … kun je een analysetraject in je eigen organisatie **doorgronden** en beoordelen.
+
+❌ **Zelfstandig** met design patterns te werken bij het ontwerpen van je JavaScript-code
+✅ Design patterns onderbouwd toe te passen bij het ontwerpen van je JavaScript-code
+
+> "'Zelfstandig' lijkt me toch het minste. Meestal wordt dit ingezet als waardetoevoegend,
+> terwijl dat alleen zo is als je geen derde partijen meer nodig hebt. Is dat het geval, noem
+> het dan zo: 'zonder tussenkomst van derde partijen'."
+
+**Wat wél werkt bij een foundation- of basistraining**, zonder boven de scope te komen: "de
+opbouw van X doorgronden", "een stevige basis leggen in X", "je begrijpt de structuur van X
+volledig", "je beheerst de basis van X".
+
+---
+
+## 15. De slotzin staat in de in-staat-vorm (schrijfspec §2, §3)
+
+Twee comments, allebei op dezelfde plek: de zin die de opbrengst aan de training koppelt.
+
+❌ **Hierdoor kun je** na afloop een pattern kiezen en verdedigen, in plaats van het alleen te herkennen.
+✅ **Hierdoor ben je in staat om** een pattern te kiezen en die keuze te verdedigen, in plaats van het alleen te herkennen.
+
+> "'Kunnen' alleen mist de kracht — het kan ook bedoeld zijn als suggestie. Door eindeloos te
+> herhalen dat 'je in staat bent om', dan wel 'weet hoe je iets kunt bewerkstelligen', maak je
+> keer op keer spot-on duidelijk wat de toegevoegde waarde van de training is."
+
+❌ Hierdoor **kun** je in je eigen applicatie het best passende ontwerppatroon kiezen.
+✅ Hierdoor **stelt de training je in staat om** in je eigen applicatie het best passende ontwerppatroon te kiezen.
+
+---
+
+## 16. Anglicismen (schrijfspec §0.18, `humanisering_nl.md` §G)
+
+> "Dit is een anglicisme. Er moet in de reviewrondes een anglicismecheck komen."
+
+❌ Daarna **werk je door** de categorieën waarin patterns worden ingedeeld.
+✅ Daarna **neem je** de categorieën **door** waarin je patronen indeelt.
+
+❌ Je leert het onderscheid tussen een conceptueel, logisch en fysiek model **kennen**.
+✅ Je leert **onderscheid te maken** tussen een conceptueel, logisch en fysiek model.
+
+> "Je leert geen onderscheid kennen: je leert onderscheid maken tussen … en …, of: je leert wat
+> het verschil is tussen … en …"
+
+**Het Engels als hele term, het Nederlands als los woord:**
+
+❌ Je leert de belangrijkste **patterns** te benoemen en te doorgronden hoe zo'n **pattern** is opgebouwd.
+✅ Je leert de belangrijkste **design patterns** te benoemen en te doorgronden hoe zo'n **patroon** is opgebouwd.
+
+> "Wel design pattern als volledige term, maar patroon als los woord."
+
+**En lange samenstellingen krijgen een streepje op de naad:**
+
+❌ Kennismaken met **datamodelleringssoftware**
+✅ Kennismaken met **datamodellerings-software**
+
+---
+
+## 17. De openingsvraag dekt de kern, niet één deelaspect (schrijfspec §2)
+
+Ronde 1 leerde dat de openingsvraag het *doel* moet noemen en niet alleen de handeling. Ronde 2
+gaat een stap verder: dat doel moet ook het zwaartepunt van de héle training zijn.
+
+❌ Wil je design patterns in JavaScript gericht kunnen inzetten, zodat je code overzichtelijk blijft naarmate je applicatie groeit?
+✅ Wil je design patterns in JavaScript gericht kunnen inzetten, zodat je applicaties professioneel opgezet, goed onderhoudbaar en makkelijk te integreren blijven?
+
+> "Ik vind de openingsvragen nog niet heel scherp. Dit heeft niet alleen met groeien te maken,
+> maar met een professioneel app-ontwerp, onderhoudbaarheid, integratie."
+
+**En het Overzicht mag langer worden om de kern compleet te maken.** Bij Data Modeling ontbrak
+de introductie in stermodelleren volledig — een onderwerp waar een hele module over gaat.
+
+> "Lengtebeperking is wat mij betreft geen doel op zich. Liever wat langer, maar een complete
+> intro in de materie, met logische doorvertalingen, dan korter door de bocht en 'lekker kort'."
+
+---
+
+## 18. Maak "je" het onderwerp (schrijfspec §0.3, §3)
+
+> "Het gebruik van actieve constructies is wat mij betreft wel een doel op zich. Gebruik van
+> 'je' maakt het altijd persoonlijker en aansprekender."
+
+❌ … maar de waarde komt pas vrij als je weet **welke techniek bij welk vraagstuk hoort**.
+✅ … maar de waarde komt pas vrij als je weet **met welke technieken je die data omzet in bruikbare informatie**.
+
+❌ … en zie je per fase **welke technieken en tools in beeld komen**.
+✅ … en zie je per fase **van welke technieken en tools je je kunt bedienen**.
+
+❌ Het ontwerp van een informatiesysteem begint bij de vraag **hoe je data structureert** voordat er iets gebouwd wordt.
+✅ Het ontwerp van een informatiesysteem begint bij de vraag **hoe je je data kunt structureren, nog voor je begint te bouwen**.
+
+---
+
+## 19. De Kortste omschrijving noemt het moment (schrijfspec §10)
+
+Drie keer, één per training, met "structureel" erbij.
+
+❌ Wil je design patterns in JavaScript gericht kunnen inzetten? **Je leert** de belangrijkste patterns te benoemen en toe te passen.
+✅ Wil je design patterns in JavaScript gericht kunnen inzetten? **Na deze training weet je hoe je** ze benoemt, kiest en toepast.
+
+❌ Wil je zelf datamodellen kunnen opzetten en beoordelen? **Je werkt met** conceptuele, logische en fysieke modellen.
+✅ Wil je zelf datamodellen kunnen opzetten en beoordelen? **Na deze training beheers je** conceptuele, logische en fysieke modellen.
+
+---
+
+## 20. Doelgroep en Voorkennis dubbelen niet (schrijfspec §6, §7)
+
+> "Hoe verhoudt zich dit tot hetgeen erboven staat: 'deze training is bedoeld voor iedereen die
+> al in JS ontwikkelt…'?"
+
+❌ Doelgroep: "… voor iedereen die al in JavaScript ontwikkelt en zijn code beter wil structureren."
+   Voorkennis: "Enige ervaring in het werken met JavaScript is vereist."
+
+✅ Doelgroep: "… voor iedereen die zijn JavaScript-code beter wil structureren met bewezen ontwerpoplossingen."
+   Voorkennis: "Ervaring met ontwikkelen in JavaScript is vereist, waaronder werken met functies, objecten en modules. Mocht je hier vragen over hebben, neem dan gerust contact met ons op."
+
+---
+
+## 21. Losse woordkeuzes
+
+❌ Mocht je hier vragen over hebben, neem gerust contact met ons op.
+✅ Mocht je hier vragen over hebben, neem **dan** gerust contact met ons op.
+
+> "Altijd 'dan' toevoegen in deze context."
+
+❌ Je kijkt **ook** naar datakwaliteit: welke eisen stel je aan je data?
+✅ **Daarnaast** kijk je naar datakwaliteit: welke eisen stel je aan je data?
+
+> "In opsommingen liever standaard 'daarnaast' gebruiken dan 'ook'."
+
+❌ … een training waarin we theorie en **eigen code** afwisselen.
+✅ … een training waarin we theorie en **praktijk** afwisselen.
+
+> "'Eigen code' afwisselen met theorie impliceert naar mijn idee te weinig. Dan zou ik hier
+> liever standaard 'praktijk' zien."
+
+❌ **In deze training van twee dagen** krijg je een overzicht van de methoden en modellen.
+✅ **Tijdens deze training** krijg je een overzicht van de methoden en modellen.
+
+> Twee correcties in één: geen duur in de tekst (§0.21), en de zin die de openingsvraag
+> beantwoordt noemt de training.
+
+❌ Je kijkt naar datakwaliteit: welke eisen stel je aan je data, en hoe raken governance en privacywetgeving daaraan.
+✅ Je kijkt naar datakwaliteit: welke eisen stel je aan je data, en hoe raken governance en privacywetgeving daaraan**?**
+
+---
+
+## 22. Een mogelijkheid formuleer je als mogelijkheid (schrijfspec §8)
+
+❌ Anti-patterns in bestaande code op te sporen en te onderbouwen waarom ze **problemen geven**
+✅ Anti-patterns in bestaande code op te sporen en te onderbouwen waarom deze **problemen zouden kunnen veroorzaken**
+
+> "Het is een eventualiteit (eerste deel van de zin), die vervolgens te direct wordt getackeld."
+
+---
+
+## 23. Twee dingen die de code niet ziet
+
+**Een causaal verband moet ook kloppen.** Niet elke "Hierdoor" is een echt verband:
+
+❌ … ervaar je hoe een zorgvuldig opgezet datamodel je ontwerpkeuzes onderbouwt en fouten voorkomt.
+
+> "Waarom moeten je ontwerpkeuzes nog onderbouwd worden als je al een zorgvuldig opgezet
+> datamodel hebt?"
+
+**En een claim moet grijpbaar zijn** (§0.16 gaat over verwijzingen; dit gaat over de claim zelf):
+
+❌ … beoordeel je bestaande modellen scherper en **leg je nieuwe structuren reproduceerbaar vast**.
+
+> "In je hoofd? Op papier? Deze vind ik ongrijpbaar en misschien wel hoogdravend."

@@ -15,6 +15,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+import re
 import tempfile
 from types import SimpleNamespace
 
@@ -61,7 +62,8 @@ def _good_rewrite() -> dict:
                    "Terugkerende trends te analyseren",
                    "Resultaten te presenteren aan het team"],
         "vervolgstappen_titels": ["Training Power BI"],
-        "kortste_omschrijving": "Wil je slimmer met data kunnen werken en betere keuzes maken?",
+        "kortste_omschrijving": ("Wil je slimmer met data kunnen werken? Na deze training weet "
+                                 "je hoe je betere keuzes onderbouwt."),
         "nieuwe_titel": "Training Data-analyse",
     }
 
@@ -118,15 +120,28 @@ def test_algemene_te_lang():
 
 def test_korte_net_buiten_richtlijn_is_flag():
     rw = _good_rewrite()
-    rw["overzicht"] = "Wil je " + vul(70) + "?"   # 72 woorden
+    rw["overzicht"] = "Wil je " + vul(90) + "?"   # 92 woorden: buiten 55-80, binnen 45-110
     issues = check_rewrite(rw, _CTX)
     assert "lengte_woorden" not in _codes(issues, HARD)
     assert "lengte_richtlijn" in _codes(issues, FLAG)
 
 
+def test_een_ruimer_overzicht_mag_gewoon():
+    """De band ging in ronde 2 van 55-65 naar 55-80: op de eigen catalogus is de mediaan 64.
+
+    "Lengtebeperking is geen doel op zich" -- een Overzicht van 75 woorden dat de kern compleet
+    maakt hoort niet eens een flag op te leveren.
+    """
+    rw = _good_rewrite()
+    rw["overzicht"] = "Wil je " + vul(73) + "?"   # 75 woorden
+    issues = check_rewrite(rw, _CTX)
+    assert "lengte_richtlijn" not in _codes_in(issues, "overzicht", FLAG)
+    assert "lengte_woorden" not in _codes(issues, HARD)
+
+
 def test_korte_buiten_vangrail_is_hard():
     rw = _good_rewrite()
-    rw["overzicht"] = "Wil je " + vul(100) + "?"
+    rw["overzicht"] = "Wil je " + vul(120) + "?"
     assert "lengte_woorden" in _codes(check_rewrite(rw, _CTX), HARD)
 
 
@@ -179,7 +194,7 @@ def test_zinlengte_kijkt_niet_naar_bullets():
 def test_overzichtsband_negeert_dagen():
     """Het Overzicht is de aanhaakalinea; die blijft even lang, hoe lang de training ook duurt."""
     rw = _good_rewrite()
-    rw["overzicht"] = "Wil je " + vul(70) + "?"
+    rw["overzicht"] = "Wil je " + vul(90) + "?"
     for dagen in (1, 5):
         assert "lengte_richtlijn" in _codes(check_rewrite(rw, dict(_CTX, dagen=dagen)), FLAG)
 
@@ -1594,6 +1609,10 @@ def test_schrijfspec_citeert_de_actuele_vaste_teksten():
     pas in de output opvalt.
     """
     spec = open(rw.SCHRIJFSPEC, encoding="utf-8").read()
+    # De spec citeert de vaste teksten in een blockquote, en een tekst met een alineagrens erin
+    # (de Modules-openingszin, met de NB als tweede alinea) krijgt daardoor een ">" middenin.
+    # Dat is markdown-opmaak en geen inhoudsverschil, dus die haalt deze test eraf.
+    spec = re.sub(r"(?m)^\s*>\s?", "", spec)
     spec = " ".join(spec.split())
     # Alleen de teksten die de spec daadwerkelijk citeert; de placeholder-varianten toetsen
     # we op hun deel vóór de {}.
@@ -1769,6 +1788,51 @@ def test_ververs_respecteert_modules_variant():
     assert "snelle ontwikkelingen" in nieuw["modules"]
 
 
+def test_nb_staat_in_een_eigen_alinea():
+    """Drie reviewers schreven onafhankelijk "nieuwe alinea" bij de NB onder Modules.
+
+    Een tweede <p> is precies hoe de bestaande CMS-content zijn alinea's maakt (de `intro` van
+    69 van de 78 trainingen heeft er drie of vier). Wat níét mag is een letterlijke newline
+    ertussen -- dat is de bevinding uit de vorige ronde.
+    """
+    html = uit.render_modules(sjabloon.modules_opening("Training XML"),
+                              [{"titel": "Module een", "bullets": ["Onderdeel a"]}])
+    kop = html.split("<ul", 1)[0]
+    assert kop.count("<p>") == 2, kop
+    assert "</p><p>NB:" in kop
+    assert "\n" not in html
+
+
+def test_stabiele_nb_vraagt_naar_de_inhoud_niet_naar_de_actuele_inhoud():
+    """De actualiteit is precies wat de variant `actueel` afdekt; in allebei roept het een
+    vraag op die de stabiele variant zelf niet beantwoordt."""
+    assert "over de inhoud" in sjabloon.MODULES_NB_STABIEL
+    assert "actuele inhoud" not in sjabloon.MODULES_NB_STABIEL
+    assert "actuele inhoud" in sjabloon.MODULES_NB_ACTUEEL
+
+
+def test_ververs_zet_de_nb_alinea_om_en_laat_de_modulelijst_staan():
+    """Op echte CMS-content: de opening wordt opnieuw opgebouwd, de lijst blijft ongemoeid."""
+    bron = _goud_content()
+    if not bron.get("modules"):
+        return
+    nieuw, _ = uit.ververs_vaste_teksten(bron, "Training XML")
+    kop = nieuw["modules"].split("<ul", 1)[0]
+    assert kop.count("<p>") == 2, kop
+    assert "actuele inhoud" not in kop
+    # alles vanaf de lijst is ongewijzigd, op de witruimtenormalisatie na
+    oud_lijst = bron["modules"][bron["modules"].index("<ul"):]
+    nieuw_lijst = nieuw["modules"][nieuw["modules"].index("<ul"):]
+    assert re.sub(r"\s+", "", oud_lijst) == re.sub(r"\s+", "", nieuw_lijst)
+
+
+def test_aanpak_alinea_2_noemt_het_expertisegebied():
+    """Reviewronde 2: de boilerplate liep achter op de vaste woordenschat uit Sectie 0.20."""
+    assert sjabloon.AANPAK_ALINEA_2.startswith(
+        "Onze trainers zijn, naast trainer, dagelijks werkzaam op dit expertisegebied.")
+    assert "expert op hun trainingsonderwerp" not in sjabloon.AANPAK_ALINEA_2
+
+
 # ---------------------------------------------------------------------------
 # Reviewbevindingen op de eerste batch (796 / 2347 / 2407)
 # ---------------------------------------------------------------------------
@@ -1892,6 +1956,95 @@ def test_doelgroep_blijft_wel_op_een_zin_staan():
     rwd = _good_rewrite()
     rwd["doelgroep"] = "Deze training is bedoeld voor analisten. Ook voor adviseurs."
     assert "een_zin" in _codes_in(check_rewrite(rwd, _CTX), "doelgroep", FLAG)
+
+
+# ---------------------------------------------------------------------------
+# Reviewronde 2: anglicismen, formuleringen aan de onderkant, "Na deze training",
+# de contactzin en de NB-alinea onder Modules
+# ---------------------------------------------------------------------------
+
+def test_anglicisme_is_flag_geen_hardfail():
+    """Expliciet gevraagd door de schrijfstijl-eigenaar. Flag: het kan een vakterm zijn."""
+    rwd = _good_rewrite()
+    rwd["inleiding"] = "Daarna werk je door de categorieën heen. " + vul(190, "onderwerp", "thema")
+    issues = check_rewrite(rwd, _CTX)
+    assert "anglicisme" in _codes_in(issues, "inleiding", FLAG)
+    assert "anglicisme" not in _codes(issues, HARD)
+
+
+def test_leenwoord_met_nederlandse_tegenhanger_is_flag():
+    rwd = _good_rewrite()
+    rwd["doelgroep"] = "Deze training is bedoeld voor iedereen die zijn skills wil uitbouwen."
+    issue = [i for i in check_rewrite(rwd, _CTX) if i.code == "anglicisme"]
+    assert issue and "vaardigheden" in issue[0].message
+
+
+def test_vaktermen_uit_de_eigen_catalogus_vuren_niet():
+    """De lijst is op `herschreven/goud/` gekalibreerd: wat een echte vakterm kan zijn blijft
+    eruit. "best practices" staat zelfs in onze eigen schrijfspec Sectie 1a."""
+    rwd = _good_rewrite()
+    rwd["voorkennis"] = ("Enige ervaring met governance, compliance, deployment, performance "
+                         "en best practices is aan te raden.")
+    assert "anglicisme" not in _codes_in(check_rewrite(rwd, _CTX), "voorkennis", FLAG)
+
+
+def test_hooguit_een_anglicisme_per_veld():
+    """Een tekst met drie leenwoorden heeft één probleem, niet drie."""
+    rwd = _good_rewrite()
+    rwd["doelgroep"] = "Deze training is bedoeld voor iedereen met skills, insights en een mindset."
+    issues = [i for i in check_rewrite(rwd, _CTX) if i.code == "anglicisme"]
+    assert len(issues) == 1
+
+
+def test_zwakke_formulering_is_flag():
+    """De grootste groep uit ronde 2: het niveau klopt, het werkwoord staat aan de onderkant."""
+    for veld, tekst in (
+        ("overzicht", "Wil je de begrippen rond data kunnen plaatsen? " + vul(52)),
+        ("inleiding", "Je ervaart hoe een analysetraject in elkaar zit. "
+                      + vul(188, "onderwerp", "thema")),
+        ("doelgroep", "Deze training is bedoeld voor iedereen die gerichter wil meepraten."),
+    ):
+        rwd = _good_rewrite()
+        rwd[veld] = tekst
+        assert "zwakke_formulering" in _codes_in(check_rewrite(rwd, _CTX), veld, FLAG), veld
+
+
+def test_sterke_formulering_binnen_de_scope_vuurt_niet():
+    """Wat de schrijfstijl-eigenaar wél goedkeurde voor een foundation-training."""
+    rwd = _good_rewrite()
+    rwd["overzicht"] = ("Wil je de opbouw van een analysetraject kunnen doorgronden en een "
+                        "stevige basis kunnen leggen als analist? " + vul(43))
+    assert "zwakke_formulering" not in _codes_in(check_rewrite(rwd, _CTX), "overzicht", FLAG)
+
+
+def test_kortste_omschrijving_zonder_na_deze_training_is_flag():
+    rwd = _good_rewrite()
+    rwd["kortste_omschrijving"] = "Wil je slimmer met data kunnen werken? Je leert het stap voor stap."
+    issues = check_rewrite(rwd, _CTX)
+    assert "geen_na_deze_training" in _codes_in(issues, "kortste_omschrijving", FLAG)
+    assert "geen_na_deze_training" not in _codes(issues, HARD)
+
+
+def test_na_afloop_van_deze_training_telt_ook():
+    rwd = _good_rewrite()
+    rwd["kortste_omschrijving"] = ("Wil je slimmer met data kunnen werken? Na afloop van deze "
+                                   "training onderbouw je je keuzes met cijfers.")
+    assert "geen_na_deze_training" not in _codes_in(
+        check_rewrite(rwd, _CTX), "kortste_omschrijving", FLAG)
+
+
+def test_contactzin_zonder_dan_is_flag():
+    rwd = _good_rewrite()
+    rwd["voorkennis"] = ("Enige ervaring met data is vereist. Mocht je hier vragen over hebben, "
+                         "neem gerust contact met ons op.")
+    assert "contactzin_zonder_dan" in _codes_in(check_rewrite(rwd, _CTX), "voorkennis", FLAG)
+
+
+def test_contactzin_met_dan_vuurt_niet():
+    rwd = _good_rewrite()
+    rwd["voorkennis"] = ("Enige ervaring met data is vereist. Mocht je hier vragen over hebben, "
+                         "neem dan gerust contact met ons op.")
+    assert "contactzin_zonder_dan" not in _codes_in(check_rewrite(rwd, _CTX), "voorkennis", FLAG)
 
 
 def test_duur_in_de_tekst_is_hardfail():

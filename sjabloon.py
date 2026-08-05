@@ -85,14 +85,24 @@ BEDRIJFSTRAINING_TEKST = (
 #                         Alleen dan de voorbehoud-NB; hij doet anders afbreuk aan het geheel.
 #
 # Volgorde van gezag bij het kiezen: reviewerkolom -> modelvoorstel -> default "stabiel".
+#
+# De NB staat in een eigen alinea -- drie reviewers schreven er onafhankelijk van elkaar
+# "nieuwe alinea" bij. De `\n\n` is de alineagrens die `_paragrafen()` in `rewrite_output.py`
+# omzet naar een tweede <p>; precies zoals de bestaande CMS-content zijn alinea's maakt (de
+# `intro` van 69 van de 78 trainingen bestaat uit drie of vier <p>-blokken, zonder <br> en
+# zonder witregel ertussen).
+#
+# "over de inhoud", niet "over de actuele inhoud": de actualiteit is precies wat de variant
+# `actueel` hieronder afdekt. Staat het in beide, dan roept de stabiele variant een vraag op
+# die hij zelf niet beantwoordt -- waarom zou er een andere inhoud zijn dan deze?
 MODULES_NB_STABIEL = (
-    "Tijdens {aanduiding} komen onderstaande onderwerpen aan bod. "
-    "NB: Mocht je vragen hebben over de actuele inhoud of deze aangepast willen zien op jouw "
+    "Tijdens {aanduiding} komen onderstaande onderwerpen aan bod.\n\n"
+    "NB: Mocht je vragen hebben over de inhoud of deze aangepast willen zien op jouw "
     "specifieke praktijksituatie of trainingsbehoefte, bel ons dan gerust: we spreken de "
     "mogelijkheden graag met je door."
 )
 MODULES_NB_ACTUEEL = (
-    "Tijdens {aanduiding} komen onderstaande onderwerpen aan bod. "
+    "Tijdens {aanduiding} komen onderstaande onderwerpen aan bod.\n\n"
     "NB: Afhankelijk van snelle ontwikkelingen op dit expertisegebied, kan de werkelijke "
     "trainingsinhoud hier van afwijken. Bel ons gerust voor meer informatie over de actuele "
     "inhoud."
@@ -236,9 +246,14 @@ AANPAK_ALINEA_1 = (
 )
 # De ontbrekende "te" in "een waardevolle vertaalslag te maken" is de enige correctie die we
 # op de aangeleverde tekst hebben gedaan; verder staat hij er letterlijk zoals aangeleverd.
+#
+# De eerste zin luidde "in hun dagelijks werk expert op hun trainingsonderwerp" en is in
+# reviewronde 2 vervangen door de vaste woordenschat uit schrijfspec Sectie 0.20: "dagelijks
+# werkzaam op dit expertisegebied". Dat is dezelfde formulering die `correcties_nl.md` Sectie 10
+# al voorschreef voor gegenereerde tekst -- de boilerplate liep daar op achter.
 AANPAK_ALINEA_2 = (
-    "Onze trainers zijn, naast trainer, in hun dagelijks werk expert op hun "
-    "trainingsonderwerp. Ze beschikken dus niet alleen over de meest actuele kennis, maar "
+    "Onze trainers zijn, naast trainer, dagelijks werkzaam op dit expertisegebied. "
+    "Ze beschikken dus niet alleen over de meest actuele kennis, maar "
     "hebben ook essentiële praktijkervaring. Hierdoor zijn ze in staat om een waardevolle "
     "vertaalslag te maken van kennis naar toepassing binnen jouw organisatie en werksituatie."
 )
