@@ -1667,8 +1667,11 @@ def _load_scored(path: str):
     df = pd.read_excel(path)
     df.columns = [str(c).strip() for c in df.columns]
     # Zelfde normalisatie als de besluitenlaag, zodat een handgemaakt prioriteitssheet met
-    # `id`/`name` in beide stappen werkt en niet halverwege de pijplijn omvalt.
-    return bes.normaliseer_scored_kolommen(df)
+    # `id`/`name` in beide stappen werkt en niet halverwege de pijplijn omvalt. Dat geldt ook
+    # voor de id-kolom zelf: een als decimaal gelezen `2.347` hoort hier te stranden en niet
+    # verderop als een inhoudelijk `volledig`-advies op te duiken.
+    df = bes.normaliseer_scored_kolommen(df)
+    return bes.normaliseer_training_ids(df, path)
 
 
 def load_source(source_path: str) -> tuple[dict, dict]:
@@ -1891,7 +1894,10 @@ def scan_vorm(content_bron: dict, titel: str = "", dagen: int | None = None,
     komen. Zelfs een tekst die elke check haalt levert hier `stijl` op.
     """
     if not content_bron:
-        return {"ondergrens": "volledig", "reden": "geen broncontent",
+        # Nadrukkelijk niet "geen bron": dat een id niet joint is een fout in het scoresheet
+        # en wordt in `modus_voorstellen` afgevangen voordat het hier als oordeel landt.
+        return {"ondergrens": "volledig",
+                "reden": "bronrij gevonden maar de content is leeg",
                 "lege_kopjes": [], "harde_issues": [], "modules_leesbaar": False}
     if str(verdict or "").strip() == "onbruikbaar":
         return {"ondergrens": "volledig", "reden": "verdict onbruikbaar — te weinig bron",
@@ -2077,12 +2083,35 @@ def modus_voorstellen(scored_path: str, source_path: str, out_path: str | None =
     Met `met_llm=False` blijft het bij de deterministische ondergrens (geen API-key nodig).
     Dat is bruikbaar als kalibratie, niet als voorstel: de ondergrens stelt nooit
     `overnemen` voor, dus elke training zou minstens een stijlronde krijgen.
+
+    Levert daarnaast `modules_nb_voorstel`: welke vaste NB onder kopje Modules komt. Dat
+    staat los van de actualiseringen uit de besluitenronde -- zie `sjabloon.MODULES_NB_*`.
     """
     from collections import Counter
 
     scored = _load_scored(scored_path)
     src_by_id, cols = load_source(source_path)
+
+    # Poort vóór de calls: zonder bronrij valt er niets te beoordelen en zou `scan_vorm` op
+    # lege content terugvallen op `volledig` -- een duur advies dat als een oordeel leest
+    # terwijl het een join-fout is. Stoppen dus, en wel voordat er tokens zijn verbrand.
+    zonder_bron = [srow["training_id"] for _, srow in scored.iterrows()
+                   if src_by_id.get(srow["training_id"]) is None]
+    if zonder_bron:
+        raise ValueError(
+            f"{len(zonder_bron)} van de {len(scored)} training_ids staan niet in de "
+            f"bronlijst: " + ", ".join(str(t) for t in zonder_bron)
+            + f".\nControleer de id-kolom van {scored_path} naast {source_path}; zonder "
+              "bronrij is er niets te beoordelen en zou elke rij als 'volledig' worden "
+              "voorgesteld.")
+
     client = make_client() if met_llm else None
+
+    if verbose:
+        print("Modules-NB: de vaste zin onder kopje Modules. 'voorbehoud-zin' = de variant "
+              "die zegt\ndat de inhoud kan afwijken door snelle ontwikkelingen; die hoort de "
+              "uitzondering te zijn.\nStaat los van de actualiseringen uit de besluitenronde; "
+              "overrulen doe je in `modules_nb_reviewer`.\n")
 
     voorstellen, redenen, ondergrenzen = [], [], []
     nb_voorstellen, nb_redenen = [], []
@@ -2102,8 +2131,14 @@ def modus_voorstellen(scored_path: str, source_path: str, out_path: str | None =
         if verbose:
             afwijking = "" if uitkomst["modus"] == uitkomst["ondergrens"] else \
                 f"  (ondergrens {uitkomst['ondergrens']})"
-            nb = "" if uitkomst["modules_nb"] == sjabloon.MODULES_NB_DEFAULT else "  [NB actueel]"
+            afwijkende_nb = uitkomst["modules_nb"] != sjabloon.MODULES_NB_DEFAULT
+            nb = "  [Modules-NB: voorbehoud-zin]" if afwijkende_nb else ""
             print(f"  {tid:>6}  {naam[:42]:42} -> {uitkomst['modus']:9}{afwijking}{nb}")
+            # De reden meteen eronder: de NB-keuze is de enige uitkomst van deze cel die niet
+            # over de tekst gaat maar over het onderwerp, en dat is zonder motivering niet na
+            # te lezen.
+            if afwijkende_nb and uitkomst["modules_nb_reden"]:
+                print(f"          NB-reden: {uitkomst['modules_nb_reden']}")
 
     scored["modus_voorstel"] = voorstellen
     scored["modus_reden"] = redenen
@@ -2124,8 +2159,9 @@ def modus_voorstellen(scored_path: str, source_path: str, out_path: str | None =
         print("verdeling Modules-NB:", nb_telling)
         n_actueel = nb_telling.get("actueel", 0)
         if n_actueel > len(nb_voorstellen) / 3:
-            print(f"LET OP: {n_actueel} keer 'actueel'. Die NB hoort de uitzondering te zijn; "
-                  f"lees die rijen na voordat je ze doorzet.")
+            print(f"LET OP: {n_actueel}x de voorbehoud-zin onder kopje Modules. Die hoort de "
+                  f"uitzondering te zijn;\nlees de NB-redenen na en zet 'stabiel' in "
+                  f"`modules_nb_reviewer` waar je het er niet mee eens bent.")
     if out_path:
         scored.to_excel(out_path, index=False)
         if verbose:

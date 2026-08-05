@@ -323,6 +323,50 @@ def normaliseer_scored_kolommen(df):
     return df.rename(columns=hernoem) if hernoem else df
 
 
+def normaliseer_training_ids(df, bron: str = ""):
+    """Maakt van een numerieke id-kolom weer gehele getallen, of weigert het sheet.
+
+    Excel maakt van een handmatig samengestelde lijst zomaar een float-kolom: staat er in
+    één cel een duizendtalscheiding (`2.347`), dan leest pandas dat als het getal 2,347 en
+    wordt de héle kolom float64. Dat is dubbel schadelijk. Het id joint niet meer met de
+    bronsheet -- en omdat een training zonder broncontent verderop als `volledig` wordt
+    aangemerkt, ziet zo'n typefout eruit als een inhoudelijk oordeel. En de rest van de
+    kolom komt als `796.0` in beeld, wat een reviewer niet kan overtypen.
+
+    Vandaar hier de poort, in het inleespad van beide pijplijnen: hele floats worden `int`,
+    en alles wat geen geheel getal is stopt de boel meteen. Bewust niet in
+    `normaliseer_scored_kolommen`: die hernoemt kolommen en hoort niet te gooien.
+
+    Tekstuele ids blijven ongemoeid -- die zijn geldig en niet aan dit euvel onderhevig.
+    """
+    kolom = df["training_id"] if "training_id" in df.columns else None
+    if kolom is None:
+        return df
+
+    import pandas as pd
+    if not pd.api.types.is_numeric_dtype(kolom):
+        return df
+
+    fout = []
+    for positie, waarde in enumerate(kolom, start=2):   # +2: kopregel en 1-based tellen
+        if pd.isna(waarde):
+            fout.append(f"rij {positie}: leeg")
+        elif float(waarde) != int(waarde):
+            heel = str(waarde).replace(".", "").replace(",", "")
+            fout.append(f"rij {positie}: {waarde} (duizendtalscheiding? bedoeld is {heel})")
+    if fout:
+        waar = f" in {bron}" if bron else ""
+        raise ValueError(
+            f"{len(fout)} training_id(s){waar} zijn geen geheel getal:\n  "
+            + "\n  ".join(fout)
+            + "\nCorrigeer de id-kolom in het scoresheet; een id met een punt erin wordt "
+              "als decimaal gelezen en joint daarna nergens meer mee.")
+
+    df = df.copy()
+    df["training_id"] = kolom.astype("int64")
+    return df
+
+
 def _load_scored(path: str):
     import pandas as pd
     df = pd.read_excel(path)
@@ -331,7 +375,7 @@ def _load_scored(path: str):
     for kolom in ("training_id", "actualiteit_actie", "actie_besluit"):
         if kolom not in df.columns:
             raise ValueError(f"kolom {kolom!r} ontbreekt in {path}")
-    return df
+    return normaliseer_training_ids(df, path)
 
 
 def check_alignment(scored_path: str, verbose: bool = True) -> list[str]:

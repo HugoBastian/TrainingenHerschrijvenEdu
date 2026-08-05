@@ -134,6 +134,17 @@ deterministische ondergrens staan — bruikbaar als kalibratie, niet als voorste
 `rewrite_guidance` van de scorer en met het label dat hij vóór gaat: "modules 3 en 4 overlappen",
 "de inleiding mag blijven zoals hij is".
 
+Dezelfde call vult ook `modules_nb_voorstel` en `modules_nb_reden`, met `modules_nb_reviewer`
+ernaast — de Modules-NB, zie **De vaste NB onder kopje Modules** hieronder. Die keuze gaat over
+het onderwerp en niet over de kwaliteit van de tekst; verwar hem niet met de actualiseringen uit
+stap 1.
+
+Het commando **stopt** als een `training_id` niet in de bronsheet voorkomt, en het inleespad
+weigert een id dat geen geheel getal is. Dat laatste is de klassieke Excel-val: staat er in één
+cel `2.347` in plaats van `2347`, dan leest pandas dat als een decimaal, wordt de hele kolom
+float, joint het id nergens meer mee en zou de training als `volledig` worden voorgesteld — een
+typefout die zich voordoet als een oordeel.
+
 ### 2. Herschrijven
 
 ```bash
@@ -236,6 +247,31 @@ een regel in `rewrite_checks.py` van aard, dan hoort hij daar mee te verhuizen.
 
 Een scoresheet zónder de nieuwe kolommen gedraagt zich exact als voorheen: `herschreven=1` was de
 facto al een modus ("niet aanraken") en valt terug op `overnemen`, de rest op `volledig`.
+
+Een training zonder bronrij is géén modus-oordeel maar een fout in het scoresheet, en
+`modus_voorstellen()` stopt er dan ook op — vóór de eerste call. Zou hij doorlopen, dan zag
+`scan_vorm()` lege content en stelde hij `volledig` voor: het duurste advies dat er is, op basis
+van een typefout in de id-kolom.
+
+### De vaste NB onder kopje Modules
+
+Onder kopje Modules staat altijd een vaste zin, in twee varianten (`sjabloon.MODULES_NB_STABIEL`
+en `MODULES_NB_ACTUEEL`). De keuze ertussen gaat **niet over de kwaliteit van de tekst maar over
+het onderwerp**, en staat los van de actualiseringen uit de besluitenronde:
+
+| Variant | Belofte | Wanneer |
+| --- | --- | --- |
+| `stabiel` (default) | Bel ons als je de inhoud op jouw praktijksituatie aangepast wilt zien | Verreweg de meeste trainingen |
+| `actueel` | De werkelijke inhoud kan afwijken door snelle ontwikkelingen | Alleen als het vakgebied binnen een jaar aan de beschrijving voorbij loopt |
+
+`schat_modus()` stelt de variant voor in hetzelfde tool-schema als de modus — dus zonder extra
+call, want dat model leest de brontekst toch al. De gezagsvolgorde is dezelfde als overal:
+`modules_nb_reviewer` → `modules_nb_voorstel` → default `stabiel` (`RewriteBriefing.modules_nb`).
+
+De `actueel`-variant is een voorbehoud en hoort de uitzondering te zijn: zonder die noodzaak
+suggereert hij dat wij zelf niet weten wat we geven. `modus_voorstellen()` waarschuwt daarom
+zodra meer dan een derde van de batch hem voorgesteld krijgt — een prioriteitslijst vol cloud,
+AI en security haalt die drempel makkelijk, en dan is nalezen precies wat er moet gebeuren.
 
 ### Eén kopje opnieuw
 

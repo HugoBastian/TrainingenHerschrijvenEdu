@@ -763,6 +763,43 @@ def test_load_scored_faalt_nog_steeds_zonder_id_kolom():
 
 
 # ---------------------------------------------------------------------------
+# De id-kolom: Excel maakt er zomaar floats van
+# ---------------------------------------------------------------------------
+
+def test_hele_floats_worden_weer_gehele_ids():
+    """`796.0` in beeld en `796.000` in het sheet is voor een reviewer niet over te typen."""
+    with tempfile.TemporaryDirectory() as d:
+        pad = os.path.join(d, "prio.xlsx")
+        _scored_df(id=[796.0], name=["Training XML"]).to_excel(pad, index=False)
+        for laag in (bes, rw):
+            tid = laag._load_scored(pad)["training_id"].iloc[0]
+            assert tid == 796 and int(tid) == tid, (laag.__name__, tid)
+            assert "." not in str(tid), (laag.__name__, tid)
+
+
+def test_id_met_duizendtalscheiding_wordt_geweigerd():
+    """`2.347` is 2347 met een punt erin; als decimaal gelezen joint hij nergens meer mee."""
+    with tempfile.TemporaryDirectory() as d:
+        pad = os.path.join(d, "prio.xlsx")
+        _scored_df(id=[2.347], name=["Cursus Big Data Foundation"]).to_excel(pad, index=False)
+        for laag in (bes, rw):
+            try:
+                laag._load_scored(pad)
+            except ValueError as e:
+                assert "2.347" in str(e) and "duizendtal" in str(e), str(e)
+            else:
+                raise AssertionError(f"{laag.__name__} accepteerde een niet-heel training_id")
+
+
+def test_tekstuele_ids_blijven_ongemoeid():
+    """Niet elk id is een getal; alleen de float-val hoort hier te worden afgevangen."""
+    with tempfile.TemporaryDirectory() as d:
+        pad = os.path.join(d, "prio.xlsx")
+        _scored_df(id=["XML-42"], name=["Training XML"]).to_excel(pad, index=False)
+        assert rw._load_scored(pad)["training_id"].iloc[0] == "XML-42"
+
+
+# ---------------------------------------------------------------------------
 # besluiten.xlsx: meerdere batches naast elkaar
 # ---------------------------------------------------------------------------
 
@@ -1354,6 +1391,45 @@ def test_scan_scheidt_structuur_van_formulering():
 def test_scan_zonder_bron_of_met_onbruikbaar_verdict_gaat_naar_volledig():
     assert rw.scan_vorm({}, "T")["ondergrens"] == "volledig"
     assert rw.scan_vorm(_content(), "T", verdict="onbruikbaar")["ondergrens"] == "volledig"
+
+
+def test_modus_voorstellen_stopt_op_een_id_zonder_bronrij():
+    """Een id dat niet joint is een fout in het scoresheet, geen `volledig`-oordeel.
+
+    Zou de lus doorlopen, dan zag `scan_vorm` lege content en kwam er het duurste advies uit
+    dat er is -- op basis van een typefout. De poort hoort dus vóór de eerste call te zitten.
+    """
+    import pandas as pd
+    with tempfile.TemporaryDirectory() as d:
+        bron_pad, scored_pad = os.path.join(d, "bron.xlsx"), os.path.join(d, "prio.xlsx")
+        pd.DataFrame([{"id": 42, "name": "Training XML",
+                       "content": json.dumps(_content(), ensure_ascii=False)}]
+                     ).to_excel(bron_pad, index=False)
+        _scored_df(id=[42, 999], name=["Training XML", "Training Zoek"],
+                   actualiteit_actie=["", ""], actie_besluit=["", ""]
+                   ).to_excel(scored_pad, index=False)
+        try:
+            rw.modus_voorstellen(scored_pad, bron_pad, met_llm=False, verbose=False)
+        except ValueError as e:
+            assert "999" in str(e) and "bronlijst" in str(e), str(e)
+            return
+    raise AssertionError("verwachtte ValueError bij een training_id zonder bronrij")
+
+
+def test_modus_voorstellen_draait_door_als_elk_id_joint():
+    """De poort mag een gezond sheet niet in de weg zitten -- ook zonder API-key."""
+    import pandas as pd
+    with tempfile.TemporaryDirectory() as d:
+        bron_pad, scored_pad = os.path.join(d, "bron.xlsx"), os.path.join(d, "prio.xlsx")
+        pd.DataFrame([{"id": 42, "name": "Training XML",
+                       "content": json.dumps(_content(), ensure_ascii=False)}]
+                     ).to_excel(bron_pad, index=False)
+        _scored_df(id=[42], name=["Training XML"],
+                   actualiteit_actie=[""], actie_besluit=[""]).to_excel(scored_pad, index=False)
+        uitkomst = rw.modus_voorstellen(scored_pad, bron_pad, met_llm=False, verbose=False)
+        assert uitkomst["modus_voorstel"].iloc[0] in rw.MODI
+        assert uitkomst["modules_nb_voorstel"].iloc[0] == sjabloon.MODULES_NB_DEFAULT
+        assert "content is leeg" not in str(uitkomst["modus_reden"].iloc[0])
 
 
 def test_schat_modus_valt_terug_op_de_ondergrens_zonder_client():
