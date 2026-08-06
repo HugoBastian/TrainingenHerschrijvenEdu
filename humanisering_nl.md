@@ -1,20 +1,20 @@
-# NL-humanisering — LLM-taal weren en herschrijven
+# NL-humanisering: LLM-taal weren en herschrijven
 
 LLM-tekst is herkenbaar: vaste openingsformules, holle intensiveerders, drieslagen,
 "niet alleen … maar ook", em-dash-verslaving en gladde-maar-lege verbindingswoorden.
 Deze regels dienen twee doelen:
 
-1. **Vooraf** — ingebakken in `schrijfspec_herschrijven_v1.md`, zodat de schrijver ze niet produceert (goedkoper dan achteraf poetsen).
-2. **Achteraf** — de `BANNED_PATTERNS`-lijst hieronder wordt door `rewrite_checks.py` deterministisch geflagd, en een lichte opschoon-pass ruimt residu op.
+1. **Vooraf**: ingebakken in `schrijfspec_herschrijven_v1.md`, zodat de schrijver ze niet produceert (goedkoper dan achteraf poetsen).
+2. **Achteraf**: de `BANNED_PATTERNS`-lijst hieronder wordt door `rewrite_checks.py` deterministisch geflagd, en een lichte opschoon-pass ruimt residu op.
 
 De harde regels van de stijlgids gelden onverkort: geen marketingtaal, geen superlatieven,
 "je"-vorm. Zinslengte hoort daar níét bij: ±20 woorden is een gemiddelde om op te mikken,
-geen plafond (schrijfspec §0.4). Afwisseling telt hier zwaarder dan het getal — een rij
+geen plafond (schrijfspec §0.4). Afwisseling telt hier zwaarder dan het getal: een rij
 zinnen van gelijke lengte is zélf een LLM-signaal, net als de patronen hieronder.
 
 **Alles hier geldt voor tekst die de schrijver zélf produceert.** De vaste sjabloonteksten in
 `sjabloon.py` vallen erbuiten: die zijn letterlijk aangeleverd door de schrijfstijl-eigenaar en
-worden niet gecontroleerd en niet beoordeeld. Een paar ervan overtreden §B en §C — `AANPAK_ALINEA_2`
+worden niet gecontroleerd en niet beoordeeld. Een paar ervan overtreden §B en §C. `AANPAK_ALINEA_2`
 bevat "niet alleen … maar ook", "essentiële" en "waardevolle", en `VERVOLG_ALINEA_1` eindigt op
 een uitroepteken. Dat is een bewuste keuze voor onze eigen boilerplate en **verruimt niets** aan
 wat de schrijver mag schrijven. Kopieer die constructies dus niet naar gegenereerde tekst.
@@ -40,9 +40,8 @@ talloze, diverse (zonder specificatie).
 
 ## C. Structurele LLM-tics (flag)
 
-- **"Niet alleen … maar ook …"** — herschrijf tot een directe zin.
+- **"Niet alleen … maar ook …"**: herschrijf tot een directe zin.
 - **Drieslag-opsommingen als opvulling** (adjectief, adjectief, adjectief) zonder inhoud.
-- **Em-dash-verslaving** — nooit gebruiken; vervang door punt of komma.
 - **"Dit betekent dat …" / "Dat wil zeggen …"** als vulzin.
 - **Retorische dubbelvraag** aan het begin van meerdere kopjes (buiten de bewuste "Wil je …"-openers).
 - **Slot-aanmoediging** ("Zet vandaag nog de eerste stap!", "Waar wacht je nog op?").
@@ -53,23 +52,30 @@ talloze, diverse (zonder specificatie).
 Aangeleverd door de schrijfstijl-eigenaar. Anders dan §B is dit geen smaakkwestie: deze
 woorden gaan er altijd uit.
 
-- **"professional(s)"** — schrijf waar iemand naartoe wil, niet wat iemand ís. [hard]
+- **Het liggende streepje (em-dash en en-dash)**: gebruik het nergens. [hard] Dit is de duidelijkste
+  LLM-tic die er is, en hij stond eerder onder §C als instructie; in reviewronde 4 stonden er
+  alsnog twee in één training. Sindsdien vuurt `check_em_dash` in `rewrite_checks.py` er hard
+  op. Zet er een punt, een komma, een puntkomma, een dubbele punt of haakjes voor in de
+  plaats: een bijstelling gaat tussen komma's of haakjes, twee hoofdzinnen krijgen een punt of
+  een puntkomma, en een toelichting krijgt een dubbele punt. Het gewone koppelteken blijft
+  gewoon staan ("data-analyse", "55-80 woorden").
+- **"professional(s)"**: schrijf waar iemand naartoe wil, niet wat iemand ís. [hard]
   Uitzondering: staat het woord in de trainingstitel zelf ("Training PHP Professional"), dan
   mag de tekst die titel gewoon noemen; dat wordt een flag, geen fout.
-- **"je houdt je bezig met"** — vult een zin zonder iets te zeggen; noem de handeling. [hard]
-- **"meeting"** — gebruik "overleg", "sessie" of "bijeenkomst". [flag] Het blijft een flag
+- **"je houdt je bezig met"**: vult een zin zonder iets te zeggen; noem de handeling. [hard]
+- **"meeting"**: gebruik "overleg", "sessie" of "bijeenkomst". [flag] Het blijft een flag
   omdat het in Scrum-, Agile- en Teams-trainingen een vakterm kan zijn.
-- **"Deze training is voor …"** — de doelgroep opent met "Deze training is **bedoeld** voor …".
+- **"Deze training is voor …"**: de doelgroep opent met "Deze training is **bedoeld** voor …".
   [hard] Zie schrijfspec §6; hier staat hij omdat het een woordkeuze is, geen structuurregel.
-- **"de Training X" midden in een zin** — het soortwoord is daar een gewoon zelfstandig
+- **"de Training X" midden in een zin**: het soortwoord is daar een gewoon zelfstandig
   naamwoord: "de training PHP Professional", "de masterclass PHP". [flag] Als kop 1 blijft het
   uiteraard "Training PHP Professional".
-- **"vakgebied"** — wij schrijven "expertisegebied". [flag]
-- **"plaatsen"** als werkwoord voor wat de deelnemer leert — "begrippen kunnen plaatsen", "het
+- **"vakgebied"**: wij schrijven "expertisegebied". [flag]
+- **"plaatsen"** als werkwoord voor wat de deelnemer leert, zoals "begrippen kunnen plaatsen", "het
   model plaatsen binnen …". [flag] Het zegt niets: plaatsen wáár, en wat kun je er dan mee?
   Schrijf wat de deelnemer werkelijk doet: "de opbouw van het model doorgronden", "het verschil
   tussen X en Y benoemen", "weten wanneer je X inzet". Zie schrijfspec §0.19.
-- **"in elkaar zit"** — "ervaar je hoe een analysetraject in elkaar zit". [flag] Ook een
+- **"in elkaar zit"**: "ervaar je hoe een analysetraject in elkaar zit". [flag] Ook een
   onderkant-formulering. "hoe een analysetraject is opgebouwd" zegt hetzelfde en is wél een
   respectabele constructie, die je bovendien kunt versterken met een bijwoord.
 - **"(gerichter) meepraten"** als de belofte van een training. [flag] Ook als het waar is, is
@@ -120,7 +126,7 @@ zet (vandaag )?(nog )?de eerste stap
 ```
 
 > Onderhoud: breid uit op basis van wat je in de eerste batch-output terugziet. Houd
-> vakspecifieke uitzonderingen (bijv. "cruciaal pad" in projectmanagement) in gedachten —
+> vakspecifieke uitzonderingen (bijv. "cruciaal pad" in projectmanagement) in gedachten;
 > daarom flag, geen hard-fail.
 
 ---
@@ -130,7 +136,7 @@ zet (vandaag )?(nog )?de eerste stap
 Schrijf in natuurlijk, idiomatisch Nederlands. Twee dingen gaan mis, en ze vragen een ander
 oordeel:
 
-**G1. Structurele anglicismen** — een Engelse constructie letterlijk vertaald. Die klinkt
+**G1. Structurele anglicismen**: een Engelse constructie letterlijk vertaald. Die klinkt
 Nederlands maar is het niet, en dat is precies waarom een LLM ze produceert. Voorbeelden uit
 reviewronde 2:
 
@@ -188,4 +194,4 @@ op (?:een )?(?:dagelijkse|wekelijkse|regelmatige) basis = dagelijks / wekelijks 
 
 > Onderhoud: net als §F groeit deze lijst per review-ronde. Vuurt een patroon op de eigen
 > catalogus vaker dan ongeveer één op de vijf trainingen, kijk dan eerst of het geen vakterm is
-> — meet met een scriptje over `herschreven/goud/` voordat je hem toevoegt.
+> meet met een scriptje over `herschreven/goud/` voordat je hem toevoegt.

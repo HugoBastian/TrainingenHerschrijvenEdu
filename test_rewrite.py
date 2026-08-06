@@ -20,6 +20,7 @@ import tempfile
 from types import SimpleNamespace
 
 import besluiten as bes
+import rewrite_checks as checks
 import rewrite_output as uit
 import rewrite_trainings as rw
 import sjabloon
@@ -651,11 +652,13 @@ def test_kies_vervolgtrainingen_toont_het_vakgebied_maar_neemt_het_niet_over():
     boom = _mini_boom(catalog)
     shortlist = rw.shortlist_vervolgtrainingen(catalog, "Cursus XSL", "stylesheets", 1, boom=boom)
     client = _StubClient([{"intro": "Verdiep je verder:",
-                           "titels": ["JavaScript [Software Development > Web Development]"]}])
+                           "titels": ["JavaScript [Software Development > Web Development]",
+                                      "Node.js", "C# Professional"]}])
     groepen = rw.kies_vervolgtrainingen(client, "Training XSL", "stylesheets", "A", shortlist,
                                         boom=boom, oude_titel="Cursus XSL")
     assert "[Software Development > Web Development]" in client.laatste["messages"][0]["content"]
-    assert groepen == [{"intro": "Verdiep je verder:", "titels": ["JavaScript"]}]
+    assert groepen == [{"intro": "Verdiep je verder:",
+                        "titels": ["JavaScript", "Node.js", "C# Professional"]}]
 
 
 def test_kies_vervolgtrainingen_weert_verzonnen_titels():
@@ -1153,14 +1156,16 @@ def test_reviewtabblad_zet_de_brontekst_naast_de_nieuwe_tekst():
 
 def _document() -> dict:
     return {
+        "titel": "Training XML",
         "overzicht": "Wil je slimmer werken?",
         "inleiding": "Eerste alinea.\n\nTweede alinea.",
         "modules": {"opening": sjabloon.modules_opening("Cursus XML"),
                     "modules": [{"titel": "M1", "bullets": ["a", "b"]}]},
         "doelgroep": "Deze training is bedoeld voor iedereen.",
         "voorkennis": sjabloon.VOORKENNIS_FALLBACK,
+        # gemarkeerde vorm, precies zoals `assemble_document` hem samenstelt
         "aanpak": sjabloon.AANPAK_ALINEA_1.format(invulling="je dit toepast")
-                  + "\n\n" + sjabloon.AANPAK_ALINEA_2,
+                  + "\n\n" + sjabloon.AANPAK_ALINEA_2_MARKUP,
         "doelen": {"intro": sjabloon.DOELEN_INTRO, "bullets": ["Doen van dingen"]},
         "vervolgstappen": {"alineas": [sjabloon.VERVOLG_ALINEA_1, sjabloon.VERVOLG_ALINEA_2],
                            "titels": ["Power BI"], "afsluiter": sjabloon.VERVOLG_AFSLUITER},
@@ -1208,7 +1213,8 @@ def test_geen_placeholder_of_oplnaam_in_de_output():
 def test_vervolgstappen_met_groepen_krijgt_per_groep_een_eigen_intro():
     doc = _document()
     doc["vervolgstappen"]["groepen"] = [
-        {"intro": "Wil je je verder verdiepen:", "titels": ["Training Power BI"]},
+        {"intro": "Wil je je verder verdiepen:",
+         "titels": ["Training Power BI", "Training DAX"]},
         {"intro": "Wil je juist verbreden:", "titels": ["Training T-SQL", "Training Python"]},
     ]
     html = uit.document_to_content(doc, {})["follow_up"]
@@ -1662,7 +1668,8 @@ def test_schrijfspec_citeert_de_actuele_vaste_teksten():
     # we op hun deel vóór de {}.
     verplicht = [
         sjabloon.BEDRIJFSTRAINING_KOP,
-        sjabloon.AANPAK_ALINEA_2,
+        # de gemarkeerde vorm: de spec hoort de cursivering te tonen die de code plaatst
+        sjabloon.AANPAK_ALINEA_2_MARKUP,
         sjabloon.VERVOLG_ALINEA_1,
         sjabloon.VERVOLG_ALINEA_2,
         sjabloon.VERVOLG_LIJST_INTRO,
@@ -2194,8 +2201,7 @@ def test_fewshot_haalt_zelf_alle_harde_checks():
     Dit is de enige test die het voorbeeldmateriaal zelf toetst. Verandert er een regel,
     dan valt hij hier om en niet pas in de output van de volgende batch.
     """
-    import glob
-    bestanden = sorted(glob.glob(os.path.join(rw.GOUD_V2_DIR, "*.json")))
+    bestanden = rw.goud_bestanden(rw.GOUD_V2_DIR)
     assert bestanden, "geen voorbeeldmateriaal in goud_v2"
     for pad in bestanden:
         with open(pad, encoding="utf-8") as f:
@@ -2221,6 +2227,177 @@ def test_scan_vorm_ziet_verouderde_vaste_tekst():
     assert scan["ondergrens"] == "format"
     assert scan["verouderde_vaste_tekst"]
     assert "vaste sjabloonteksten" in scan["reden"]
+
+
+# ---------------------------------------------------------------------------
+# Reviewronde 4: em-dash, reikwijdte, groep-intro's, cursief, goud promoveren
+# ---------------------------------------------------------------------------
+
+def test_em_dash_is_hard_in_elk_schrijversveld():
+    for veld, waarde in (("overzicht", "Wil je leren — echt leren — hoe dit werkt?"),
+                         ("inleiding", "Je werkt met data – en met modellen."),
+                         ("doelgroep", "Deze training is bedoeld voor iedereen — echt iedereen.")):
+        hard = checks.hard_fails(checks.check_em_dash({veld: waarde}))
+        assert [i.code for i in hard] == ["em_dash"], f"{veld} laat de em-dash door"
+    # het gewone koppelteken blijft gewoon toegestaan
+    assert not checks.check_em_dash({"overzicht": "Je leert data-analyse hands-on toepassen."})
+
+
+def test_geen_liggend_streepje_in_de_promptbestanden():
+    """Wat de schrijver in zijn context ziet, schrijft hij ook.
+
+    De em-dash is verboden én een harde check, maar de spec-bestanden stonden er zelf vol mee:
+    173 stuks over vijf bestanden. Dat is precies het soort tegenstrijdigheid waar een model
+    de verkeerde kant van kiest. Ze staan er nu uitgeschreven ("[liggend streepje]") in plaats
+    van letterlijk, en deze test houdt dat zo.
+    """
+    for pad in (rw.SCHRIJFSPEC, rw.HUMANISERING, rw.STIJLREGISTER, rw.CORRECTIES,
+                rw.BEOORDELINGSSPEC, rw.TEMPLATE_PATH):
+        with open(pad, encoding="utf-8") as f:
+            tekst = f.read()
+        gevonden = [r for r in ("—", "–") if r in tekst]
+        assert not gevonden, f"{os.path.basename(pad)} bevat {gevonden}"
+
+
+def test_geen_liggend_streepje_in_de_systemprompts():
+    """Ook de kop boven de few-shot en het goud zelf tellen mee.
+
+    De bestandstest hierboven dekt de spec's; dit dekt wat de code eromheen bouwt, inclusief
+    de voorbeelden. Een voorbeeld met een em-dash zou het teken tonen op precies de plek waar
+    de schrijver naar vorm zoekt.
+    """
+    for naam, blokken in (("writer", rw.build_writer_system()),
+                          ("judge", rw.build_judge_system())):
+        tekst = "".join(b["text"] for b in blokken)
+        gevonden = [r for r in ("—", "–") if r in tekst]
+        assert not gevonden, f"{naam}-systemprompt bevat {gevonden}"
+
+
+def test_em_dash_check_raakt_de_vaste_teksten_niet():
+    """De boilerplate komt nooit langs deze check; anders faalt elke training voor altijd."""
+    rwin = {"overzicht": "Schoon.", "aanpak_invulling": "je dit toepast"}
+    assert not checks.check_em_dash(rwin)
+    for tekst in sjabloon.VASTE_TEKSTEN:
+        assert "—" not in tekst and "–" not in tekst, f"vaste tekst bevat een em-dash: {tekst[:40]}"
+
+
+def test_reikwijdte_flagt_een_voorwaarde_met_een_opsomming():
+    """Uit 3127: de bron toont breedte, het concept maakte er een afbakening van."""
+    smal = {"inleiding": "Werk je in communicatie, beleid, HR of klantcontact, dan ben je na "
+                         "deze training in staat om AI in te zetten."}
+    issues = checks.check_reikwijdte(smal)
+    assert [i.code for i in issues] == ["reikwijdte"]
+    assert not checks.hard_fails(issues), "dit is een leesbril, geen oordeel"
+    # de insluitende vorm en een gewone voorwaardelijke zin blijven ongemoeid
+    assert not checks.check_reikwijdte({"inleiding": "Of je nu in communicatie, beleid of HR "
+                                                     "werkt, je leert prompts te schrijven."})
+    assert not checks.check_reikwijdte({"voorkennis": "Werk je nog niet met SQL, dan volg je "
+                                                      "eerst de basistraining."})
+
+
+def test_groep_met_een_titel_valt_weg_en_de_rest_blijft():
+    groepen = [{"intro": "Verdiepen:", "titels": ["A", "B", "C"]},
+               {"intro": "Verbreden:", "titels": ["D"]}]
+    assert rw.snoei_groepen(groepen) == [groepen[0]]
+    # blijven er te weinig titels over, dan vervallen de groepen helemaal en valt de
+    # weergave terug op één vlakke lijst
+    assert rw.snoei_groepen([{"intro": "Verdiepen:", "titels": ["A", "B"]},
+                             {"intro": "Verbreden:", "titels": ["C"]}]) == []
+
+
+def test_groep_met_een_titel_haalt_geen_enkele_weergave():
+    doc = _document()
+    doc["vervolgstappen"]["groepen"] = [
+        {"intro": "Verdiepen:", "titels": ["Training Power BI", "Training DAX"]},
+        {"intro": "Verbreden:", "titels": ["Training T-SQL"]},
+    ]
+    html = uit.document_to_content(doc, {})["follow_up"]
+    md = uit.render_markdown(doc, "Training Data")
+    for weergave in (html, md):
+        assert "Verdiepen:" in weergave
+        assert "Verbreden:" not in weergave, "een intro met één training hoort nergens te staan"
+
+
+def test_groep_met_een_titel_is_een_flag_geen_hardfail():
+    rwin = {"vervolgstappen_groepen": [{"intro": "Verbreden:", "titels": ["A"]}]}
+    issues = checks.check_vervolgstappen(rwin)
+    assert [i.code for i in issues] == ["groep_te_klein"]
+    assert not checks.hard_fails(issues), "de schrijver schrijft deze groepen niet"
+
+
+def test_aanpak_cursief_staat_in_beide_uitvoervormen():
+    """Het template zet twee delen schuin; markdown én CMS-HTML horen dat te tonen."""
+    assert sjabloon.AANPAK_ALINEA_2 == sjabloon.ontmarkeer(sjabloon.AANPAK_ALINEA_2_MARKUP)
+    assert "*kennis*" in sjabloon.AANPAK_ALINEA_2_MARKUP
+    assert "*toepassing binnen jouw organisatie en werksituatie*" in sjabloon.AANPAK_ALINEA_2_MARKUP
+
+    doc = _document()
+    html = uit.document_to_content(doc, {})["setup"]
+    assert html.count("<em>") == 2 and html.count("</em>") == 2
+    assert "<em>kennis</em>" in html
+    assert "<em>toepassing binnen jouw organisatie en werksituatie</em>" in html
+    # de eerste "kennis" ("de meest actuele kennis") blijft rechtop staan
+    assert "actuele kennis, maar" in html
+
+    md = uit.render_markdown(doc, "Training Data").split("## Aanpak")[1]
+    assert md.count("*kennis*") == 1
+
+
+def test_aanpak_html_ontstaat_niet_uit_brontekst():
+    """Escapen gaat vóór het omzetten van de markering; anders smokkelt de bron tags binnen."""
+    html = uit.render_aanpak("Een <script>-tag en een *cursief* stuk.")
+    assert "&lt;script&gt;" in html
+    assert "<em>cursief</em>" in html
+
+
+def _goud_kandidaat(tid: str = "goed") -> dict:
+    """Een artefact zoals `schrijf_training_artefacten` het wegschrijft, dat alles haalt."""
+    writer_out = _good_rewrite()
+    document = rw.assemble_document(writer_out, _briefing(), ["Training Power BI"])
+    return {"training_id": tid, "titel": document["titel"], "status": rw.APPROVED,
+            "document": document, "writer_out": writer_out,
+            "content": uit.document_to_content(document, {"days": 2})}
+
+
+def test_promoveer_naar_goud_kiest_alleen_wat_alle_checks_haalt():
+    """Een training met een harde fail komt de goudmap niet in -- ook niet als hij approved is."""
+    goed = _goud_kandidaat()
+    fout = _goud_kandidaat("fout")
+    fout["writer_out"]["overzicht"] = fout["document"]["overzicht"] = (
+        "Wil je dit — echt dit — kunnen doen?")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        bron, goud = os.path.join(tmp, "trainingen"), os.path.join(tmp, "goud")
+        os.makedirs(bron)
+        for artefact in (goed, fout):
+            with open(os.path.join(bron, f"{artefact['training_id']}.json"), "w",
+                      encoding="utf-8") as f:
+                json.dump(artefact, f)
+        uitslag = rw.promoveer_naar_goud(bron, goud, verbose=False)
+
+        assert [g["training_id"] for g in uitslag["gepromoveerd"]] == ["goed"]
+        assert [tid for tid, _ in uitslag["afgewezen"]] == ["fout"]
+        assert os.path.exists(os.path.join(goud, "goed.json"))
+        assert not os.path.exists(os.path.join(goud, "fout.json"))
+        assert rw.laad_goud_selectie(goud) == ("goed",)
+
+
+def test_promoveer_naar_goud_schrijft_niets_bij_dry_run():
+    artefact = _goud_kandidaat()
+    with tempfile.TemporaryDirectory() as tmp:
+        bron, goud = os.path.join(tmp, "trainingen"), os.path.join(tmp, "goud")
+        os.makedirs(bron)
+        with open(os.path.join(bron, "goed.json"), "w", encoding="utf-8") as f:
+            json.dump(artefact, f)
+        uitslag = rw.promoveer_naar_goud(bron, goud, dry_run=True, verbose=False)
+        assert [g["training_id"] for g in uitslag["gepromoveerd"]] == ["goed"]
+        assert not os.path.exists(goud)
+
+
+def test_goud_selectie_valt_terug_op_het_handwerk_zonder_manifest():
+    """`herschreven/` staat in .gitignore: na een verse checkout is er geen manifest."""
+    with tempfile.TemporaryDirectory() as tmp:
+        assert rw.laad_goud_selectie(tmp) == rw._GOUD_V2_FALLBACK
 
 
 # ---------------------------------------------------------------------------

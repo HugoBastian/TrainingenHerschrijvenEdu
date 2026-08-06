@@ -1,4 +1,4 @@
-# Correcties — echte fout/goed-paren uit de review-rondes
+# Correcties: echte fout/goed-paren uit de review-rondes
 
 `humanisering_nl.md` zegt wat je niet schrijft, `stijlregister_nl.md` geeft het register waaruit
 je put, `schrijfspec_herschrijven_v1.md` geeft de regels. Dit bestand laat zien **hoe die regels
@@ -6,7 +6,7 @@ uitpakken op echte tekst**: elk paar hieronder komt uit een gegenereerde trainin
 schrijfstijl-eigenaar is nagelezen, met de motivering erbij.
 
 Lees het als kalibratie, niet als een lijst met zoek-en-vervang-opdrachten. De ❌-zin is
-meestal niet fóut — hij is net niet raak, en dat verschil is precies wat hier te leren valt.
+meestal niet fóut; hij is net niet raak, en dat verschil is precies wat hier te leren valt.
 
 > Onderhoud: dit bestand groeit per review-ronde. Voeg een paar toe zodra een correctie
 > **twee keer** terugkomt; een eenmalige opmerking hoort in de training zelf thuis, niet hier.
@@ -15,7 +15,7 @@ meestal niet fóut — hij is net niet raak, en dat verschil is precies wat hier
 
 ---
 
-## 1. Het lerende aspect — "kunnen" (schrijfspec §0.15)
+## 1. Het lerende aspect: "kunnen" (schrijfspec §0.15)
 
 Dit was de meest voorkomende correctie: in **alle vier** de trainingen ontbrak "kunnen" in het
 Overzicht. Wij trainen; de deelnemer levert het resultaat. Zonder dat woord belooft de zin dat
@@ -31,7 +31,7 @@ wij het werk doen.
 ✅ Wil je professioneel leren programmeren in PHP en zelf een webapplicatie **kunnen** bouwen?
 
 > Waarom dit zo zwaar telt: we willen het lerende aspect benadrukken, en juist in het Overzicht
-> moeten we in weinig woorden veel zeggen — expliciet én impliciet tegelijk.
+> moeten we in weinig woorden veel zeggen, expliciet én impliciet tegelijk.
 
 **Zelfde regel, andere vorm.** Een platte bewering over wat de deelnemer straks doet, wordt een
 constructie met "kunnen" of "in staat zijn":
@@ -82,7 +82,7 @@ Een opbrengst die klopt maar niet de kern is, verkoopt de verkeerde training.
 ✅ Wil je zelf datamodellen kunnen opzetten en bestaande modellen kunnen beoordelen?
 
 > "Onderbouwen" en "discussies verkorten" stonden er te nadrukkelijk in. Het gaat in deze
-> training vooral om zélf modelleren. Het zwaartepunt staat in de kern die je meekrijgt — lees
+> training vooral om zélf modelleren. Het zwaartepunt staat in de kern die je meekrijgt; lees
 > het daar af en laat het niet verschuiven.
 
 ---
@@ -105,7 +105,7 @@ tussen: **Hierdoor · Waardoor · Doordat · Zo**.
 ❌ … en houd je overzicht over het hele proces.
 ✅ … en houd je overzicht over het hele analysetraject, van businessvraag tot ingebruikname.
 
-> "Welk proces?" — als de lezer dat moet raden, doet de verwijzing geen werk.
+> "Welk proces?": als de lezer dat moet raden, doet de verwijzing geen werk.
 
 ---
 
@@ -134,7 +134,7 @@ tussen: **Hierdoor · Waardoor · Doordat · Zo**.
 ❌ … zodat je code onderhoudbaar blijft.
 ✅ … zodat je code **goed** onderhoudbaar blijft.
 
-> In het Engels kan "maintainable code" los staan; in het Nederlands mist er een kwalificatie —
+> In het Engels kan "maintainable code" los staan; in het Nederlands mist er een kwalificatie:
 > goed, makkelijk, door jezelf.
 
 **Lidwoord en verbuiging bij leenwoorden.**
@@ -194,7 +194,7 @@ waar het over gaat.
 ## 12. Alinea-indeling van de Inleiding (schrijfspec §3)
 
 De Inleiding staat in meerdere alinea's, met een knip bij elke onderwerpwisseling. De passage
-over de trainers begint **altijd** een nieuwe alinea — die stapt over van de stof naar de
+over de trainers begint **altijd** een nieuwe alinea; die stapt over van de stof naar de
 mensen.
 
 ❌ … Zo lees je legacy-code zonder die stijl over te nemen. Onze trainers werken zelf dagelijks aan JavaScript-applicaties. Je mag rekenen op een training waarin we theorie en code afwisselen.
@@ -221,18 +221,18 @@ iets bereikt worden.
 ---
 ---
 
-# Ronde 2 — 3 trainingen, 45 comments
+# Ronde 2: 3 trainingen, 45 comments
 
 De tweede lezing, op tekst die al met alle regels hierboven is geschreven. Dat zie je terug:
-de fouten uit ronde 1 komen niet meer voor. Wat er nu ligt gaat één laag dieper — over
+de fouten uit ronde 1 komen niet meer voor. Wat er nu ligt gaat één laag dieper: over
 werkwoordkeuze, over idioom en over de vraag of de belofte groot genoeg is opgeschreven.
 
 ---
 
-## 14. Aan de onderkant schrijven (schrijfspec §0.19) — de grootste groep
+## 14. Aan de onderkant schrijven (schrijfspec §0.19): de grootste groep
 
 Tien van de 45 comments. Het patroon is telkens hetzelfde: de zin klopt, maar hij is zo mager
-geformuleerd dat er geen training uit spreekt. **Het niveau verandert hierbij niet** — §1a
+geformuleerd dat er geen training uit spreekt. **Het niveau verandert hierbij niet**: §1a
 blijft gelden. Wat verandert is het werkwoord waarmee je dat niveau opschrijft.
 
 ❌ Wil je de begrippen, methoden en tools rond Big Data kunnen **plaatsen**?
@@ -285,7 +285,7 @@ Twee comments, allebei op dezelfde plek: de zin die de opbrengst aan de training
 ❌ **Hierdoor kun je** na afloop een pattern kiezen en verdedigen, in plaats van het alleen te herkennen.
 ✅ **Hierdoor ben je in staat om** een pattern te kiezen en die keuze te verdedigen, in plaats van het alleen te herkennen.
 
-> "'Kunnen' alleen mist de kracht — het kan ook bedoeld zijn als suggestie. Door eindeloos te
+> "'Kunnen' alleen mist de kracht; het kan ook bedoeld zijn als suggestie. Door eindeloos te
 > herhalen dat 'je in staat bent om', dan wel 'weet hoe je iets kunt bewerkstelligen', maak je
 > keer op keer spot-on duidelijk wat de toegevoegde waarde van de training is."
 
@@ -333,7 +333,7 @@ gaat een stap verder: dat doel moet ook het zwaartepunt van de héle training zi
 > maar met een professioneel app-ontwerp, onderhoudbaarheid, integratie."
 
 **En het Overzicht mag langer worden om de kern compleet te maken.** Bij Data Modeling ontbrak
-de introductie in stermodelleren volledig — een onderwerp waar een hele module over gaat.
+de introductie in stermodelleren volledig, en dat is een onderwerp waar een hele module over gaat.
 
 > "Lengtebeperking is wat mij betreft geen doel op zich. Liever wat langer, maar een complete
 > intro in de materie, met logische doorvertalingen, dan korter door de bocht en 'lekker kort'."
@@ -436,7 +436,7 @@ Drie keer, één per training, met "structureel" erbij.
 
 ---
 
-# Ronde 3 — de eerste batch met deze regels
+# Ronde 3: de eerste batch met deze regels
 
 Niet uit een reviewronde maar uit een meting over de eigen catalogus: twee patronen waarop de
 output systematisch afweek van de 78 bestaande trainingen.
@@ -466,3 +466,44 @@ vakgebied en niet als een programma van twee dagen.
 
 > Kies het richtgetal (4 bij één dag, 5 bij twee tot drie, 6 vanaf vier) en voeg verwante
 > onderwerpen samen. Niet: de stof over meer modules uitsmeren zodat elke module "vol" oogt.
+
+---
+
+# Ronde 4: de eerste batch die zelf goud werd
+
+Vier trainingen, gegenereerd met de regels uit ronde 3. Ze haalden alle checks; wat de mens
+er nog uithaalde zit hieronder. Twee ervan zijn sindsdien een harde code-check.
+
+## 26. Een opsomming die breedte toont, blijft breed (schrijfspec §0.24, §12)
+
+De bron somt vijf werkvelden op om te laten zien hoe bréed de training van pas komt. Het
+concept maakte er een voorwaarde van, en daarmee zegt de zin iets anders: hij sluit iedereen
+buiten die opsomming uit. De woorden zijn bijna gelijk, de belofte niet.
+
+❌ **Werk je in** communicatie, beleid, HR, klantcontact of projectmanagement, **dan** ben je na deze masterclass in staat om AI als vast verlengstuk van je denken en handelen in te zetten.
+✅ **Of je nu in** communicatie, beleid, HR, klantcontact of projectmanagement **werkt**, na deze masterclass kun je AI inzetten als verlengstuk van je denken en handelen.
+
+> "of het nu gaat om" staat op de verbodslijst, "Of je nu in X werkt" niet. Wie de eerste
+> vermijdt door er een voorwaarde van te maken, ruilt een stijlprobleem in voor een
+> inhoudelijk probleem. De code flagt deze constructie, maar alleen jij ziet de bron ernaast.
+
+## 27. Het liggende streepje (schrijfspec §0.23, `humanisering_nl.md` §D)
+
+Stond in twee van de vier kopjes van één training, terwijl het verbod al in de spec stond.
+Sindsdien vuurt `check_em_dash` er hard op, en staat er in geen van de spec-bestanden nog een
+streepje dat als voorbeeld kan dienen.
+
+❌ Je voedt de AI met informatie uit je eigen organisatie **[liggend streepje]** beleidsdocumenten, werkinstructies, klantprocessen of communicatieformats **[liggend streepje]** en schrijft daarop prompts.
+✅ Je voedt de AI met informatie uit je eigen organisatie **(**beleidsdocumenten, werkinstructies, klantprocessen of communicatieformats**)** en schrijft daarop prompts.
+
+> Het foute voorbeeld staat hier bewust met het teken uitgeschreven: in geen van de
+> spec-bestanden komt een liggend streepje nog letterlijk voor, zodat de schrijver het nergens
+> in zijn context ziet staan. `test_rewrite.py` bewaakt dat.
+
+## 28. Een introzin bij Vervolgstappen kondigt minstens twee trainingen aan (schrijfspec §9)
+
+Een categorie-intro belooft een richting. Staat er één bullet onder, dan leest de lezer een
+fout in plaats van een keuze. De code snoeit zo'n groep nu weg, introzin en al.
+
+❌ "Wil je de stap zetten naar machine learning en AI-gedreven data-analyse, dan biedt deze training een visuele introductie:" met daaronder één titel.
+✅ Eén groep met vier titels, en de vijfde training valt weg; of twee groepen die allebei minstens twee titels dragen.

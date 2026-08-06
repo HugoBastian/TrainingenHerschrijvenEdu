@@ -1,4 +1,4 @@
-# Stijlregister — formuleringen die onze toegevoegde waarde zichtbaar maken
+# Stijlregister: formuleringen die onze toegevoegde waarde zichtbaar maken
 
 De positieve tegenhanger van `humanisering_nl.md`. Dat bestand zegt wat je *niet* schrijft;
 dit bestand geeft het register waaruit je *wel* put. Aangeleverd door de schrijfstijl-eigenaar
@@ -21,7 +21,7 @@ Twee registers voor hetzelfde onderwerp. Kies er per passage één; wissel ze af
 heen zodat de tekst niet eenzijdig wordt. Vooral bruikbaar in de Inleiding, waar de USP's
 impliciet moeten landen (schrijfspec §3, punt b en c).
 
-**Wij bieden** — onderwerp is "we":
+**Wij bieden**: onderwerp is "we":
 
 - We laten de training aansluiten bij de onderwerpen en voorbeelden uit jouw eigen werkpraktijk.
 - We nemen jouw praktijksituatie als uitgangspunt.
@@ -29,7 +29,7 @@ impliciet moeten landen (schrijfspec §3, punt b en c).
   dit vakgebied. Hierdoor combineren zij theorie en praktijk en sluiten ze aan bij jouw
   dagelijkse werkpraktijk.
 
-**Jij mag verwachten** — onderwerp is "je":
+**Jij mag verwachten**: onderwerp is "je":
 
 - Je mag rekenen op een training waarin we theorie en praktijk afwisselen en waarin we
   antwoorden en tips geven bij vraagstukken uit jouw eigen werkpraktijk.
@@ -45,7 +45,7 @@ partij weg die de waarde levert.
 
 Constructies die op het hoogste niveau een verband leggen tussen de training en de opbrengst.
 Ze staan meestal na "Na deze training ben je / heb je", en vervangen het vlakke
-"Je kunt iets [werkwoord]". Gebruik ze **voor variatie** — vier keer dezelfde constructie
+"Je kunt iets [werkwoord]". Gebruik ze **voor variatie**: vier keer dezelfde constructie
 onder elkaar leest als een formulier.
 
 | Constructie | Waar |
@@ -53,13 +53,13 @@ onder elkaar leest als een formulier.
 | In staat zijn om [X] te [werkwoord] | Overzicht, Inleiding. Zit ook al in de vaste introzin van Doelen; **daar niet herhalen in een bullet** |
 | Stelt je in staat om [X] te [werkwoord] | Overzicht, Inleiding. De variant met ons als onderwerp: de training doet iets met de deelnemer |
 | Weten hoe je [X] kunt [werkwoord] | Overzicht, Inleiding, Kortste omschrijving |
-| Leert [X] te [werkwoord] | Overzicht, Inleiding, Kortste omschrijving. Vooral sterk bij een reeks vaardigheden: "je leert datakwaliteit *te* beoordelen, algoritmen *te* kiezen en uitkomsten *te* vertalen". Herhaal het "te" bij elk element. **Niet in doel-bullets** — die lopen al door op "in staat om" |
+| Leert [X] te [werkwoord] | Overzicht, Inleiding, Kortste omschrijving. Vooral sterk bij een reeks vaardigheden: "je leert datakwaliteit *te* beoordelen, algoritmen *te* kiezen en uitkomsten *te* vertalen". Herhaal het "te" bij elk element. **Niet in doel-bullets**: die lopen al door op "in staat om" |
 | Inzicht hebben in [X] | Overzicht, Inleiding |
 | Inzicht krijgen in [X] | Overal; als doel-bullet: "Inzicht te krijgen in [X]" |
 | Inzicht ontwikkelen | Overal; als doel-bullet: "Inzicht te ontwikkelen in [X]" |
 
 **Een kaal "kun je" is te weinig voor de slotzin.** In de zin die de opbrengst aan de training
-koppelt — de laatste zin van het Overzicht en van de Inleiding — mist "kunnen" alleen de kracht:
+koppelt (de laatste zin van het Overzicht en van de Inleiding) mist "kunnen" alleen de kracht:
 het kan ook als suggestie gelezen worden. Zet daar een van de eerste drie constructies uit de
 tabel neer. Juist door telkens terug te komen op "je bent in staat om" of "je weet hoe je …
 kunt", maak je keer op keer zichtbaar wat de training oplevert.
@@ -72,7 +72,7 @@ Wissel de vormen wél af over de kopjes heen; vier keer dezelfde zin leest als e
 
 **De verbindingswoorden zelf.** Een causale constructie heeft een scharnier nodig; deze vier
 doen het werk: **Hierdoor · Waardoor · Doordat · Zo**. Zonder zo'n woord staan er twee zinnen
-naast elkaar en legt de lezer het verband zelf — of niet.
+naast elkaar en legt de lezer het verband zelf, of niet.
 
 - "Onze trainers zijn dagelijks werkzaam op dit expertisegebied, **waardoor** ze zowel actuele
   kennis als praktijkervaring hebben."
@@ -83,8 +83,8 @@ naast elkaar en legt de lezer het verband zelf — of niet.
 moeten in de te-infinitief staan en mogen "in staat" niet herhalen:
 
 - ✅ "Inzicht te krijgen in de kosten van je datamodel"
-- ❌ "In staat te zijn om inzicht te krijgen in …" — dubbelt met de introzin
-- ❌ "Weten hoe je een pipeline inricht" — loopt niet door op "in staat om"; zet deze vorm in
+- ❌ "In staat te zijn om inzicht te krijgen in …": dubbelt met de introzin
+- ❌ "Weten hoe je een pipeline inricht": loopt niet door op "in staat om"; zet deze vorm in
   de Inleiding of het Overzicht
 
 ---
@@ -102,7 +102,7 @@ Kies wat bij het onderwerp en het niveau past. "Internaliseren" in een Excel-bas
 even mis als "opzetten" in een strategische masterclass.
 
 **Ook een introducerende training heeft sterke werkwoorden.** Dat het niveau laag ligt, is geen
-reden om mager te formuleren — het begrenst wát je belooft, niet hoe sterk je het opschrijft
+reden om mager te formuleren. Het niveau begrenst wát je belooft, niet hoe sterk je het opschrijft
 (schrijfspec §0.19). Deze vier doen het goed bij een foundation- of basistraining en blijven
 netjes binnen de scope:
 
@@ -128,7 +128,7 @@ Deze drie mogen de werkwoorden uit §C kracht bijzetten ("een breed beeld van he
 Geen opvulling: staat er zonder het bijvoeglijk naamwoord hetzelfde, laat het dan weg.
 
 **"Volledig" vraagt een afgebakend object.** Het gaat mis zodra het over de stof als geheel
-gaat — een tweedaagse training beheerst zelden een onderwerp *volledig*. Maar het klopt prima
+gaat: een tweedaagse training beheerst zelden een onderwerp *volledig*. Maar het klopt prima
 bij iets dat wél af te bakenen is en dat binnen de scope van de training helemaal aan bod komt:
 
 - ✅ "je begrijpt de structuur van het CRISP-DM-model volledig" (het model is afgebakend en
@@ -156,12 +156,12 @@ niets.
 
 **Wanneer wel:**
 
-- Als het doel meer inzicht of meer begrip is — dus op het meest basale niveau.
+- Als het doel meer inzicht of meer begrip is, dus op het meest basale niveau.
 - Bij brede overzichtstrainingen, gericht op begrip en op samenwerken buiten het eigen
   werkveld.
 
 **Wat een vergrotende trap níét is: een excuus voor een zwak werkwoord.** Hij regelt de
-*hoogte* van de belofte, niet de *kracht* van de formulering — die twee staan los van elkaar
+*hoogte* van de belofte, niet de *kracht* van de formulering; die twee staan los van elkaar
 en je hebt ze allebei nodig. "Gerichter mee te praten over data-analyse" is daarom geen goed
 doel: niet omdat "gerichter" fout is, maar omdat "meepraten" aan de onderkant staat (§C,
 schrijfspec §0.19). Combineer de vergrotende trap met een werkwoord dat gewicht draagt:
@@ -176,7 +176,7 @@ schrijfspec §0.19). Combineer de vergrotende trap met een werkwoord dat gewicht
   gewoon kunnen beloven; "een pipeline effectiever in te richten" verzwakt dat onnodig.
 
 Het is dus een afweging per training, afhankelijk van niveau, persona en wat de deelnemer
-moet of wil leren — geen woord dat je overal instrooit.
+moet of wil leren. Het is geen woord dat je overal instrooit.
 
 **Niet verwarren met "kunnen" (schrijfspec §0.15).** Dat zijn twee verschillende instrumenten.
 "Kunnen" gaat over het **leren** en hoort in het Overzicht, de Inleiding en de Kortste
@@ -192,11 +192,11 @@ niet op, en "Architectuurkeuzes scherper te doorgronden" wordt niet beter van ee
 
 Een kaal "onderhoudbare code" of "uitbreidbare opzet" is een anglicisme: in het Engels staat
 *maintainable* prima alleen, in het Nederlands mist er een maat. Zet er een kwalificatie bij die
-zegt hoe goed of voor wie — "goed onderhoudbare code", "makkelijk uitbreidbare opzet". Zie
+zegt hoe goed of voor wie: "goed onderhoudbare code", "makkelijk uitbreidbare opzet". Zie
 schrijfspec §0.18.
 
 ---
 
 > Onderhoud: dit bestand is van de schrijfstijl-eigenaar. Breid het uit op basis van wat je in
-> de batch-output terugziet. Verboden woorden horen hier *niet* thuis — die gaan naar
+> de batch-output terugziet. Verboden woorden horen hier *niet* thuis; die gaan naar
 > `humanisering_nl.md`, want daar leest `rewrite_checks.py` mee.

@@ -16,13 +16,13 @@ Elk vraagstuk en elke situatie is anders; daarom staan tijdens een bedrijfstrain
 
 Hier staat één van twee openingszinnen. De keuze is inhoudelijk, niet stilistisch.
 
-**Variant `stabiel` — de default.** Het programma is wat het is; de NB nodigt uit tot afstemming op de eigen praktijksituatie.
+**Variant `stabiel`: de default.** Het programma is wat het is; de NB nodigt uit tot afstemming op de eigen praktijksituatie.
 
 Tijdens {aanduiding} komen onderstaande onderwerpen aan bod.
 
 NB: Mocht je vragen hebben over de inhoud of deze aangepast willen zien op jouw specifieke praktijksituatie of trainingsbehoefte, bel ons dan gerust: we spreken de mogelijkheden graag met je door.
 
-**Variant `actueel` — alleen bij een snel bewegend expertisegebied.** Gebruik deze uitsluitend voor trainingen waarbij de tekst op de website in no-time achterhaald is door de ontwikkelingen op het vakgebied. Staat de NB er zonder die noodzaak, dan doet hij afbreuk aan het geheel.
+**Variant `actueel`: alleen bij een snel bewegend expertisegebied.** Gebruik deze uitsluitend voor trainingen waarbij de tekst op de website in no-time achterhaald is door de ontwikkelingen op het vakgebied. Staat de NB er zonder die noodzaak, dan doet hij afbreuk aan het geheel.
 
 Tijdens {aanduiding} komen onderstaande onderwerpen aan bod.
 
@@ -46,7 +46,9 @@ Deze training is bedoeld voor …
 
 De training is praktisch en interactief van opzet, met veel ruimte voor jouw vragen en werksituatie. Je gaat aan de slag met passende praktijkvoorbeelden. Door actief te oefenen, te analyseren en te evalueren, maak je je de materie stap voor stap eigen en ervaar je hoe \[…..\]
 
-Onze trainers zijn, naast trainer, dagelijks werkzaam op dit expertisegebied. Ze beschikken dus niet alleen over de meest actuele kennis, maar hebben ook essentiële praktijkervaring. Hierdoor zijn ze in staat om een waardevolle vertaalslag te maken van kennis naar toepassing binnen jouw organisatie en werksituatie.
+Onze trainers zijn, naast trainer, dagelijks werkzaam op dit expertisegebied. Ze beschikken dus niet alleen over de meest actuele kennis, maar hebben ook essentiële praktijkervaring. Hierdoor zijn ze in staat om een waardevolle vertaalslag te maken van *kennis* naar *toepassing binnen jouw organisatie en werksituatie*.
+
+De twee schuingedrukte delen horen in elke uitvoer schuin te staan: in de markdown als `*kennis*`, in de CMS-content als `<em>kennis</em>`. De code plaatst ze (`sjabloon.AANPAK_ALINEA_2_MARKUP`).
 
 ---
 
@@ -70,7 +72,7 @@ Zo bieden we onder andere:
 * ..  
 * ..
 
-Levert de retrieval twee groepen op (verdiepen en verbreden), dan krijgt elke groep een eigen introzin in plaats van de regel hierboven. Die zin appelleert aan een noodzaak, een uitdaging of een doelstelling — niet aan rol of interesse.
+Levert de retrieval twee groepen op (verdiepen en verbreden), dan krijgt elke groep een eigen introzin in plaats van de regel hierboven. Die zin appelleert aan een noodzaak, een uitdaging of een doelstelling, niet aan rol of interesse. Elke introzin kondigt minstens twee trainingen aan; blijft er één over, dan vervalt die groep.
 
 ---
 

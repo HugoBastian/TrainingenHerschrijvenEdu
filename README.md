@@ -36,7 +36,7 @@ het model.
 | `rewrite_output.py` | Document → CMS-`content`-JSON (HTML) en → markdown met kop 1/2/3. |
 | `rewrite_trainings.py` | Hybride schrijver + orchestratie + I/O. |
 | `herschrijven.ipynb` | Notebook om de pijplijn stap voor stap te draaien en te inspecteren. |
-| `test_rewrite.py` | 193 offline tests (geen API-key nodig). |
+| `test_rewrite.py` | 206 offline tests (geen API-key nodig). |
 
 ## Setup
 
@@ -316,22 +316,21 @@ rw.lengtes_over_goud()   # hoe lang zijn de kopjes werkelijk? -> kalibratie van 
 
 Van de 78 haalt er sinds Templatev2 **nul** élke harde check (zie het kader hierboven: de
 `doelgroep: opening`-regel alleen al velt er 77). De few-shot komt daarom uit `goud_v2/` en
-niet meer uit dit corpus; `GOUD_VOORBEELDEN` verwijst naar `herschreven/goud_v2/`, en die vier
-gaan mee in de gecachete system-prefix van de schrijver (een wisselende selectie zou die cache
-waardeloos maken). Dit corpus is nu puur meetlat: valt een regel bij meer dan de helft van het
-corpus om, dan is de regel verdacht en niet de training. Zo is de lengte-check ontstaan — met
-één hard venster van 55–65 woorden viel 65% van het goud om op het Overzicht, dus is die
-lengte nu een richtlijn met een vangrail eromheen (zie hieronder). Verander je een check, draai
-dit dan opnieuw en werk `GOUD_VOORBEELDEN` bij.
+niet meer uit dit corpus maar uit `goud_v2/`, gevuld door `promoveer_naar_goud()` (zie 3b).
+Dit corpus is nu puur meetlat: valt een regel bij meer dan de helft van het corpus om, dan is
+de regel verdacht en niet de training. Zo is de lengte-check ontstaan — met één hard venster
+van 55–65 woorden viel 65% van het goud om op het Overzicht, dus is die lengte nu een richtlijn
+met een vangrail eromheen (zie hieronder). Verander je een check, draai dit dan opnieuw; de
+few-shot toets je in dezelfde notebook-cel met `checks_over_goud(rw.GOUD_V2_DIR)`.
 
 **De modules tellen sinds kort mee, en dat verschoof dit beeld.** Zolang `goud_naar_check_input`
 de modulestructuur oversloeg — geneste `<ul>` betrouwbaar terugparsen leek meer valkuil dan
 antwoord — waren `modules_aantal`, `bullets_aantal` en `bullets_variatie` op het goud onzichtbaar.
 Met een diepteteller in plaats van een regex is die structuur wél te lezen (75 van de 78), en
-zakte het aantal schone trainingen van 26 naar 7. Drie van de vier oude `GOUD_VOORBEELDEN` (2730,
+zakte het aantal schone trainingen van 26 naar 7. Drie van de vier toenmalige few-shots (2730,
 3101, 3125) vielen daardoor af: die demonstreerden modules met twee sub-bullets terwijl de spec er
-3–6 eist. Een few-shot die de eigen regel schendt is erger dan geen few-shot, dus de selectie is
-vervangen door 3046, 3146, 2737 en 2586.
+3-6 eist. Een few-shot die de eigen regel schendt is erger dan geen few-shot; kort daarna is het
+oude corpus als voorbeeldmateriaal helemaal losgelaten (zie 3b).
 
 Datzelfde corpus heeft de modulesband bijgesteld. Met een vaste 4–6 viel `modules_aantal`
 **25 keer** om; met de ruime duurafhankelijke band (4–7 / 5–9) nog **14 keer**, vrijwel allemaal
@@ -355,30 +354,47 @@ training heb je handvatten om:". `goud_voorbeelden()` vervangt die regel bij het
 de few-shot door `sjabloon.DOELEN_INTRO`. Dat is sinds de overstap naar `goud_v2` een vangnet
 in plaats van een noodzaak — het blijft staan voor wie `goud_dir` terugzet op het oude corpus.
 
-### 3b. Few-shot: `goud_v2` (tijdelijk)
+### 3b. Few-shot: `goud_v2`, gevuld met eigen output
 
-```bash
-python bouw_goud_v2.py     # herbouwt herschreven/goud_v2/ uit de bron in het script
+```python
+rw.promoveer_naar_goud(dry_run=True)   # wat zou er goud worden, en hoe ziet het eruit?
+rw.promoveer_naar_goud()               # checken, kopiëren, selectie vastleggen
 ```
 
-Vier trainingen die als eerste door de nieuwe pipeline gingen en daarna zijn nagelezen: PHP
-Professional, Data Modeling, Big Data Foundation en JavaScript Design Patterns. Alle 45
-comments uit die ronde zijn erin verwerkt, plus de regels die daaruit zijn gedistilleerd. Ze
-staan in het nieuwe template, halen alle harde checks en gaan als few-shot mee in de
-gecachete system-prefix van de schrijver.
+De few-shot hoort te bestaan uit trainingen die mét de huidige spec zijn geschreven. Sinds
+reviewronde 4 regelt `promoveer_naar_goud()` dat in één stap: hij draait de checks over
+`herschreven/trainingen/`, kopieert wat slaagt naar `herschreven/goud_v2/<id>.json` en schrijft
+de selectie naar `herschreven/goud_v2/selectie.json`. `GOUD_VOORBEELDEN` leest dat manifest bij
+import, dus er blijft geen lijst met id's in `rewrite_trainings.py` achter die iemand met de
+hand moet bijwerken.
 
-**Dit is bewust tijdelijk** (`GOUD_V2_INTERIM = True`). Het is *gerepareerd* materiaal, niet
-materiaal dat vanaf de eerste zin volgens deze regels is geschreven — en dat verschil zie je
-terug in wat een few-shot voordoet. Het vervangingspad:
+Drie keuzes die erin zitten:
 
-1. een batch van 10–15 trainingen draaien met de huidige spec;
-2. `checks_over_goud(rw.GOUD_V2_DIR)` erover;
-3. 3–4 laten aftekenen door de schrijfstijl-eigenaar;
-4. die in `herschreven/goud_v2/` zetten, deze vier eruit, `GOUD_V2_INTERIM = False`.
+- **de checks gaan over de rijke vorm** (`writer_out` plus de groepen uit het document), niet
+  over de CMS-HTML zoals bij `checks_over_goud()`. Daardoor tellen `aanpak_invulling`, de
+  catalogustitels en de groep-intro's mee — precies de plekken waar ronde 4 fouten vond;
+- **de content wordt opnieuw gerenderd** uit het document, zoals `bouw_goud_v2.py` het ook doet.
+  Een voorbeeld kan zo nooit verouderde boilerplate demonstreren;
+- **`vervang=True` (de default) maakt de map gelijk aan de selectie.** Wat er niet in zit gaat
+  weg; de vier gerepareerde `v2_*` zijn altijd terug te bouwen met `python bouw_goud_v2.py`.
 
-`test_fewshot_haalt_zelf_alle_harde_checks` bewaakt intussen dat het voorbeeldmateriaal zijn
-eigen regels haalt. Verander je een regel en valt die test om, dan is het voorbeeld het
-probleem — niet de test.
+De selectie is **vast** en wisselt niet per training: de hele system-prefix gaat als één
+`cache_control: ephemeral`-blok mee, dus een prefix die per training verschilt maakt de
+prompt-cache waardeloos. Er gaan er `GOUD_N` (vier) mee, en welke dat waren staat per training
+in `<id>.json` onder `goud_voorbeelden` — naast `spec_versie`, want de few-shot vormt de output
+net zo goed als de spec.
+
+**Kijk bij het promoveren naar de profielregels** (dagen, modules, bullets, woorden in het
+Overzicht). De checks bewijzen dat een voorbeeld de regels haalt, niet dat de sélectie
+gevarieerd is. De huidige vier zijn 2/2/2/3 dagen en allemaal data, AI of development; bij een
+volgende ronde is een langere training of een ander vakgebied welkom.
+
+`bouw_goud_v2.py` blijft bestaan als terugvaloptie: `herschreven/` is gitignored, dus na een
+verse checkout is er geen manifest en valt `GOUD_VOORBEELDEN` terug op de vier `v2_*`.
+
+`test_fewshot_haalt_zelf_alle_harde_checks` bewaakt dat het voorbeeldmateriaal zijn eigen
+regels haalt. Verander je een regel en valt die test om, dan is het voorbeeld het probleem —
+niet de test.
 
 **Dat vermoeden over de lengtebanden is inmiddels bevestigd.** Ze waren gekalibreerd op het oude
 corpus, dus op tekst zónder "kunnen"-framing en zónder causale slotzin, en dat maakte de
@@ -439,13 +455,22 @@ veld in de CMS-`content`:
 | Modules | `modules` | `<p>` + geneste `<ul>` |
 | Doelgroep | `target_audience` | `<p>` |
 | Voorkennis | `prior_knowledge` | `<p>` |
-| Aanpak | `setup` | `<p>` |
+| Aanpak | `setup` | `<p>`, met `<em>` waar het template cursiveert |
 | Doelen | `objectives` | `<p>` + `<ul>` |
 | Vervolgstappen | `follow_up` | `<p>` + `<ul>` + `<p>` |
 | Kortste omschrijving | `summary_edudex` | platte tekst |
 | Certificatie | `certification` | `<p>`, vaste tekst |
 
 `days` wordt ongewijzigd uit de bron overgenomen.
+
+**Eén kopje draagt opmaak binnen de tekst.** In de tweede Aanpak-alinea staan "kennis" en
+"toepassing binnen jouw organisatie en werksituatie" schuin; zo staat het in het template. Dat
+kan niet met een `str.replace`, want "kennis" komt twee keer in die alinea voor. De gemarkeerde
+vorm is daarom de bron (`sjabloon.AANPAK_ALINEA_2_MARKUP`, met `*...*`) en de platte vorm is
+eruit afgeleid met `sjabloon.ontmarkeer()`. `AANPAK_ALINEA_2` blijft daardoor byte-voor-byte
+gelijk voor alles wat op de platte tekst matcht (`VASTE_TEKSTEN`, `scan_vorm`). De markdown
+toont `*kennis*` ongewijzigd; `uit.render_aanpak()` escapet eerst en maakt er daarna `<em>` van,
+in die volgorde, zodat brontekst nooit een tag kan binnensmokkelen.
 
 ### Wat de judge ziet
 
@@ -588,6 +613,34 @@ meer dan de 94% proza eromheen.** Wijkt de output ergens systematisch af, kijk d
 woorden in het Overzicht en de tweede zin. De checks bewijzen dat een voorbeeld de regels haalt;
 dit laat zien of het ook de goede kant van de band demonstreert.
 
+### De checks uit ronde 4: em-dash, reikwijdte en de groep-intro's
+
+De eerste batch die zélf goud werd. Drie bevindingen, drie soorten oplossing:
+
+| Bevinding | Wat er is gebeurd |
+| --- | --- |
+| Twee em-dashes in één training | `check_em_dash` (**HARD**) over alle schrijversvelden plus de titel, en de regel is verhuisd van `humanisering_nl.md` §C (flag-instructie) naar §D (hard verbod). |
+| Een opsomming die breedte toonde, werd een afbakening | Regels in schrijfspec §0.24 en §12, in de beoordelingsspec §2 en als paar in `correcties_nl.md` §26, plus `check_reikwijdte` (**FLAG**) als leesbril. |
+| Een groep-intro bij Vervolgstappen met één training eronder | Deterministische reparatie in `kies_vervolgtrainingen` (`snoei_groepen`), een vangnet in de renderers (`uit.bruikbare_groepen`) en `groep_te_klein` (**FLAG**) voor wat er buiten om komt. |
+
+**De em-dash is het duidelijkste voorbeeld van "de prompt is het probleem".** Het verbod stond
+er al sinds ronde 1, maar de vijf spec-bestanden bevatten er samen **173** — de schrijfspec
+alleen al 86. Een model dat om een stijl vraagt kijkt naar wat het ziet, niet naar wat het
+leest. Ze staan er nu uitgeschreven ("[liggend streepje]"), inclusief de foute voorbeelden in
+`correcties_nl.md`, en `test_geen_liggend_streepje_in_de_promptbestanden` plus
+`test_geen_liggend_streepje_in_de_systemprompts` houden dat zo — die tweede dekt ook de kop
+boven de few-shot en het voorbeeldmateriaal zelf.
+
+De reikwijdte-bevinding is de subtielste van de drie en de enige die geen betrouwbare check kan
+krijgen: "Wil je …, dan …" is in §9 juist vóórgeschreven voor groep-intro's. `check_reikwijdte`
+vuurt daarom alleen op een voorwaarde met een opsomming van drie of meer elementen erin, en
+altijd als FLAG. Alleen wie de bron ernaast legt, kan het beslissen.
+
+De groep-reparatie laat een eenzame titel liever vallen dan hem te verhuizen naar de andere
+groep: die groep heeft zijn eigen intro, en een training die daar inhoudelijk niet onder valt
+maakt die intro onwaar. Blijven er in totaal minder dan drie titels over, dan vervallen de
+groepen helemaal en valt de weergave terug op één lijst onder "Zo bieden we onder andere:".
+
 ### De scoresheet-val
 
 De pijplijn heeft twee scoresheets: het ruwe (`SCORED`) en dat wat sectie 3b oplevert
@@ -605,9 +658,9 @@ roept hem aan met `waarschuw=False`: dat is de stap die die kolommen juist máá
 ## Tests
 
 ```bash
-python bouw_goud_v2.py     # few-shot opbouwen; `herschreven/` is gitignored, dus dit hoort
-                           # bij een verse checkout. Geen API-key nodig.
-python test_rewrite.py     # 193 offline checks, geen API-key nodig
+python bouw_goud_v2.py     # terugval-few-shot opbouwen; `herschreven/` is gitignored, dus dit
+                           # hoort bij een verse checkout. Geen API-key nodig.
+python test_rewrite.py     # 206 offline checks, geen API-key nodig
 ```
 
 Getest wordt de deterministische laag: de code-check, de structurele splitsing van

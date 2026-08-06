@@ -25,6 +25,7 @@ hier dus niet naar gegenereerde tekst.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 # ---------------------------------------------------------------------------
@@ -251,12 +252,34 @@ AANPAK_ALINEA_1 = (
 # reviewronde 2 vervangen door de vaste woordenschat uit schrijfspec Sectie 0.20: "dagelijks
 # werkzaam op dit expertisegebied". Dat is dezelfde formulering die `correcties_nl.md` Sectie 10
 # al voorschreef voor gegenereerde tekst -- de boilerplate liep daar op achter.
-AANPAK_ALINEA_2 = (
+#
+# CURSIEF. Twee delen staan in het template schuingedrukt: "kennis" en de deelzin "toepassing
+# binnen jouw organisatie en werksituatie". Dat is de kern van de alinea -- de vertaalslag van
+# het een naar het ander -- en het hoort in élke uitvoer te staan, markdown zowel als HTML.
+#
+# Daarom staat de gemarkeerde vorm hier als bron en is de platte vorm eruit afgeleid: "kennis"
+# komt twee keer in deze alinea voor ("de meest actuele kennis"), dus een vervanging achteraf
+# zou de verkeerde kunnen raken. `*...*` is meteen de markdown-vorm; `uit.render_aanpak` maakt
+# er <em> van voor het CMS.
+AANPAK_ALINEA_2_MARKUP = (
     "Onze trainers zijn, naast trainer, dagelijks werkzaam op dit expertisegebied. "
     "Ze beschikken dus niet alleen over de meest actuele kennis, maar "
     "hebben ook essentiële praktijkervaring. Hierdoor zijn ze in staat om een waardevolle "
-    "vertaalslag te maken van kennis naar toepassing binnen jouw organisatie en werksituatie."
+    "vertaalslag te maken van *kennis* naar *toepassing binnen jouw organisatie en "
+    "werksituatie*."
 )
+
+
+# `*...*` zonder newline ertussen: cursief loopt nooit over een alineagrens.
+CURSIEF_RE = re.compile(r"\*([^*\n]+)\*")
+
+
+def ontmarkeer(tekst: str) -> str:
+    """De gemarkeerde vorm -> platte tekst. Alleen de cursief-sterretjes gaan eraf."""
+    return CURSIEF_RE.sub(r"\1", tekst or "")
+
+
+AANPAK_ALINEA_2 = ontmarkeer(AANPAK_ALINEA_2_MARKUP)
 AANPAK_FALLBACK = "je dit toepast in de praktijk"
 
 # De schrijver ziet in zijn tool alleen "lever de [....]-invulling" en niet de zin eromheen.
@@ -309,6 +332,10 @@ VERVOLG_ALINEA_2 = (
 # Aankondiging boven één ongegroepeerde lijst. Levert de retrieval groepen met een
 # eigen intro-zin, dan gebruikt de code die in plaats hiervan.
 VERVOLG_LIJST_INTRO = "Zo bieden we onder andere:"
+# Een groep-intro kondigt een richting aan; met één training eronder leest dat als een fout.
+# Reviewronde 4. `rewrite_checks` houdt bewust een eigen kopie van dit getal -- die module
+# importeert niets uit dit project.
+MIN_TITELS_PER_GROEP = 2
 # Vervallen: stond niet in het template en herhaalde grotendeels wat alinea 1 al zegt over
 # contact opnemen. Leeg laten, niet verwijderen -- `document_to_content` slaat een lege
 # afsluiter over en de constante houdt de keuze zichtbaar.

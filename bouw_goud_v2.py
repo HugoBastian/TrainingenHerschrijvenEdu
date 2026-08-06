@@ -444,7 +444,7 @@ def bouw(t: dict) -> tuple[dict, list]:
         "doelgroep": t["doelgroep"],
         "voorkennis": t["voorkennis"],
         "aanpak": (sjabloon.AANPAK_ALINEA_1.format(invulling=t["aanpak_invulling"])
-                   + "\n\n" + sjabloon.AANPAK_ALINEA_2),
+                   + "\n\n" + sjabloon.AANPAK_ALINEA_2_MARKUP),
         "doelen": {"intro": sjabloon.DOELEN_INTRO, "bullets": t["doelen"]},
         "vervolgstappen": {
             "alineas": [sjabloon.VERVOLG_ALINEA_1, sjabloon.VERVOLG_ALINEA_2],
@@ -494,6 +494,14 @@ def vormprofiel(t: dict) -> str:
 
 if __name__ == "__main__":
     os.makedirs(UIT_DIR, exist_ok=True)
+    # Sinds `promoveer_naar_goud()` is dit de terugvaloptie en niet meer de gewone weg: ligt
+    # er een selectie, dan is die met eigen output gevuld en horen deze vier er niet naast.
+    if os.path.exists(os.path.join(UIT_DIR, "selectie.json")):
+        print("LET OP: er ligt al een selectie.json in de goudmap. Deze vier voorbeelden zijn\n"
+              "de terugvaloptie voor een verse checkout; ze komen naast de gepromoveerde\n"
+              "trainingen te staan en gaan niet vanzelf mee in de prompt. Wil je ze wél als\n"
+              "few-shot, verwijder dan de gepromoveerde bestanden en selectie.json.\n",
+              file=sys.stderr)
     totaal_hard = 0
     for t in TRAININGEN:
         content, issues = bouw(t)

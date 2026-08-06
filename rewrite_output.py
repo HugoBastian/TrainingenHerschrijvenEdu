@@ -12,7 +12,7 @@ De bron-`content` heeft elf sleutels, waarvan er tien exact op de tien kopjes va
     modules          <- Modules               (<p> + geneste <ul>)
     target_audience  <- Doelgroep             (<p>)
     prior_knowledge  <- Voorkennis            (<p>)
-    setup            <- Aanpak                (<p>)
+    setup            <- Aanpak                (<p>, met <em> waar het template cursief zet)
     objectives       <- Doelen                (<p> + <ul>)
     follow_up        <- Vervolgstappen        (<p> + <ul> + <p>)
     summary_edudex   <- Kortste omschrijving  (platte tekst)
@@ -92,9 +92,41 @@ def render_modules(opening: str, modules: list[dict]) -> str:
     return "".join(delen)
 
 
+_EM_VERVANGING = r"<em>\1</em>"
+
+
+def render_aanpak(tekst: Any) -> str:
+    """Kopje 6: alinea's als <p>, met `*cursief*` als <em>.
+
+    De Aanpak is het enige kopje met opmaak binnen de tekst: het template zet "kennis" en
+    "toepassing binnen jouw organisatie en werksituatie" schuin (zie
+    `sjabloon.AANPAK_ALINEA_2_MARKUP`). De invulling van de schrijver komt uit een tool-veld
+    en bevat dus geen sterretjes; alleen de vaste alinea draagt de markering.
+
+    Eerst escapen, dan de markering omzetten: `html.escape` raakt sterretjes niet, dus in die
+    volgorde kan een `<em>` nooit uit brontekst ontstaan.
+    """
+    return "".join("<p>" + sjabloon.CURSIEF_RE.sub(_EM_VERVANGING, _esc(b)) + "</p>"
+                   for b in _blokken(tekst))
+
+
 def render_doelen(intro: str, bullets: list[str]) -> str:
     """Kopje 7: vaste introzin + <ul> met de doelen."""
     return f"<p>{_esc(intro)}</p>{_lijst(bullets)}"
+
+
+def bruikbare_groepen(groepen: list[dict] | None) -> list[dict]:
+    """De groepen die een eigen introzin verdienen.
+
+    Een intro kondigt een richting aan; met minder dan `sjabloon.MIN_TITELS_PER_GROEP`
+    trainingen eronder leest dat als een fout (reviewronde 4). De pipeline snoeit zulke
+    groepen al weg in `rewrite_trainings.snoei_groepen`, waar ook de titellijst meeloopt.
+    Hier staat het nog een keer omdat er documenten op schijf liggen van vóór die regel: zo
+    kan geen enkele weergave -- markdown, HTML of CMS -- er alsnog een tonen.
+    """
+    return [g for g in (groepen or [])
+            if len([t for t in (g.get("titels") or []) if str(t or "").strip()])
+            >= sjabloon.MIN_TITELS_PER_GROEP]
 
 
 def render_vervolgstappen(alineas: list[str], titels: list[str], afsluiter: str,
@@ -106,8 +138,7 @@ def render_vervolgstappen(alineas: list[str], titels: list[str], afsluiter: str,
     Zonder groepen valt het terug op één lijst onder de vaste aankondiging.
     """
     delen = [f"<p>{_esc(a)}</p>" for a in alineas if str(a or "").strip()]
-    schone_groepen = [g for g in (groepen or [])
-                      if [t for t in (g.get("titels") or []) if str(t or "").strip()]]
+    schone_groepen = bruikbare_groepen(groepen)
     if schone_groepen:
         for groep in schone_groepen:
             intro = str(groep.get("intro") or "").strip() or sjabloon.VERVOLG_LIJST_INTRO
@@ -306,9 +337,9 @@ def ververs_vaste_teksten(content: dict, titel: str,
         invulling = (m.group(1).strip() if m else "") or sjabloon.AANPAK_FALLBACK
         if not m:
             gewijzigd.append("LET OP: Aanpak-invulling niet teruggevonden, fallback gebruikt")
-        _zet("setup", _paragrafen(
+        _zet("setup", render_aanpak(
             sjabloon.AANPAK_ALINEA_1.format(invulling=sjabloon.schoon_invulling(invulling))
-            + "\n\n" + sjabloon.AANPAK_ALINEA_2), "Aanpak")
+            + "\n\n" + sjabloon.AANPAK_ALINEA_2_MARKUP), "Aanpak")
 
     # Vervolgstappen: de vaste alinea's ervoor en de vervallen afsluiter erachter. De
     # catalogustitels en hun groep-intro's blijven precies zoals ze staan.
@@ -346,7 +377,7 @@ def document_to_content(document: dict, source_content: dict | None = None) -> d
         "modules": render_modules(modules.get("opening", ""), modules.get("modules") or []),
         "target_audience": _paragrafen(document.get("doelgroep")),
         "prior_knowledge": _paragrafen(document.get("voorkennis")),
-        "setup": _paragrafen(document.get("aanpak")),
+        "setup": render_aanpak(document.get("aanpak")),
         "objectives": render_doelen(doelen.get("intro", ""), doelen.get("bullets") or []),
         "follow_up": render_vervolgstappen(vervolg.get("alineas") or [],
                                            vervolg.get("titels") or [],
@@ -402,8 +433,7 @@ def render_markdown(document: dict, titel: str) -> str:
     ]).strip()
 
     vervolg_regels = list(vervolg.get("alineas") or [])
-    groepen = [g for g in (vervolg.get("groepen") or [])
-               if [t for t in (g.get("titels") or []) if str(t or "").strip()]]
+    groepen = bruikbare_groepen(vervolg.get("groepen"))
     if groepen:
         for groep in groepen:
             vervolg_regels.append(str(groep.get("intro") or "").strip()

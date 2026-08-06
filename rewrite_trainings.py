@@ -84,6 +84,7 @@ THINKING = {"type": "adaptive"}    # adaptieve thinking voor schrijf-/oordeelskw
 MAX_REVISIONS = 2                  # code-check + judge revisies vóór mens-wachtrij
 N_SHORTLIST = 30                   # kandidaten die Python uit de catalogus voorselecteert
 N_VERVOLG = 6                      # vervolgtrainingen die uiteindelijk in de tekst komen
+N_VERVOLG_MIN = 3                  # daaronder is een lijst met twee groep-intro's niet zinnig
 
 # Taxonomie-bonus bij de shortlist. Keyword-overlap en boomburen falen op verschillende
 # manieren -- LDAP vindt via keywords "Active Directory" (raak) maar via de boom 5G en
@@ -448,7 +449,8 @@ SUBMIT_VERVOLGSTAPPEN = {
         "properties": {
             "groepen": {
                 "type": "array",
-                "description": "Eén of twee groepen; samen 3-6 titels.",
+                "description": "Eén of twee groepen; samen 3-6 titels, en elke groep minstens "
+                               "twee titels.",
                 "items": {
                     "type": "object",
                     "properties": {
@@ -478,7 +480,11 @@ drie rake dan zes vage.
 
 Verdeel ze over één of twee groepen met elk een korte inleidende zin in de 'je'-vorm, die
 eindigt op een dubbele punt. Twee groepen alleen als er echt twee richtingen zijn
-(bijvoorbeeld verdiepen versus verbreden).
+(bijvoorbeeld verdiepen versus verbreden). Elke groep bevat minstens TWEE titels: een
+introzin die één training aankondigt leest als een fout. Past er maar één training in een
+tweede richting, maak er dan één groep van.
+
+Gebruik geen liggende streepjes (— of –) in de introzin; een komma of een punt doet het werk.
 
 Achter een kandidaat staat tussen blokhaken zijn vakgebied, bijvoorbeeld
 [ERP & CRM > CRM & Marketing Platforms]. Gebruik dat om de groepen langs échte
@@ -540,9 +546,38 @@ def kies_vervolgtrainingen(client, titel: str, kern: str, persona: str,
                 titels.append(gekozen)
                 gezien.add(gekozen)
         if titels:
-            groepen.append({"intro": str(groep.get("intro") or "").strip(),
+            groepen.append({"intro": _schoon_intro(str(groep.get("intro") or "").strip()),
                             "titels": titels[:N_VERVOLG]})
-    return groepen[:2]
+    return snoei_groepen(groepen[:2])
+
+
+# Liggende streepjes horen ook hier niet, maar de intro's komen niet van de schrijver: een
+# hard fail zou de schrijver terugsturen voor tekst die hij niet geschreven heeft. Eén zin
+# met een bijstelling erin verdraagt een komma prima, dus dit repareert de code zelf.
+_INTRO_DASH_RE = re.compile(r"\s*[—–]\s*")
+
+
+def _schoon_intro(intro: str) -> str:
+    return _INTRO_DASH_RE.sub(", ", intro)
+
+
+def snoei_groepen(groepen: list[dict]) -> list[dict]:
+    """Haalt groepen weg die te weinig titels aankondigen.
+
+    Een introzin die één training aankondigt leest als een fout: hij belooft een richting en
+    levert één bullet (reviewronde 4, training 2347). De titel gaat mee weg en niet over naar
+    de andere groep -- die groep heeft zijn eigen intro, en een training die daar inhoudelijk
+    niet onder valt maakt de intro onwaar. Liever één titel minder dan een intro die niet
+    klopt.
+
+    Blijven er te weinig titels over voor een gegroepeerde lijst, dan vervallen de groepen
+    helemaal: `render_vervolgstappen` valt dan terug op één lijst onder de vaste
+    aankondiging, wat nog steeds een goede Vervolgstappen oplevert.
+    """
+    gesnoeid = uit.bruikbare_groepen(groepen)
+    if sum(len(g["titels"]) for g in gesnoeid) < N_VERVOLG_MIN:
+        return []
+    return gesnoeid
 
 
 # ---------------------------------------------------------------------------
@@ -925,7 +960,7 @@ GOUD_DIR = os.path.join(_HERE, "herschreven", "goud")
 GOUD_V2_DIR = os.path.join(_HERE, "herschreven", "goud_v2")
 
 # ---------------------------------------------------------------------------
-# FEW-SHOT -- TIJDELIJK. Vervangen zodra er eigen output ligt die is afgetekend.
+# FEW-SHOT
 # ---------------------------------------------------------------------------
 #
 # Het oude corpus van 78 kan geen few-shot meer zijn. Het dateert van vóór Templatev2 en
@@ -934,22 +969,54 @@ GOUD_V2_DIR = os.path.join(_HERE, "herschreven", "goud_v2")
 # er nu nul élke harde check (`checks_over_goud()`). Als voorbeeld zou het precies de vormen
 # tonen die de spec inmiddels verbiedt.
 #
-# Wat er nu staat: de vier nagelezen trainingen, hersteld volgens álle 45 comments uit die
-# ronde plus de nieuwe regels. Ze halen alle checks en staan in het nieuwe template.
+# Wat er nu staat komt uit `herschreven/goud_v2/selectie.json`, en dat manifest wordt
+# geschreven door `promoveer_naar_goud()`: die functie draait de checks over de eigen
+# herschreven output en kopieert wat slaagt naar de goudmap. Zo is de few-shot altijd
+# materiaal dat mét de huidige spec is gegenereerd, en niet een lijst die je met de hand
+# moet bijhouden.
 #
-# WAAROM DIT TIJDELIJK IS: dit is gerepareerd materiaal, geen materiaal dat vanaf de eerste
-# zin volgens deze regels is geschreven. Dat verschil zie je terug in een few-shot. Vervang
-# ze zodra er een batch ligt die mét deze spec is gegenereerd:
+# De fallback hieronder is het handwerk uit reviewronde 3 (`bouw_goud_v2.py`): vier
+# gerepareerde trainingen. `herschreven/` staat in .gitignore, dus na een verse checkout is
+# er geen manifest en is dit wat er overblijft.
 #
-#   1. batch van 10-15 trainingen draaien met de huidige spec;
-#   2. `checks_over_goud(GOUD_V2_DIR)` erover;
-#   3. 3-4 laten aftekenen door de schrijfstijl-eigenaar;
-#   4. die hierin zetten, deze vier eruit, GOUD_V2_INTERIM op False.
-#
-# Vaste selectie, want een wisselende few-shot maakt de prompt-cache waardeloos. De eerste
-# twee wegen het zwaarst -- `goud_voorbeelden()` neemt er standaard twee.
-GOUD_V2_INTERIM = True
-GOUD_VOORBEELDEN = ("v2_php", "v2_datamodeling", "v2_bigdata", "v2_jsdesignpatterns")
+# Vaste selectie, geen wisselende: de hele system-prefix gaat als één blok met
+# `cache_control: ephemeral` mee, dus een prefix die per training verschilt maakt de
+# prompt-cache waardeloos. Vier voorbeelden in plaats van twee, zodat geen enkel voorbeeld
+# in zijn eentje de vorm bepaalt.
+_GOUD_V2_FALLBACK = ("v2_php", "v2_datamodeling", "v2_bigdata", "v2_jsdesignpatterns")
+GOUD_SELECTIE_BESTAND = "selectie.json"
+GOUD_N = 4                         # voorbeelden in de gecachete system-prefix
+
+
+def goud_bestanden(goud_dir: str) -> list[str]:
+    """De trainingen in een goudmap. Het selectie-manifest is er geen."""
+    import glob
+    return sorted(p for p in glob.glob(os.path.join(goud_dir, "*.json"))
+                  if os.path.basename(p) != GOUD_SELECTIE_BESTAND)
+
+
+def laad_goud_selectie(goud_dir: str = GOUD_V2_DIR) -> tuple[str, ...]:
+    """De ids van de few-shot-voorbeelden, uit het manifest of anders de fallback."""
+    pad = os.path.join(goud_dir, GOUD_SELECTIE_BESTAND)
+    try:
+        with open(pad, encoding="utf-8") as f:
+            ids = [str(x) for x in (json.load(f).get("ids") or []) if str(x).strip()]
+    except (OSError, ValueError):
+        return _GOUD_V2_FALLBACK
+    return tuple(ids) or _GOUD_V2_FALLBACK
+
+
+GOUD_VOORBEELDEN = laad_goud_selectie()
+
+
+def actieve_goud_voorbeelden() -> list[str]:
+    """Welke voorbeelden zitten in de prefix van deze run?
+
+    Gaat mee in de per-training-JSON, naast `spec_versie`. Zonder dat spoor is achteraf niet
+    te zien welk goud een training heeft gevormd -- en dat is precies wat je wilt weten als
+    je de selectie gaat bijsturen op variatie in onderwerp en aantal dagen.
+    """
+    return list(GOUD_VOORBEELDEN[:GOUD_N])
 
 
 # Het goud dateert van vóór de huidige introzin: 47 van de 78 trainingen openen hun doelen met
@@ -988,11 +1055,11 @@ def _goud_modules_blok(html: str, titel: str) -> str:
     return "\n".join(regels).strip()
 
 
-def goud_voorbeelden(n: int = 2, goud_dir: str = GOUD_V2_DIR) -> str:
-    """Twee voorbeelden als tekstblok voor de gecachete system-prefix.
+def goud_voorbeelden(n: int = GOUD_N, goud_dir: str = GOUD_V2_DIR) -> str:
+    """De voorbeelden als tekstblok voor de gecachete system-prefix.
 
     Vaste selectie, niet per training: een wisselende prefix maakt de prompt-cache waardeloos.
-    Zie `GOUD_VOORBEELDEN` voor waarom deze selectie tijdelijk is.
+    Zie `GOUD_VOORBEELDEN` voor waar die selectie vandaan komt.
     """
     from score_trainings import clean_text
     delen = []
@@ -1018,7 +1085,9 @@ def goud_voorbeelden(n: int = 2, goud_dir: str = GOUD_V2_DIR) -> str:
         delen.append("\n\n".join(blok))
     if not delen:
         return ""
-    return ("VOORBEELDEN — trainingen die al in de nieuwe stijl staan en alle regels halen.\n"
+    # Geen liggend streepje in deze kop: hij staat vlak voor het materiaal dat de schrijver
+    # gaat imiteren, en de schrijver mag het teken zelf niet gebruiken (schrijfspec Sectie 0.23).
+    return ("VOORBEELDEN. Trainingen die al in de nieuwe stijl staan en alle regels halen.\n"
             "Neem de vorm over, niet de inhoud.\n\n" + "\n\n---\n\n".join(delen))
 
 
@@ -1429,8 +1498,10 @@ def assemble_document(writer_out: dict, b: RewriteBriefing, titels: list[str],
         },
         "doelgroep": str(writer_out.get("doelgroep", "")).strip(),
         "voorkennis": voorkennis,
+        # Gemarkeerde vorm: `*...*` is de cursivering uit het template. `render_markdown`
+        # zet hem ongewijzigd neer, `render_aanpak` maakt er <em> van voor het CMS.
         "aanpak": (sjabloon.AANPAK_ALINEA_1.format(invulling=invulling)
-                   + "\n\n" + sjabloon.AANPAK_ALINEA_2),
+                   + "\n\n" + sjabloon.AANPAK_ALINEA_2_MARKUP),
         "doelen": {"intro": sjabloon.DOELEN_INTRO, "bullets": writer_out.get("doelen", [])},
         "vervolgstappen": {
             "alineas": [sjabloon.VERVOLG_ALINEA_1, sjabloon.VERVOLG_ALINEA_2],
@@ -1443,9 +1514,15 @@ def assemble_document(writer_out: dict, b: RewriteBriefing, titels: list[str],
     }
 
 
-def build_check_input(writer_out: dict, titels: list[str], titel: str = "") -> dict:
-    """Platte structuur voor rewrite_checks (op de door de LLM geschreven velden)."""
+def build_check_input(writer_out: dict, titels: list[str], titel: str = "",
+                      groepen: list[dict] | None = None) -> dict:
+    """Platte structuur voor rewrite_checks (op de door de LLM geschreven velden).
+
+    De groepen komen uit de retrieval en niet van de schrijver; ze gaan mee zodat
+    `check_vervolgstappen` kan zien of elke intro genoeg titels aankondigt.
+    """
     return {
+        "vervolgstappen_groepen": groepen or [],
         "overzicht": writer_out.get("overzicht"),
         "inleiding": writer_out.get("inleiding"),
         "modules": writer_out.get("modules"),
@@ -1482,10 +1559,13 @@ class RewriteResult:
     oude_titel: str = ""
     writer_out: dict = field(default_factory=dict)   # nodig om één kopje te hergenereren
     # Onder welk regime is dit resultaat tot stand gekomen? Zonder deze drie is `approved`
-    # een status zonder betekenis zodra de spec of de modus verschuift.
+    # een status zonder betekenis zodra de spec of de modus verschuift. `goud_voorbeelden`
+    # hoort in datzelfde rijtje: de few-shot vormt de output net zo goed als de spec, en de
+    # selectie verandert zodra `promoveer_naar_goud()` draait.
     modus: str = MODUS_DEFAULT
     modus_voorstel: str = ""
     spec_versie: str = ""
+    goud_voorbeelden: list[str] = field(default_factory=list)
 
 
 def bepaal_vervolgstappen(client, b: RewriteBriefing, catalog: list[dict],
@@ -1539,7 +1619,8 @@ def rewrite_one(client, b: RewriteBriefing, catalog: list[dict],
             continue
 
         titel = bepaal_titel(writer_out, b)
-        issues = checks.check_rewrite(build_check_input(writer_out, titels, titel), ctx)
+        issues = checks.check_rewrite(
+            build_check_input(writer_out, titels, titel, groepen), ctx)
         hard = checks.hard_fails(issues)
         if hard:
             notes = ["Los deze code-check fouten op:"] + [str(i) for i in hard]
@@ -1554,7 +1635,7 @@ def rewrite_one(client, b: RewriteBriefing, catalog: list[dict],
         gedeeld = dict(document=document, flags=flags, judgment=judgment,
                        toegepaste_acties=toegepast, oude_titel=b.titel, writer_out=writer_out,
                        modus=b.modus, modus_voorstel=b.modus_voorstel,
-                       spec_versie=spec_versie())
+                       spec_versie=spec_versie(), goud_voorbeelden=actieve_goud_voorbeelden())
         if verdict == APPROVED:
             return RewriteResult(b.training_id, titel, APPROVED, reden="",
                                  thin=b.thin or judgment.get("feitgetrouw", {}).get("thin", False),
@@ -1572,7 +1653,7 @@ def rewrite_one(client, b: RewriteBriefing, catalog: list[dict],
                          document=document, judgment=last_judgment, thin=b.thin,
                          toegepaste_acties=toegepast, oude_titel=b.titel,
                          modus=b.modus, modus_voorstel=b.modus_voorstel,
-                         spec_versie=spec_versie())
+                         spec_versie=spec_versie(), goud_voorbeelden=actieve_goud_voorbeelden())
 
 
 # ---------------------------------------------------------------------------
@@ -1655,7 +1736,12 @@ def hergenereer_kopje(client, b: RewriteBriefing, resultaat: dict, kopje: str,
     document = resultaat.get("document") or {}
     vervolg = document.get("vervolgstappen") or {}
     titels = list(vervolg.get("titels") or [])
-    groepen = list(vervolg.get("groepen") or [])
+    # Snoeien vóór hergebruik: een document van vóór deze regel kan nog een groep met één
+    # titel bevatten, en die zou hier ongemerkt weer meegaan. Valt er een groep af, dan
+    # lopen de titels mee terug -- ze staan al in de overgebleven groepen.
+    groepen = snoei_groepen(list(vervolg.get("groepen") or []))
+    if groepen:
+        titels = [t for g in groepen for t in g["titels"]]
     if not titels and catalog:
         titels, groepen = bepaal_vervolgstappen(client, b, catalog, boom)
 
@@ -1701,7 +1787,7 @@ def hergenereer_kopje(client, b: RewriteBriefing, resultaat: dict, kopje: str,
 
     nieuw_document = assemble_document(writer_out, b, titels, groepen)
     alle_issues = checks.check_rewrite(
-        build_check_input(writer_out, titels, bepaal_titel(writer_out, b)), ctx)
+        build_check_input(writer_out, titels, bepaal_titel(writer_out, b), groepen), ctx)
     flags = [str(i) for i in checks.flags(alle_issues)]
     judgment = judge_document(client, b, nieuw_document) if judge else {}
     status = judgment.get("verdict", APPROVED) if judge else APPROVED
@@ -1711,7 +1797,8 @@ def hergenereer_kopje(client, b: RewriteBriefing, resultaat: dict, kopje: str,
         reden="" if status == APPROVED else judgment.get("human_reden", status),
         document=nieuw_document, flags=flags, judgment=judgment, thin=b.thin,
         toegepaste_acties=list(resultaat.get("toegepaste_acties") or []),
-        oude_titel=b.titel, writer_out=writer_out)
+        oude_titel=b.titel, writer_out=writer_out,
+        spec_versie=spec_versie(), goud_voorbeelden=actieve_goud_voorbeelden())
 
 
 def judge_document(client, b: RewriteBriefing, document: dict) -> dict:
@@ -2306,12 +2393,11 @@ def checks_over_goud(goud_dir: str = GOUD_DIR, verbose: bool = True) -> dict:
     over 78 trainingen. Dat is precies het soort cijfer waarvoor de regel hierboven bedoeld
     is -- lees het als een vraag aan de spec, niet als een oordeel over het goud.
     """
-    import glob
     from collections import Counter
     tellingen: Counter = Counter()
     schoon: list[tuple[Any, str]] = []
     schoon_buiten_modules: list[tuple[Any, str]] = []
-    bestanden = sorted(glob.glob(os.path.join(goud_dir, "*.json")))
+    bestanden = goud_bestanden(goud_dir)
     for pad in bestanden:
         with open(pad, encoding="utf-8") as f:
             d = json.load(f)
@@ -2348,10 +2434,9 @@ def lengtes_over_goud(goud_dir: str = GOUD_DIR, verbose: bool = True) -> dict:
     woorden. Een harde grens zou de schrijver dus wegduwen van de vorm die hij hoort te
     imiteren. Draai dit opnieuw voordat je een band of richtlijn verschuift -- niet op gevoel.
     """
-    import glob
     metingen: dict[str, list[int]] = {"overzicht": [], "inleiding": [], "kortste_omschrijving": []}
     zinnen: list[int] = []
-    for pad in sorted(glob.glob(os.path.join(goud_dir, "*.json"))):
+    for pad in goud_bestanden(goud_dir):
         with open(pad, encoding="utf-8") as f:
             d = json.load(f)
         rw = goud_naar_check_input(d.get("content") or {}, d.get("titel", ""))
@@ -2395,6 +2480,158 @@ def lengtes_over_goud(goud_dir: str = GOUD_DIR, verbose: bool = True) -> dict:
     return metingen
 
 
+# ---------------------------------------------------------------------------
+# 10b. EIGEN OUTPUT PROMOVEREN TOT GOUD
+# ---------------------------------------------------------------------------
+
+def _check_input_uit_artefact(resultaat: dict) -> tuple[dict, str, int | None]:
+    """De rijke check-vorm uit een per-training-JSON: (check-input, titel, dagen).
+
+    Bewust niet via `goud_naar_check_input`: die leest de CMS-HTML terug en ziet daardoor
+    `aanpak_invulling`, de catalogustitels en de groepen niet. Voor een training die we tot
+    voorbeeld willen promoveren wil je juist die velden meewegen -- het zijn precies de
+    plekken waar reviewronde 4 fouten vond.
+    """
+    document = resultaat.get("document") or {}
+    writer_out = _writer_out_uit_json(resultaat)
+    vervolg = document.get("vervolgstappen") or {}
+    titel = resultaat.get("titel") or document.get("titel", "")
+    dagen = (resultaat.get("content") or {}).get("days")
+    try:
+        dagen = int(float(dagen)) if dagen not in (None, "") else None
+    except (TypeError, ValueError):
+        dagen = None
+    rw = build_check_input(writer_out, list(vervolg.get("titels") or []), titel,
+                           list(vervolg.get("groepen") or []))
+    return rw, titel, dagen
+
+
+def _goud_profiel(tid: Any, titel: str, document: dict, dagen: int | None) -> str:
+    """Eén regel met de maten waarop de few-shot stil kan afdrijven.
+
+    Zelfde gedachte als `vormprofiel()` in `bouw_goud_v2.py`: de checks bewijzen dat een
+    voorbeeld de regels haalt, niet dat de sélectie gevarieerd is. Vier voorbeelden van twee
+    dagen over hetzelfde vakgebied halen alles en leveren toch een eenzijdige prefix.
+    """
+    modules = (document.get("modules") or {}).get("modules") or []
+    n_bullets = [len(m.get("bullets") or []) for m in modules]
+    overzicht = str(document.get("overzicht", "") or "")
+    return (f"  {str(tid):8} {titel[:44]:44} {str(dagen or '?'):>2} dg | "
+            f"{len(modules)} modules | {sum(n_bullets):2d} bullets "
+            f"({','.join(str(n) for n in n_bullets)}) | "
+            f"overzicht {checks.word_count(overzicht):3d} w")
+
+
+def promoveer_naar_goud(trainingen_dir: str = os.path.join(_HERE, "herschreven", "trainingen"),
+                        goud_dir: str = GOUD_V2_DIR, *, catalog: list[dict] | None = None,
+                        ids: list | None = None, vervang: bool = True,
+                        dry_run: bool = False, verbose: bool = True) -> dict:
+    """Controleert de eigen herschreven output en kopieert wat slaagt naar de goudmap.
+
+    Dit is de stap die `checks_over_goud()` niet doet. Die meet een corpus door; dit kiest
+    eruit en legt de keuze vast, zodat de few-shot van de volgende batch bestaat uit eigen
+    output die met de huidige spec is gegenereerd -- en niet uit een lijst ids die iemand met
+    de hand in dit bestand moet bijwerken.
+
+    Een training komt in aanmerking als hij `approved` is, een document heeft en geen enkele
+    harde check laat vallen. De content wordt daarbij *opnieuw gerenderd* uit het document en
+    niet overgenomen uit het JSON-bestand: een voorbeeld mag nooit verouderde boilerplate
+    demonstreren, en zo krijgt het goud automatisch de actuele vaste teksten mee.
+
+    `vervang=True` maakt de goudmap gelijk aan de nieuwe selectie; wat er niet in zit gaat
+    weg. Dat is veilig: de vier gerepareerde `v2_*`-voorbeelden zijn altijd terug te bouwen
+    met `python bouw_goud_v2.py`.
+
+    Geeft {"gepromoveerd": [...], "afgewezen": [(id, [issues])], "verwijderd": [...]} terug.
+    """
+    import glob
+    from datetime import date
+
+    gewenst = {str(i) for i in ids} if ids else None
+    catalog_titels = catalog_titles(catalog) if catalog else None
+
+    gepromoveerd: list[dict] = []
+    afgewezen: list[tuple[Any, list[str]]] = []
+    overgeslagen: list[tuple[Any, str]] = []
+
+    for pad in sorted(glob.glob(os.path.join(trainingen_dir, "*.json"))):
+        with open(pad, encoding="utf-8") as f:
+            resultaat = json.load(f)
+        tid = resultaat.get("training_id", os.path.splitext(os.path.basename(pad))[0])
+        if gewenst is not None and str(tid) not in gewenst:
+            continue
+        if resultaat.get("status") != APPROVED:
+            overgeslagen.append((tid, f"status is '{resultaat.get('status')}', niet approved"))
+            continue
+        document = resultaat.get("document") or {}
+        if not document:
+            overgeslagen.append((tid, "geen document in het artefact"))
+            continue
+
+        rw, titel, dagen = _check_input_uit_artefact(resultaat)
+        ctx = {"naam": titel, "dagen": dagen, "catalog_titles": catalog_titels}
+        hard = checks.hard_fails(checks.check_rewrite(rw, ctx))
+        if hard:
+            afgewezen.append((tid, [str(i) for i in hard]))
+            continue
+
+        content = uit.document_to_content(document, {"days": dagen} if dagen else {})
+        gepromoveerd.append({
+            "training_id": tid, "titel": titel, "content": content,
+            "bron": os.path.relpath(pad, _HERE),
+            "gepromoveerd_op": date.today().isoformat(),
+            "_profiel": _goud_profiel(tid, titel, document, dagen),
+        })
+
+    nieuwe_ids = [str(g["training_id"]) for g in gepromoveerd]
+    verwijderd: list[str] = []
+    if vervang:
+        blijft = {f"{i}.json" for i in nieuwe_ids} | {GOUD_SELECTIE_BESTAND}
+        for pad in goud_bestanden(goud_dir):
+            if os.path.basename(pad) not in blijft:
+                verwijderd.append(os.path.basename(pad))
+
+    if not dry_run and gepromoveerd:
+        os.makedirs(goud_dir, exist_ok=True)
+        for goud in gepromoveerd:
+            uit_pad = os.path.join(goud_dir, f"{goud['training_id']}.json")
+            payload = {k: v for k, v in goud.items() if not k.startswith("_")}
+            _schrijf_atomisch(uit_pad, lambda f, p=payload: json.dump(
+                p, f, ensure_ascii=False, indent=2, default=_json_default))
+        for naam in verwijderd:
+            os.remove(os.path.join(goud_dir, naam))
+        _schrijf_atomisch(os.path.join(goud_dir, GOUD_SELECTIE_BESTAND), lambda f: json.dump(
+            {"ids": nieuwe_ids, "bijgewerkt": date.today().isoformat(),
+             "bron": "promoveer_naar_goud"}, f, ensure_ascii=False, indent=2))
+        # Zodat de rest van deze sessie meteen met de nieuwe selectie werkt.
+        global GOUD_VOORBEELDEN
+        GOUD_VOORBEELDEN = laad_goud_selectie(goud_dir)
+
+    if verbose:
+        kop = "DRY RUN -- er is niets weggeschreven\n" if dry_run else ""
+        print(f"{kop}{len(gepromoveerd)} van de "
+              f"{len(gepromoveerd) + len(afgewezen) + len(overgeslagen)} trainingen "
+              f"in {os.path.relpath(trainingen_dir, _HERE)} kan goud zijn:")
+        for goud in gepromoveerd:
+            print(goud["_profiel"])
+        for tid, redenen in afgewezen:
+            print(f"  {str(tid):8} VALT AF ({len(redenen)} harde fails):")
+            for regel in redenen:
+                print(f"           {regel}")
+        for tid, reden in overgeslagen:
+            print(f"  {str(tid):8} overgeslagen: {reden}")
+        if verwijderd:
+            actie = "zou weggaan" if dry_run else "weg"
+            print(f"\nuit {os.path.relpath(goud_dir, _HERE)} {actie}: {', '.join(verwijderd)}")
+        if not dry_run and gepromoveerd:
+            print(f"\nfew-shot is nu {GOUD_VOORBEELDEN[:GOUD_N]}")
+            print("Let bij een volgende ronde op de variatie hierboven: loopt het aantal "
+                  "dagen of het vakgebied te veel gelijk, dan leert de schrijver één vorm.")
+    return {"gepromoveerd": [{k: v for k, v in g.items() if k not in ("content", "_profiel")}
+                             for g in gepromoveerd],
+            "afgewezen": afgewezen, "overgeslagen": overgeslagen, "verwijderd": verwijderd}
+
+
 def _review_rij(res: RewriteResult, content: dict, content_bron: dict | None = None) -> dict:
     """Eén rij voor het review-tabblad: status + elk kopje in platte tekst.
 
@@ -2408,6 +2645,9 @@ def _review_rij(res: RewriteResult, content: dict, content_bron: dict | None = N
         "oude_titel": res.oude_titel, "status": res.status,
         "modus": res.modus, "modus_voorstel": res.modus_voorstel,
         "spec_versie": res.spec_versie,
+        # Onder welke few-shot is deze tekst geschreven? Valt een hele batch op dezelfde
+        # manier tegen, dan is dit meestal de verklaring en niet de spec.
+        "goud_voorbeelden": " | ".join(res.goud_voorbeelden),
         "reden": res.reden, "thin": res.thin,
         "n_flags": len(res.flags), "flags": " | ".join(res.flags),
         "judge_confidence": (res.judgment or {}).get("judge_confidence", ""),
@@ -2634,7 +2874,7 @@ def schrijf_training_artefacten(json_dir: str, tid: Any, res: RewriteResult,
         "training_id": tid, "titel": res.titel, "oude_titel": res.oude_titel,
         "status": res.status, "reden": res.reden, "thin": res.thin, "flags": res.flags,
         "modus": res.modus, "modus_voorstel": res.modus_voorstel,
-        "spec_versie": res.spec_versie,
+        "spec_versie": res.spec_versie, "goud_voorbeelden": res.goud_voorbeelden,
         "toegepaste_acties": res.toegepaste_acties,
         # writer_out is wat de schrijver letterlijk leverde; nodig om later één kopje te
         # hergenereren (aanpak_invulling zit ingebakken in de vaste Aanpak-alinea).

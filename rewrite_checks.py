@@ -17,6 +17,7 @@ Verwachte input `rewrite` (de gestructureerde schrijver-output, `submit_rewrite`
       "voorkennis":             "... (1 zin) of de vaste fallbackzin",
       "doelen":                 ["... te ...en", "... te ...en", ...],    # 4-5 bullets, te-infinitief
       "vervolgstappen_titels": ["Titel A", "Titel B", ...],              # uit de catalogus
+      "vervolgstappen_groepen": [{"intro": "...", "titels": [...]}, ...],  # uit de retrieval
       "kortste_omschrijving":   "Wil je ... (<=200 tekens; harde grens)",
       "nieuwe_titel":           "Training ...",                          # nooit cursus/opleiding
     }
@@ -147,6 +148,18 @@ ANGLICISMEN: tuple[tuple[str, str], ...] = (
     (r"\bend[- ]to[- ]end\b", "van begin tot eind"),
 )
 _ANGLICISME_RE = [(re.compile(p, re.I), nl) for p, nl in ANGLICISMEN]
+
+# Liggende streepjes: em-dash (U+2014) en en-dash (U+2013) -> HARD, zie `check_em_dash`.
+# Het gewone koppelteken (-) staat er bewust niet bij: dat hoort in "data-analyse" en in
+# "hands-on". Alleen de lange varianten, want die zijn nooit een koppelteken.
+_EM_DASH_RE = re.compile(r"[—–]")
+
+# Een voorwaardelijke bijzin met een opsomming in de voorwaarde -> FLAG, zie `check_reikwijdte`.
+# De voorwaarde loopt van het werkwoord tot de komma vóór "dan" of tot een dubbele punt; verder
+# dan één zin kijken we niet.
+_REIKWIJDTE_RE = re.compile(
+    r"\b(?:Werk|Ben|Zit|Houd|Sta|Doe)\s+je\b(?P<voorwaarde>[^.?!:]{0,140}?)\s*[,:]\s*dan\b",
+    re.I)
 
 # Formuleringen "aan de onderkant" (humanisering_nl.md Sectie D, schrijfspec Sectie 0.19) -> FLAG.
 #
@@ -359,6 +372,58 @@ def check_anglicismen(rw: dict, ctx: dict | None = None) -> list[Issue]:
     return issues
 
 
+def check_em_dash(rw: dict, ctx: dict | None = None) -> list[Issue]:
+    """Geen liggende streepjes in gegenereerde tekst. HARD.
+
+    De em-dash is de duidelijkste LLM-tic die er is en stond al in `humanisering_nl.md` §C,
+    maar alleen als instructie -- en in reviewronde 4 stonden er alsnog twee in één training.
+    Een instructie die het model op twee plaatsen negeert is een check waard.
+
+    Hard mag hier, om twee redenen. De reparatie is triviaal (punt, komma of haakjes) en
+    kost de schrijver geen inhoud, en deze check komt nooit langs vaste sjabloontekst: hij
+    draait op `_all_text_fields`, dat uitsluitend schrijverstekst oplevert (zie de docstring
+    daar). De groep-intro's van Vervolgstappen komen niet van de schrijver en gaan daarom
+    niet hierlangs; die worden in `kies_vervolgtrainingen` deterministisch opgeschoond.
+    """
+    issues: list[Issue] = []
+    velden = _all_text_fields(rw) + [("nieuwe_titel", _norm(rw.get("nieuwe_titel")))]
+    for section, text in velden:
+        if text and _EM_DASH_RE.search(text):
+            issues.append(Issue(section, HARD, "em_dash",
+                                "bevat een liggend streepje (— of –). Gebruik een punt, een "
+                                "komma of haakjes; een gedachtestreepje is hier nooit de "
+                                "juiste keuze (humanisering_nl.md Sectie D)."))
+    return issues
+
+
+def check_reikwijdte(rw: dict, ctx: dict | None = None) -> list[Issue]:
+    """Signaleert een opsomming die van breedte naar afbakening is gekanteld. FLAG.
+
+    Uit reviewronde 4. De bron schreef "Of je nu in communicatie, beleid, HR, klantcontact of
+    projectmanagement werkt: na deze training …" -- een opsomming die laat zien hoe bréed de
+    training inzetbaar is. Het concept maakte er "Werk je in communicatie, beleid, HR,
+    klantcontact of projectmanagement, dan …" van, en dat zegt iets wezenlijk anders: het
+    sluit iedereen daarbuiten uit.
+
+    Code kan dat niet beslissen -- daarvoor moet je de bron ernaast leggen -- dus dit is een
+    leesbril voor de reviewer en nooit een hard fail. De voorwaardelijke constructie zelf is
+    prima en in Sectie 9 zelfs voorgeschreven; alleen de combinatie met een opsomming van
+    drie of meer velden, rollen of sectoren is verdacht.
+    """
+    issues: list[Issue] = []
+    for key in _PROZA_VELDEN:
+        for m in _REIKWIJDTE_RE.finditer(_norm(rw.get(key))):
+            voorwaarde = m.group("voorwaarde")
+            if voorwaarde.count(",") >= 2 or (voorwaarde.count(",") >= 1 and " of " in voorwaarde):
+                issues.append(Issue(key, FLAG, "reikwijdte",
+                                    f"'{m.group(0)[:70]}…' -- een voorwaarde met een opsomming "
+                                    f"erin. Toont de bron hier juist de bréedte van de "
+                                    f"training, houd de opsomming dan insluitend ('Of je nu "
+                                    f"in X, Y of Z werkt, …')."))
+                break
+    return issues
+
+
 def check_zwakke_formulering(rw: dict, ctx: dict | None = None) -> list[Issue]:
     """De belofte klopt, maar hij staat "aan de onderkant" (schrijfspec Sectie 0.19).
 
@@ -434,6 +499,12 @@ def _doelen(rw: dict) -> list[str]:
     if isinstance(d, list):
         return [x for x in d if isinstance(x, str) and x.strip()]
     return []
+
+
+# Vervolgstappen: een groep-intro die minder dan zoveel trainingen aankondigt, hoort er niet
+# te staan. Zie `_check_groepen`. Dit is een kopie van `sjabloon.MIN_TITELS_PER_GROEP`; deze
+# module importeert bewust niets uit het project, zodat de checks los te draaien zijn.
+MIN_TITELS_PER_GROEP = 2
 
 
 def _titels(rw: dict) -> list[str]:
@@ -762,19 +833,48 @@ def check_kortste_omschrijving(rw: dict, ctx: dict | None = None) -> list[Issue]
 
 
 def check_vervolgstappen(rw: dict, ctx: dict | None = None) -> list[Issue]:
+    # De groepen staan los van de catalogus: die controle gaat door, ook zonder catalogus.
+    issues = _check_groepen(rw)
     titels = _titels(rw)
     catalog = (ctx or {}).get("catalog_titles")
     if catalog is None:
         if titels:
-            return [Issue("vervolgstappen", FLAG, "catalogus_ontbreekt",
-                          "geen catalogus geladen; titels niet te valideren.")]
-        return []
+            issues.append(Issue("vervolgstappen", FLAG, "catalogus_ontbreekt",
+                                "geen catalogus geladen; titels niet te valideren."))
+        return issues
     catalog_norm = {c.strip().lower() for c in catalog}
-    issues = []
     for titel in titels:
         if titel.strip().lower() not in catalog_norm:
             issues.append(Issue("vervolgstappen", HARD, "titel_onbekend",
                                 f"'{titel}' staat niet in de catalogus; verzin geen titels."))
+    return issues
+
+
+def _check_groepen(rw: dict) -> list[Issue]:
+    """Elke groep-intro kondigt minstens twee trainingen aan. FLAG.
+
+    Een introzin die één bullet aankondigt leest als een fout; hij belooft een richting en
+    levert één titel. Uit reviewronde 4 (training 2347).
+
+    FLAG en geen HARD, omdat de schrijver deze groepen niet schrijft: ze komen uit de
+    retrieval-call in `kies_vervolgtrainingen`, en daar worden ondermaatse groepen ook
+    deterministisch opgeruimd. Deze regel is er voor het geval een groep buiten die weg om
+    binnenkomt -- bij een hergeneratie van een oud document bijvoorbeeld.
+    """
+    groepen = rw.get("vervolgstappen_groepen")
+    if not isinstance(groepen, list):
+        return []
+    issues = []
+    for groep in groepen:
+        if not isinstance(groep, dict):
+            continue
+        aantal = len([t for t in (groep.get("titels") or []) if str(t or "").strip()])
+        if aantal < MIN_TITELS_PER_GROEP:
+            intro = str(groep.get("intro") or "").strip()
+            issues.append(Issue("vervolgstappen", FLAG, "groep_te_klein",
+                                f"de groep '{intro[:60]}…' kondigt {aantal} training(en) aan; "
+                                f"een introzin hoort er minstens "
+                                f"{MIN_TITELS_PER_GROEP} aan te kondigen."))
     return issues
 
 
@@ -902,6 +1002,8 @@ def check_rewrite(rewrite: dict, ctx: dict | None = None) -> list[Issue]:
     issues += check_zinlengte(rw, ctx)
     issues += check_duurvermelding(rw, ctx)
     issues += check_anglicismen(rw, ctx)
+    issues += check_em_dash(rw, ctx)
+    issues += check_reikwijdte(rw, ctx)
     issues += check_zwakke_formulering(rw, ctx)
     issues += check_contactzin(rw, ctx)
     return issues
