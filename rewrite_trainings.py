@@ -2967,10 +2967,151 @@ def hergenereer_kopje_op_schijf(scored_path: str, source_path: str, training_id:
     return res
 
 
+def bouw_wachtrij(scored, out_dir: str, *, skip_herschreven: bool = True,
+                  append: bool = True, skip_existing: bool = True, start: int = 0,
+                  limit: int | None = None, alleen_ids=None):
+    """Welke trainingen draaien er, en waarom valt de rest af? Eén rij per sheetrij.
+
+    Dit is de ENIGE plek waar dat wordt bepaald; `rewrite_file` en `toon_wachtrij` lezen
+    allebei dit frame. Zet je de filters ergens anders neer, dan liegt de preview zodra er
+    een filter bijkomt, en dat is precies waar de verwarring vandaan komt die deze functie
+    oplost: `start` telt NIET over het scoresheet maar over wat er ná de filters overblijft.
+    Stonden er 10 van de 15 trainingen al in `herschreven.xlsx`, dan is `start=3` de vierde
+    van de vijf die resteren en niet sheetrij 3.
+
+    Kolommen: `sheet` (0-based rijindex in het scoresheet), `training_id`, `titel`, `modus`,
+    `spoor` (overnemen/herschrijven), `wachtrij` (positie in het herschrijf-spoor, of None),
+    `geselecteerd`, `reden` (leeg als de rij meedraait).
+    """
+    import pandas as pd
+    if isinstance(scored, str):
+        scored = _load_scored(scored)
+
+    # De splitsing loopt over de MODUS, niet meer over de `herschreven`-kolom. Die kolom is
+    # nog steeds het uitgangspunt -- zonder `modus_reviewer`/`modus_voorstel` betekent
+    # `herschreven=1` gewoon `overnemen` (zie `RewriteBriefing.modus`) -- maar er is nu één
+    # schaal in plaats van twee mechanismen naast elkaar.
+    def _modus_van_rij(srow) -> str:
+        if not skip_herschreven:
+            # expliciet gevraagd om alles te herschrijven: alleen een reviewer overrulet dat
+            return normaliseer_modus(srow.get("modus_reviewer"))
+        return build_briefing({k: srow[k] for k in scored.columns}, {}, "").modus
+
+    # hervatten: rijen die al in de output staan tellen niet mee in de wachtrij
+    klaar: set = set()
+    out_path = os.path.join(out_dir, "herschreven.xlsx")
+    if append and skip_existing and os.path.exists(out_path):
+        bestaand_review = pd.read_excel(out_path, sheet_name=None).get("review")
+        if bestaand_review is not None:
+            klaar = set(bestaand_review["training_id"])
+
+    ids = None if alleen_ids is None else {int(t) for t in alleen_ids}
+
+    rijen, positie = [], 0
+    for sheet_ix, (_, srow) in enumerate(scored.iterrows()):
+        tid = srow.get("training_id")
+        modus = _modus_van_rij(srow) if len(scored) else MODUS_DEFAULT
+        spoor = "overnemen" if modus == "overnemen" else "herschrijven"
+        rij = {"sheet": sheet_ix, "training_id": tid, "titel": str(srow.get("titel") or ""),
+               "modus": modus, "spoor": spoor, "wachtrij": None,
+               "geselecteerd": False, "reden": ""}
+        if tid in klaar:
+            rij["reden"] = "staat al in herschreven.xlsx"
+        elif spoor == "overnemen":
+            # het overnemen-spoor heeft een eigen lus in `rewrite_file` en kost zonder
+            # goedgekeurde actualiseringen geen enkele API-call; start/limit raken het niet
+            rij["geselecteerd"] = True
+        else:
+            rij["wachtrij"] = positie
+            if ids is not None:
+                rij["geselecteerd"] = tid in ids
+                rij["reden"] = "" if rij["geselecteerd"] else "niet in IDS"
+            else:
+                # `limit is not None` en niet `if limit`: N=0 hoort niets te selecteren,
+                # niet stilzwijgend alles
+                binnen = positie >= start and (limit is None or positie < start + limit)
+                rij["geselecteerd"] = binnen
+                rij["reden"] = "" if binnen else "buiten START/N"
+            positie += 1
+        rijen.append(rij)
+
+    q = pd.DataFrame.from_records(rijen, columns=[
+        "sheet", "training_id", "titel", "modus", "spoor", "wachtrij", "geselecteerd", "reden"])
+    # Int64 en niet int: een rij zonder wachtrijpositie hoort `pd.NA` te zijn en niet een
+    # float-NaN die je bij het printen alsnog moet vangen
+    q["wachtrij"] = q["wachtrij"].astype("Int64")
+    if ids is not None:
+        # id's die niet bestaan of al klaar zijn horen zichtbaar te zijn, anders draait er
+        # stil minder dan gevraagd
+        gevonden = set(q[q["geselecteerd"]]["training_id"])
+        q.attrs["ids_niet_gedraaid"] = sorted(ids - gevonden)
+    return q
+
+
+def toon_wachtrij(scored, out_dir: str, *, start: int = 0, limit: int | None = None,
+                  alleen_ids=None, alles: bool = False, **kw):
+    """Print de wachtrij en geef hem terug. Geen API-calls; dit is de kijk-voor-je-betaalt.
+
+    Draai dit vóór `rewrite_file` met dezelfde `start`/`limit`/`alleen_ids`, dan zie je
+    exact welke trainingen er straks door de schrijver gaan. `alles=True` toont ook de
+    overgeslagen rijen; standaard blijft het bij de wachtrij zelf, want op een sheet van
+    honderden rijen verdrinkt de selectie anders in wat al klaar is.
+    """
+    import pandas as pd
+    q = bouw_wachtrij(scored, out_dir, start=start, limit=limit, alleen_ids=alleen_ids, **kw)
+    gekozen  = q[q["geselecteerd"] & (q["spoor"] == "herschrijven")]
+    n_over   = int((q["geselecteerd"] & (q["spoor"] == "overnemen")).sum())
+    klaar    = q[q["reden"] == "staat al in herschreven.xlsx"]
+    in_rij   = q[q["wachtrij"].notna()]
+    te_tonen = q if alles else q[q["wachtrij"].notna() | q["geselecteerd"]]
+
+    print(f"wachtrij — {len(in_rij)} van {len(q)} sheetrijen, in sheetvolgorde\n")
+    print(f"  {'sheet':>5}  {'wachtrij':>8}  {'id':>6}  {'titel':<46}  {'modus':<9}")
+    for _, r in te_tonen.iterrows():
+        pos = "-" if pd.isna(r["wachtrij"]) else str(int(r["wachtrij"]))
+        pijl = "->" if r["geselecteerd"] else "  "
+        staart = ("<< draait" if r["geselecteerd"] and r["spoor"] == "herschrijven"
+                  else "<< overnemen" if r["geselecteerd"] else f"({r['reden']})")
+        print(f"  {r['sheet']:>5}  {pijl}{pos:>6}  {r['training_id']:>6}  "
+              f"{r['titel'][:46]:<46}  {r['modus']:<9}  {staart}")
+    if len(klaar) and not alles:
+        print(f"  ... plus {len(klaar)} rijen die al in {out_dir}/herschreven.xlsx staan "
+              "(alles=True toont ze)")
+
+    selectie = (f"IDS={sorted(int(t) for t in alleen_ids)}" if alleen_ids is not None
+                else f"START={start}, N={limit}")
+    print(f"\nselectie: {len(gekozen)} te herschrijven ({selectie})"
+          + (f" + {n_over} op modus 'overnemen'" if n_over else ""))
+    for waarschuwing in _wachtrij_waarschuwingen(q, start, limit, alleen_ids):
+        print(waarschuwing)
+    return q
+
+
+def _wachtrij_waarschuwingen(q, start: int, limit: int | None, alleen_ids) -> list[str]:
+    """Stille lege selecties zijn de tweede helft van het probleem: `start` voorbij het einde
+    draaide 0 trainingen zonder één regel uitvoer. Deze regels horen bij de preview én bij de
+    run zelf."""
+    uit, n_wachtrij = [], int(q["wachtrij"].notna().sum())
+    niet_gedraaid = q.attrs.get("ids_niet_gedraaid") or []
+    if niet_gedraaid:
+        uit.append(f"LET OP: {niet_gedraaid} staan niet in de wachtrij (onbekend id, al "
+                   "herschreven, of modus 'overnemen')")
+    if not q["geselecteerd"].any():
+        if alleen_ids is not None:
+            uit.append("LET OP: geen van de opgegeven IDS staat in de wachtrij; niets te doen.")
+        elif start >= n_wachtrij:
+            uit.append(f"LET OP: START={start} valt buiten de wachtrij van {n_wachtrij} "
+                       "trainingen; niets te doen.")
+        else:
+            uit.append(f"LET OP: N={limit} selecteert niets; niets te doen.")
+    return uit
+
+
 def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
                  besluiten_path: str | None = None, start: int = 0,
                  limit: int | None = None, skip_herschreven: bool = True,
-                 append: bool = True, skip_existing: bool = True, verbose: bool = True):
+                 append: bool = True, skip_existing: bool = True, verbose: bool = True,
+                 alleen_ids=None):
     """Herschrijft de trainingen en schrijft de artefacten in `out_dir`.
 
     - trainingen/<id>.json   lossless: document + CMS-content + oordeel
@@ -2992,38 +3133,29 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
             "zonder dat sheet is niet vast te stellen wat de reviewer heeft goedgekeurd.")
     per_training = bes.load_besluiten(besluiten_path)
 
-    # De splitsing loopt over de MODUS, niet meer over de `herschreven`-kolom. Die kolom is
-    # nog steeds het uitgangspunt -- zonder `modus_reviewer`/`modus_voorstel` betekent
-    # `herschreven=1` gewoon `overnemen` (zie `RewriteBriefing.modus`) -- maar er is nu één
-    # schaal in plaats van twee mechanismen naast elkaar.
-    def _modus_van_rij(srow) -> str:
-        if not skip_herschreven:
-            # expliciet gevraagd om alles te herschrijven: alleen een reviewer overrulet dat
-            return normaliseer_modus(srow.get("modus_reviewer"))
-        return build_briefing({k: srow[k] for k in scored.columns}, {}, "").modus
+    # De selectie komt uit `bouw_wachtrij`, niet uit een tweede kopie van dezelfde filters:
+    # wat de preview toont is per constructie wat deze run draait.
+    toon = toon_wachtrij if verbose else bouw_wachtrij
+    q = toon(scored, out_dir, skip_herschreven=skip_herschreven, append=append,
+             skip_existing=skip_existing, start=start, limit=limit, alleen_ids=alleen_ids)
+    gekozen = q[q["geselecteerd"]]
+    overnemen = scored.iloc[list(gekozen[gekozen["spoor"] == "overnemen"]["sheet"])]
+    te_doen   = gekozen[gekozen["spoor"] == "herschrijven"]
+    wachtrij_van_id = dict(zip(te_doen["training_id"], te_doen["wachtrij"]))
+    scored_sel = scored.iloc[list(te_doen["sheet"])]
 
-    overnemen = scored.iloc[0:0]
-    if len(scored):
-        is_overnemen = scored.apply(_modus_van_rij, axis=1) == "overnemen"
-        overnemen = scored[is_overnemen]
-        scored = scored[~is_overnemen]
-
-    # hervatten: rijen die al in de output staan overslaan
     bestaand_cms, bestaand_review = None, None
     if append and os.path.exists(out_path):
         vorige = pd.read_excel(out_path, sheet_name=None)
         bestaand_cms = vorige.get("cms")
         bestaand_review = vorige.get("review")
-        if skip_existing and bestaand_review is not None:
-            klaar = set(bestaand_review["training_id"])
-            scored = scored[~scored["training_id"].isin(klaar)]
-            overnemen = overnemen[~overnemen["training_id"].isin(klaar)]
-            if verbose and klaar:
-                print(f"{len(klaar)} trainingen stonden al in {out_path} -> overgeslagen")
 
-    scored = scored.iloc[start:]
-    if limit:
-        scored = scored.iloc[:limit]
+    if not len(gekozen):
+        # niets te doen: geen client openen en het bestaande sheet met rust laten
+        for regel in _wachtrij_waarschuwingen(q, start, limit, alleen_ids):
+            if not verbose:
+                print(regel)
+        return bestaand_review if bestaand_review is not None else pd.DataFrame()
 
     catalog = load_catalog()
     if verbose and not catalog:
@@ -3033,7 +3165,7 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
         print(f"LET OP: {TREE_PATH} ontbreekt -> vervolgtrainingen alleen op keyword-overlap.")
     # Ook het overnemen-pad kan een client nodig hebben: goedgekeurde actualiseringen worden
     # daar sinds deze schaal wél doorgevoerd (zie `neem_over`).
-    client = make_client() if len(scored) or len(overnemen) else None
+    client = make_client() if len(scored_sel) or len(overnemen) else None
 
     cms_records, review_records = [], []
 
@@ -3058,8 +3190,8 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
         print(f"{len(overnemen)} trainingen op modus 'overnemen' doorgezet")
 
     # 2. de trainingen die wél herschreven moeten worden (modus stijl/format/volledig)
-    for n, (_, srow) in enumerate(scored.iterrows(), start=1):
-        scored_dict = {k: srow[k] for k in scored.columns}
+    for n, (_, srow) in enumerate(scored_sel.iterrows(), start=1):
+        scored_dict = {k: srow[k] for k in scored_sel.columns}
         tid = scored_dict.get("training_id")
         naam = str(scored_dict.get("titel", "") or "")
         src_row = src_by_id.get(tid)
@@ -3084,7 +3216,11 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
                                 "content": json.dumps(content_uit, ensure_ascii=False, default=_json_default)})
         review_records.append(_review_rij(res, content_uit, content_bron))
         if verbose:
-            print(f"[{n}/{len(scored)}] {naam[:40]:40} [{res.modus:9}] -> {res.status}"
+            # id en wachtrijpositie erbij: `[1/1]` alleen zegt niets over wáár in de wachtrij
+            # je zit, en dat is precies wat je wilt kunnen terugvinden in de preview
+            print(f"[{n}/{len(scored_sel)} · wachtrij {wachtrij_van_id.get(tid)}] "
+                  f"{tid:>6} {naam[:40]:40} "
+                  f"[{res.modus:9}] -> {res.status}"
                   + (f" ({res.reden})" if res.reden else ""))
 
     cms = pd.DataFrame.from_records(cms_records)
@@ -3110,13 +3246,21 @@ def main():
     load_dotenv()
     p = argparse.ArgumentParser(description="Herschrijf trainingen naar de nieuwe stijl.")
     p.add_argument("--scored", required=True, help="scoresheet xlsx (feiten + actie_besluit)")
-    p.add_argument("--source", required=True, help="bron-xlsx met content-JSON (brontekst)")
+    # niet `required`: --toon-wachtrij leest alleen het scoresheet en de al geschreven
+    # output, en een preview die om een bronsheet vraagt die hij nooit opent nodigt uit tot
+    # `--source /dev/null`
+    p.add_argument("--source", help="bron-xlsx met content-JSON (brontekst)")
     # niet `required`: --goud en --scan-modus herschrijven niets en hebben dus geen
     # besluiten nodig. `rewrite_file` weigert nog steeds te draaien zonder.
     p.add_argument("--besluiten", help="genormaliseerde besluiten.xlsx")
     p.add_argument("--out-dir", default="herschreven")
-    p.add_argument("--start", type=int, default=0)
+    p.add_argument("--start", type=int, default=0,
+                   help="positie in de WACHTRIJ (na de skip-filters), niet de rij in het sheet")
     p.add_argument("--limit", type=int, default=None)
+    p.add_argument("--ids", type=int, nargs="*", metavar="ID",
+                   help="draai precies deze training_id's; overrulet --start/--limit")
+    p.add_argument("--toon-wachtrij", action="store_true",
+                   help="print alleen welke trainingen zouden draaien; herschrijft niets")
     p.add_argument("--no-append", action="store_true", help="overschrijf i.p.v. hervatten")
     p.add_argument("--goud", action="store_true", help="exporteer alleen het goud-corpus")
     p.add_argument("--scan-modus", metavar="UIT_XLSX",
@@ -3125,6 +3269,13 @@ def main():
     p.add_argument("--geen-llm", action="store_true",
                    help="alleen bij --scan-modus: alleen de deterministische ondergrens")
     a = p.parse_args()
+    if a.toon_wachtrij:
+        # kijken kost niets: geen key, geen besluiten-sheet, geen bronsheet nodig
+        toon_wachtrij(a.scored, a.out_dir, start=a.start, limit=a.limit,
+                      alleen_ids=a.ids, append=not a.no_append)
+        return
+    if not a.source:
+        raise SystemExit("--source is verplicht, behalve bij --toon-wachtrij.")
     if a.goud:
         export_goud_corpus(a.source, a.out_dir)
         return
@@ -3136,7 +3287,7 @@ def main():
     if not os.getenv("ANTHROPIC_API_KEY"):
         raise SystemExit("Zet ANTHROPIC_API_KEY (in een .env-bestand of je omgeving).")
     rewrite_file(a.scored, a.source, a.out_dir, besluiten_path=a.besluiten,
-                 start=a.start, limit=a.limit, append=not a.no_append)
+                 start=a.start, limit=a.limit, append=not a.no_append, alleen_ids=a.ids)
 
 
 if __name__ == "__main__":

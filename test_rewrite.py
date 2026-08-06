@@ -2401,6 +2401,101 @@ def test_goud_selectie_valt_terug_op_het_handwerk_zonder_manifest():
 
 
 # ---------------------------------------------------------------------------
+# De wachtrij: welke trainingen draaien er, en waarom valt de rest af
+# ---------------------------------------------------------------------------
+
+def _wachtrij_situatie(d, ids, klaar=(), herschreven=None):
+    """Schrijft een scoresheet met `ids` in die volgorde, plus een herschreven.xlsx met `klaar`.
+
+    `herschreven` is de kolom die zonder `modus_voorstel` de modus bepaalt: 1 -> `overnemen`.
+    """
+    import pandas as pd
+    scored_pad = os.path.join(d, "prio.xlsx")
+    n = len(ids)
+    _scored_df(id=list(ids), name=[f"Training {t}" for t in ids],
+               herschreven=list(herschreven or [0] * n),
+               actualiteit_actie=[""] * n, actie_besluit=[""] * n
+               ).to_excel(scored_pad, index=False)
+    if klaar:
+        os.makedirs(os.path.join(d, "uit"), exist_ok=True)
+        with pd.ExcelWriter(os.path.join(d, "uit", "herschreven.xlsx")) as w:
+            pd.DataFrame({"training_id": list(klaar)}).to_excel(w, sheet_name="review", index=False)
+    return scored_pad, os.path.join(d, "uit")
+
+
+def test_wachtrij_telt_na_de_skip_filters_en_niet_over_het_sheet():
+    """De verwarring die deze functie bestaat om weg te nemen.
+
+    `start` telde altijd al over de gefilterde lijst, maar dat was nergens te zien: met 10 van
+    de 15 trainingen al klaar leverde START=3 de vierde van de vijf resterende op, niet
+    sheetrij 3. De preview hoort beide nummeringen naast elkaar te zetten.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        scored, uit_dir = _wachtrij_situatie(d, [10, 11, 12, 13, 14], klaar=[10, 11])
+        q = rw.bouw_wachtrij(scored, uit_dir, start=1, limit=1)
+        gekozen = q[q["geselecteerd"]]
+        assert list(gekozen["training_id"]) == [13], list(gekozen["training_id"])
+        assert int(gekozen["sheet"].iloc[0]) == 3 and int(gekozen["wachtrij"].iloc[0]) == 1
+        assert list(q[q["wachtrij"].notna()]["training_id"]) == [12, 13, 14]
+
+
+def test_wachtrij_noemt_per_rij_waarom_hij_niet_meedraait():
+    """Zonder reden per rij blijft "waarom draait deze niet" een raadsel dat je zelf natelt."""
+    with tempfile.TemporaryDirectory() as d:
+        scored, uit_dir = _wachtrij_situatie(d, [10, 11, 12], klaar=[10])
+        q = rw.bouw_wachtrij(scored, uit_dir, start=0, limit=1).set_index("training_id")
+        assert q.loc[10, "reden"] == "staat al in herschreven.xlsx"
+        assert q.loc[11, "reden"] == ""          # draait
+        assert q.loc[12, "reden"] == "buiten START/N"
+
+
+def test_alleen_ids_negeert_start_en_limit():
+    """Een id-selectie is het antwoord op een wachtrij die per run van lengte verandert."""
+    with tempfile.TemporaryDirectory() as d:
+        scored, uit_dir = _wachtrij_situatie(d, [10, 11, 12, 13])
+        q = rw.bouw_wachtrij(scored, uit_dir, start=2, limit=1, alleen_ids=[10, 13])
+        assert list(q[q["geselecteerd"]]["training_id"]) == [10, 13]
+
+
+def test_alleen_ids_meldt_wat_er_niet_in_de_wachtrij_zat():
+    """Stil minder draaien dan gevraagd is precies het gedrag dat hier wordt weggenomen."""
+    with tempfile.TemporaryDirectory() as d:
+        scored, uit_dir = _wachtrij_situatie(d, [10, 11], klaar=[10])
+        q = rw.bouw_wachtrij(scored, uit_dir, alleen_ids=[10, 99])
+        assert q.attrs["ids_niet_gedraaid"] == [10, 99]
+
+
+def test_limit_nul_selecteert_niets_en_niet_alles():
+    """`if limit:` liet N=0 samenvallen met N=None -- de duurste betekenis van een nul."""
+    with tempfile.TemporaryDirectory() as d:
+        scored, uit_dir = _wachtrij_situatie(d, [10, 11, 12])
+        assert not rw.bouw_wachtrij(scored, uit_dir, limit=0)["geselecteerd"].any()
+        assert rw.bouw_wachtrij(scored, uit_dir, limit=None)["geselecteerd"].all()
+
+
+def test_overnemen_rijen_staan_los_van_start_en_limit():
+    """Het overnemen-spoor heeft zijn eigen lus in `rewrite_file`; start/limit raken het niet."""
+    import pandas as pd
+    with tempfile.TemporaryDirectory() as d:
+        scored, uit_dir = _wachtrij_situatie(d, [10, 11, 12], herschreven=[1, 0, 0])
+        q = rw.bouw_wachtrij(scored, uit_dir, start=1, limit=1).set_index("training_id")
+        assert q.loc[10, "spoor"] == "overnemen" and q.loc[10, "geselecteerd"]
+        assert pd.isna(q.loc[10, "wachtrij"]), "een overnemen-rij hoort geen wachtrijpositie te krijgen"
+        assert list(q[q["wachtrij"].notna()].index) == [11, 12]
+        assert q.loc[12, "geselecteerd"] and not q.loc[11, "geselecteerd"]
+
+
+def test_start_voorbij_het_einde_waarschuwt_in_plaats_van_stil_niets_te_doen():
+    """Een run die 0 trainingen draait zonder één regel uitvoer leest als een geslaagde run."""
+    with tempfile.TemporaryDirectory() as d:
+        scored, uit_dir = _wachtrij_situatie(d, [10, 11], klaar=[10])
+        q = rw.bouw_wachtrij(scored, uit_dir, start=5)
+        assert not q["geselecteerd"].any()
+        melding = " ".join(rw._wachtrij_waarschuwingen(q, 5, None, None))
+        assert "START=5" in melding and "1 trainingen" in melding, melding
+
+
+# ---------------------------------------------------------------------------
 # Runner (zonder pytest)
 # ---------------------------------------------------------------------------
 
