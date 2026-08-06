@@ -2295,6 +2295,103 @@ def test_reikwijdte_flagt_een_voorwaarde_met_een_opsomming():
                                                       "eerst de basistraining."})
 
 
+def test_eigen_case_inbrengen_is_hard():
+    """Uit 3036: alleen een bedrijfstraining kan materiaal van de deelnemer verwerken."""
+    for veld, waarde in (
+            ("modules", "Een eigen veranderopgave rond datamanagement inbrengen"),
+            ("inleiding", "De training biedt ruimte om eigen vraagstukken mee te nemen."),
+            ("overzicht", "Je brengt je eigen case in en werkt die uit."),
+            ("aanpak_invulling", "je je eigen dataset meeneemt naar de training"),
+            ("doelen", "Je eigen praktijkopdracht aan te leveren en uit te werken"),
+            ("inleiding", "Je legt je eigen probleemstelling voor aan de trainer.")):
+        rwin = {veld: [waarde]} if veld == "doelen" else {veld: waarde}
+        if veld == "modules":
+            rwin = {"modules": {"modules": [{"titel": "M", "bullets": [waarde]}]}}
+        hard = checks.hard_fails(checks.check_eigen_case(rwin))
+        assert [i.code for i in hard] == ["eigen_case_inbrengen"], f"{veld}: {waarde}"
+
+
+def test_bezittelijk_woord_op_een_case_is_hard():
+    """"een praktijkcase" leveren wij; "je eigen praktijkcase" belooft er een van de deelnemer."""
+    for waarde in ("Je past alles toe op je eigen praktijkcase.",
+                   "Je sluit af met je eigen praktijkcase.",
+                   "Je werkt met jullie eigen casussen.",
+                   "Jouw praktijkcase"):
+        hard = checks.hard_fails(checks.check_eigen_case({"overzicht": waarde}))
+        assert [i.code for i in hard] == ["eigen_case"], waarde
+    assert not checks.check_eigen_case(
+        {"overzicht": "Je past alles toe op een praktijkcase."})
+
+
+def test_eigen_case_ziet_door_koppeltekens_heen():
+    """Een koppelteken is geen woordteken; zonder `[\\w-]` glipte de samenstelling erlangs.
+
+    Kwam aan het licht doordat twee few-shot-voorbeelden (3127, 796) de fout zelf
+    demonstreerden terwijl de check zweeg. Een gat in een check die de few-shot moet bewaken
+    is duurder dan elders: het voorbeeld leert de fout aan.
+    """
+    for waarde in ("Richtlijnen opstellen en je eigen AI-toepassingscasus uitwerken",
+                   "Je use-case uitwerken tot een toepasbare oplossing"):
+        hard = checks.hard_fails(checks.check_eigen_case({"modules": {"modules": [
+            {"titel": "M", "bullets": [waarde]}]}}))
+        assert [i.code for i in hard] == ["eigen_case"], waarde
+
+
+def test_eigen_case_dekt_document_proces_en_werkvraag():
+    """Uit 3127: niet elk werkmateriaal heet een case."""
+    waarde = "Je eigen document, proces of werkvraag inbrengen en uitwerken"
+    hard = checks.hard_fails(checks.check_eigen_case({"modules": {"modules": [
+        {"titel": "M", "bullets": [waarde]}]}}))
+    assert [i.code for i in hard] == ["eigen_case_inbrengen"], waarde
+
+
+def test_eigen_case_vangt_ook_de_herkomst():
+    """Het bezit kan een zelfstandig naamwoord verderop staan: "casussen uit je eigen praktijk"."""
+    for waarde in ("Je werkt aan casussen uit je eigen praktijk.",
+                   "Je werkt aan casussen die je voorbereidt met materiaal uit je eigen werk."):
+        hard = checks.hard_fails(checks.check_eigen_case({"inleiding": waarde}))
+        assert [i.code for i in hard] == ["eigen_case_herkomst"], waarde
+    # de herkomst zonder bezit is precies wat we wél leveren
+    assert not checks.check_eigen_case(
+        {"inleiding": "We gebruiken herkenbare casussen uit de praktijk."})
+
+
+def test_eigen_case_laat_toe_wat_de_deelnemer_zelf_maakt():
+    """Wij leveren de case; wat de deelnemer daarmee bouwt is de oefening en mag beloofd worden.
+
+    Dit is de grens die het makkelijkst meeschuift zodra iemand de patronen verbreedt, en hij is
+    bij de review expliciet scherpgesteld: bij 796 wordt niets ingebracht, want de praktijkcase
+    komt van ons en de applicatie is het resultaat. De richting beslist, niet het woord "eigen".
+    Zie schrijfspec Sectie 0.25 en Sectie 0.15.
+    """
+    for waarde in (
+            # de letterlijke zin uit 796, het schoolvoorbeeld van de toegestane kant
+            "Je leert de belangrijkste patronen te benoemen, zelfstandig toe te passen en in een "
+            "praktijkcase te verwerken tot een eigen applicatie.",
+            "Praktijkcase: een eigen applicatie ontwikkelen",
+            "Een eigen applicatie ontwerpen waarin je design patterns toepast",
+            "Een roadmap opstellen voor een SIEM-oplossing binnen je eigen organisatie",
+            "Een passende monitoring-strategie voor je eigen AWS-omgeving op te stellen",
+            "Hierdoor ben je in staat om OpenCV in te zetten in je eigen projecten."):
+        assert not checks.check_eigen_case({"inleiding": waarde}), waarde
+
+
+def test_eigen_case_laat_afstemming_op_de_werksituatie_staan():
+    """De grens: aansluiten op jouw praktijk mag, materiaal meebrengen niet.
+
+    Dat onderscheid is het hele punt van de check, en de eerste zin hieronder staat bijna
+    letterlijk in `sjabloon.AANPAK_ALINEA_1`. Zou die vuren, dan faalt elke training.
+    """
+    for waarde in ("Er is veel ruimte voor jouw vragen en werksituatie.",
+                   "Er is ruimte voor vragen en het inbrengen van eigen situaties.",
+                   "Je vertaalt het geleerde naar je eigen organisatie.",
+                   "Je leert eigen datavraagstukken gestructureerd te analyseren.",
+                   "Je brengt de samenhang tussen kanalen en touchpoints in kaart."):
+        assert not checks.check_eigen_case({"inleiding": waarde}), waarde
+    for tekst in sjabloon.VASTE_TEKSTEN:
+        assert not checks.check_eigen_case({"inleiding": tekst}), f"vaste tekst: {tekst[:50]}"
+
+
 def test_groep_met_een_titel_valt_weg_en_de_rest_blijft():
     groepen = [{"intro": "Verdiepen:", "titels": ["A", "B", "C"]},
                {"intro": "Verbreden:", "titels": ["D"]}]

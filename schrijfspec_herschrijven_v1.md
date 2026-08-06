@@ -111,6 +111,25 @@ tekens van de Kortste omschrijving staan vast, want daar zit geen stijlafweging 
     **Bron:** "Of je nu in communicatie, beleid, HR, klantcontact of projectmanagement werkt: na deze training zet je AI in als verlengstuk van je denken en handelen."
     **Fout:** "Werk je in communicatie, beleid, HR, klantcontact of projectmanagement, dan ben je na deze masterclass in staat om AI als vast verlengstuk van je denken en handelen in te zetten."
     **Goed:** "Of je nu in communicatie, beleid, HR, klantcontact of projectmanagement werkt, na deze masterclass kun je AI inzetten als verlengstuk van je denken en handelen."
+25. **De deelnemer brengt nooit zelf werkmateriaal mee.** [hard] Schrijf niet dat je je eigen case, opgave, opdracht, vraagstuk, project, dataset, document, proces, werkvraag of code inbrengt, meeneemt of aanlevert. Dat is een **bedrijfstraining**, en die staat al als apart blok onder de Inleiding; de code plaatst dat blok en het zegt het daar in de juiste woorden. Deze tekst beschrijft de open inschrijving, en daar leveren wíj de case. Belooft de tekst het toch, dan verkopen we iets anders dan we leveren, en dat valt onder §0.7.
+
+    Let op de val in de bron, want die is de aanleiding voor deze regel: er staat vaak "jouw praktijkcase", maar dat betekent dat je een praktijkcase *krijgt* waaraan je zelf werkt. Het betekent niet dat je er een meebrengt. Neem die formulering dus niet over.
+
+    Dat maakt ook het bezittelijke woord op een case een fout op zichzelf, ook zonder werkwoord: "een praktijkcase" mag, "je eigen praktijkcase" niet. Hetzelfde geldt voor "jullie eigen casussen". En het bezit telt ook als het een zelfstandig naamwoord verderop staat: "casussen uit je eigen praktijk" zegt hetzelfde met andere woorden.
+
+    **Fout:** "Je past alles toe op je eigen praktijkcase." · **Goed:** "Je past alles toe op een praktijkcase."
+    **Fout:** "Een eigen veranderopgave rond datamanagement inbrengen" · **Goed:** "Een veranderopgave rond datamanagement uitwerken"
+    **Fout:** "De training biedt ruimte om eigen vraagstukken mee te nemen." · **Goed:** "De training sluit aan op de vraagstukken die in jouw werkpraktijk spelen."
+    **Fout:** "Je eigen document, proces of werkvraag inbrengen en uitwerken" · **Goed:** "Een document, proces of werkvraag uitwerken tot een toepasbare oplossing"
+    **Fout:** "Je werkt aan casussen uit je eigen praktijk." · **Goed:** "Je werkt aan herkenbare casussen uit de praktijk."
+
+    **Twee dingen die hier níét onder vallen en gewoon mogen.** Ten eerste: dat de training aansluit op je werksituatie, dat er ruimte is voor jouw vragen en eigen situaties, en dat je het geleerde vertaalt naar je eigen organisatie. Onze eigen vaste Aanpak-tekst zegt het zo: "met veel ruimte voor jouw vragen en werksituatie".
+
+    Ten tweede, en dit is de belangrijkste: **wat de deelnemer tijdens de training zelf máákt.** Wíj leveren de praktijkcase; wat hij daar vervolgens mee bouwt is de oefening waarvoor hij komt, en die belofte hoort er juist wél te staan. "Je leert de belangrijkste patronen te benoemen, toe te passen en in een praktijkcase te verwerken tot een eigen applicatie" is goed: er wordt niets ingebracht. Hetzelfde geldt voor "een roadmap opstellen voor een SIEM-oplossing binnen je eigen organisatie" en "een monitoring-strategie voor je eigen AWS-omgeving opstellen". Zie ook §0.15, dat het eindproduct dat de deelnemer bouwt en meeneemt met zoveel woorden noemt.
+
+    **De richting beslist, niet het woord "eigen".** Materiaal dat naar binnen komt is verboden; materiaal dat eruit komt is de opbrengst. Twee zinnen die bijna gelijk klinken en tegengesteld zijn:
+
+    **Fout:** "Je werkt je eigen praktijkcase uit." (jij levert de case) · **Goed:** "Je werkt een praktijkcase uit tot een eigen applicatie." (wij leveren de case, jij bouwt het resultaat)
 
 ---
 

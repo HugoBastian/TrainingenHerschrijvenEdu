@@ -36,7 +36,7 @@ het model.
 | `rewrite_output.py` | Document → CMS-`content`-JSON (HTML) en → markdown met kop 1/2/3. |
 | `rewrite_trainings.py` | Hybride schrijver + orchestratie + I/O. |
 | `herschrijven.ipynb` | Notebook om de pijplijn stap voor stap te draaien en te inspecteren. |
-| `test_rewrite.py` | 206 offline tests (geen API-key nodig). |
+| `test_rewrite.py` | 220 offline tests (geen API-key nodig). |
 
 ## Setup
 
@@ -641,6 +641,78 @@ groep: die groep heeft zijn eigen intro, en een training die daar inhoudelijk ni
 maakt die intro onwaar. Blijven er in totaal minder dan drie titels over, dan vervallen de
 groepen helemaal en valt de weergave terug op één lijst onder "Zo bieden we onder andere:".
 
+### De check uit ronde 5: de deelnemer brengt geen eigen case mee
+
+Training 3036 (Change Management voor DAMA-DMBOK) beloofde twee keer dat je je eigen case
+inbrengt: "past alles toe op je eigen praktijkcase" in het Overzicht en de modulebullet "Een
+eigen veranderopgave rond datamanagement inbrengen". Dat kan alleen bij een bedrijfstraining,
+en die staat al als apart blok onder de Inleiding. In de standaard beschrijving is het een
+belofte die we niet nakomen.
+
+**Dit is de eerste bevinding waarbij de bron de schrijver actief het verkeerde in duwt.** Er
+stond wél iets over "jouw praktijkcase", maar dat betekende dat je een praktijkcase *krijgt*
+om aan te werken, niet dat je er zelf een aanlevert. Het concept las het als bezit. Daarom is
+de regel op drie plekken zo geformuleerd dat de bron hem niet kan overrulen, en staat hij in
+de beoordelingsspec expliciet als uitzondering: de judge mag een concept dat er "een
+praktijkcase" van maakt níét afrekenen als afwijking van de bron.
+
+`check_eigen_case` (**HARD**) heeft daarom drie patronen, en het meten dwong de grens af:
+
+| Patroon | Wat het vangt | Over het goud |
+| --- | --- | --- |
+| `_INBRENG_RE` | een inbreng-werkwoord met eigen werkmateriaal, in beide volgordes en gescheiden ("brengt … in", "levert … aan") | 1 van de 78 |
+| `_EIGEN_CASE_RE` | een bezittelijk voornaamwoord op een case, ook zonder werkwoord | 7 van de 78 |
+| `_CASE_HERKOMST_RE` | het bezit een zelfstandig naamwoord verderop: "casussen uit je eigen praktijk" | 0 van de 78 |
+
+**Het derde patroon en de koppeltekens komen uit een tweede ronde, en die is leerzaam.** Bij het
+kiezen van nieuw goud bleek dat een van de vier zittende few-shot-voorbeelden de fout zélf
+demonstreerde terwijl de check zweeg: 3127, met "Je eigen document, proces of werkvraag
+inbrengen", "casussen uit je eigen praktijk" en "je eigen AI-toepassingscasus". Drie gaten
+tegelijk: "document", "proces" en "werkvraag" stonden niet in de materiaallijst, het bezit kon
+een naamwoord verderop staan, en `\w` matcht geen koppelteken, waardoor "AI-toepassingscasus" en
+"je use-case" erlangs glipten. De woordklassen gebruiken nu `[\w-]`. Dit is dezelfde les als bij
+de em-dash: **een check die de few-shot moet bewaken, moet eerst op de few-shot zelf worden
+losgelaten.**
+
+De objectlijst van het eerste patroon is bewust beperkt tot werkmateriaal (case, opgave,
+opdracht, vraagstuk, dataset, project, data, code). Neem je "situatie" en "voorbeeld" mee, dan
+gaat hij van 1 naar 5 over het goud, en die vier extra zijn allemaal terecht: "ruimte voor
+vragen en het inbrengen van eigen situaties" gaat over het gesprek in de zaal, en dat belooft
+`sjabloon.AANPAK_ALINEA_1` zelf al ("veel ruimte voor jouw vragen en werksituatie"). Precies
+die zin mag nooit vuren, want dan faalt elke training; een test bewaakt dat over alle
+`VASTE_TEKSTEN`.
+
+Het tweede patroon vraagt om het bezit en niet om het onderwerp, want alleen dát verschuift de
+belofte: "een praktijkcase" leveren wij, "je eigen praktijkcase" komt van de deelnemer. Dat het
+goud er zeven bevat, waaronder "jullie eigen casussen" en "jullie eigen praktijkcase", maakt het
+juist een fout en geen corpusconventie — het goud is meetlat, geen norm. Bij 3036 vuurt de
+check op zes plekken, vier meer dan de reviewer had aangewezen: ook de Inleiding, de
+moduletitel "Jouw praktijkcase" en een bullet met "je case".
+
+**De grens aan de andere kant is even belangrijk, en die is bij de review expliciet
+scherpgesteld.** Er zijn twee dingen die op elkaar lijken en tegengesteld zijn:
+
+| | Wie levert het? | Mag het in de tekst? |
+| --- | --- | --- |
+| De **case** waaraan gewerkt wordt | wij | ja, mits zonder bezittelijk woord: "een praktijkcase" |
+| Wat de deelnemer daar **mee bouwt** | de deelnemer, tijdens de training | ja, en het hóórt er te staan |
+
+796 is het schoolvoorbeeld van de tweede rij: "de belangrijkste patronen te benoemen, toe te
+passen en in een praktijkcase te verwerken tot een **eigen applicatie**". Daar wordt niets
+ingebracht. Wíj geven de praktijkcase, en dat de deelnemer daarna een eigen applicatie bouwt is
+precies de oefening waarvoor hij komt: die belofte moeten we juist wél doen. Hetzelfde geldt voor
+"een roadmap opstellen voor een SIEM-oplossing binnen je eigen organisatie" (2725) en "een
+monitoring-strategie voor je eigen AWS-omgeving" (2808).
+
+**De richting beslist, niet het woord "eigen".** Materiaal dat naar binnen komt is verboden;
+materiaal dat eruit komt is de opbrengst. Dat is de reden dat `_INBRENG_RE` verplicht een
+inbreng-werkwoord eist en `_EIGEN_CASE_RE` alleen op de case-familie kijkt en niet op
+"applicatie", "roadmap" of "strategie". Een test legt die zinnen letterlijk vast, want dit is de
+grens die het makkelijkst meeschuift zodra iemand de patronen verbreedt.
+
+De idioomval zit bij de gescheiden werkwoordsvorm: "in kaart brengen" staat er met een
+negatieve lookahead uit.
+
 ### De scoresheet-val
 
 De pijplijn heeft twee scoresheets: het ruwe (`SCORED`) en dat wat sectie 3b oplevert
@@ -660,7 +732,7 @@ roept hem aan met `waarschuw=False`: dat is de stap die die kolommen juist máá
 ```bash
 python bouw_goud_v2.py     # terugval-few-shot opbouwen; `herschreven/` is gitignored, dus dit
                            # hoort bij een verse checkout. Geen API-key nodig.
-python test_rewrite.py     # 206 offline checks, geen API-key nodig
+python test_rewrite.py     # 220 offline checks, geen API-key nodig
 ```
 
 Getest wordt de deterministische laag: de code-check, de structurele splitsing van

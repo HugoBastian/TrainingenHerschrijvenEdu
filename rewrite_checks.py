@@ -161,6 +161,70 @@ _REIKWIJDTE_RE = re.compile(
     r"\b(?:Werk|Ben|Zit|Houd|Sta|Doe)\s+je\b(?P<voorwaarde>[^.?!:]{0,140}?)\s*[,:]\s*dan\b",
     re.I)
 
+# De deelnemer brengt zelf werkmateriaal mee -> HARD, zie `check_eigen_case`.
+#
+# Uit de review op training 3036 (Change Management voor DAMA-DMBOK), die het twee keer beloofde:
+# "past alles toe op je eigen praktijkcase" en de modulebullet "Een eigen veranderopgave rond
+# datamanagement inbrengen". Dat kan alleen bij een bedrijfstraining en dus nooit in de standaard
+# beschrijving. De bron verleidt ertoe: daar staat "jouw praktijkcase", maar dat betekent dat je
+# een praktijkcase *krijgt* om aan te werken, niet dat je er zelf een aanlevert.
+#
+# Drie vormen, alle drie hard, want de schrijver kan ze alle drie zelf repareren:
+#
+# `_INBRENG_RE` -- een inbreng-werkwoord met eigen werkmateriaal, in beide volgordes en ook
+# gescheiden ("brengt … in", "levert … aan"). Bewust alleen op materiaal (case, opgave, opdracht,
+# vraagstuk, dataset, project, document, proces, werkvraag, data, code) en niet op "situatie",
+# "voorbeeld" of "vraag": daar gaat het over het gesprek in de zaal, en dat belooft
+# `sjabloon.AANPAK_ALINEA_1` zelf al ("veel ruimte voor jouw vragen en werksituatie"). Met die
+# grens vuurt hij 1 keer over de 78 goud-trainingen; mét "situatie" erbij 5 keer, en dat zijn
+# dan vier terechte zinnen.
+#
+# `_EIGEN_CASE_RE` -- een bezittelijk voornaamwoord op een case. In een open inschrijving is een
+# case er altijd een die wij leveren, dus "een praktijkcase" mag en "je eigen praktijkcase" niet;
+# juist dat bezittelijke woord maakt de belofte die we niet waar kunnen maken. 7 van de 78, onder
+# meer "jullie eigen casussen" en "jullie eigen praktijkcase" -- het goud maakt de fout zelf, dus
+# dit is een fout en geen corpusconventie.
+#
+# `_CASE_HERKOMST_RE` -- de herkomst in plaats van het bezit: "casussen uit je eigen praktijk",
+# "materiaal uit je eigen werk". Hetzelfde probleem met het bezittelijke woord één zelfstandig
+# naamwoord verderop, waar de twee patronen hierboven niet komen. 0 van de 78.
+#
+# Twee vallen zitten erin verwerkt. "in kaart brengen" is de idioomval bij de gescheiden vorm en
+# staat er met een lookahead uit. En de woordklassen gebruiken `[\w-]` en niet `\w`, want een
+# koppelteken is geen woordteken: zonder dat glipten "AI-toepassingscasus" en "je use-case"
+# erlangs. Die twee kwamen aan het licht toen bleek dat twee van de vier few-shot-voorbeelden
+# (3127 en 796) deze fout zelf demonstreerden terwijl de check zweeg.
+#
+# Wat bewust NIET vuurt, want dat is precies wat we wél leveren: materiaal dat de deelnemer
+# tíjdens de training maakt ("een eigen applicatie ontwerpen", "een roadmap voor je eigen
+# organisatie opstellen") en alles wat over toepassen ná de training gaat ("in te zetten in je
+# eigen projecten"). Zie schrijfspec Sectie 0.15: het eindproduct dat de deelnemer zelf bouwt en
+# meeneemt is uitdrukkelijk toegestaan.
+_BEZIT = r"(?:eigen|jouw|jullie|je)"
+_CASE_FAMILIE = r"[\w-]*(?:case|cases|casus|casussen)\b"
+_MATERIAAL = (r"[\w-]*(?:case|cases|casus|casussen|opgave|opgaven|opdracht|opdrachten|vraagstuk|"
+              r"vraagstukken|probleemstelling|probleemstellingen|dataset|datasets|project|"
+              r"projecten|materiaal|document|documenten|proces|processen|werkvraag|werkvragen)"
+              r"[\w-]*|(?:data|code)\b")
+_EIGEN_MATERIAAL = rf"{_BEZIT}\s+(?:\w+\s+){{0,2}}?(?:{_MATERIAAL})"
+_INBRENG_VAST = (r"in\s?te\s?brengen|inbreng\w*|ingebracht|mee\s?te\s?brengen|meebreng\w*|"
+                 r"mee\s?te\s?nemen|mee\s?nemen|meenemen|meeneemt|aan\s?te\s?leveren|aanlever\w*|"
+                 r"aan\s?te\s?dragen|aandrag\w*|voor\s?te\s?leggen|voorleg\w*")
+_INBRENG_SCHEIDBAAR = r"breng\w*|neem\w*|lever\w*|draag\w*|draagt|leg\w*|legt"
+_INBRENG_PARTIKEL = r"in(?!\s+kaart)|mee|aan|voor"
+_INBRENG_RE = re.compile(
+    rf"(?:{_EIGEN_MATERIAAL}[^.;:!?]{{0,50}}?\s(?:{_INBRENG_VAST})"
+    rf"|(?:{_INBRENG_VAST})[^.;:!?]{{0,40}}?\s(?:van\s+)?{_EIGEN_MATERIAAL}"
+    rf"|\b(?:{_INBRENG_SCHEIDBAAR})\s+(?:\w+\s+){{0,2}}?{_EIGEN_MATERIAAL}"
+    rf"[^.;:!?]{{0,30}}?\s(?:{_INBRENG_PARTIKEL})\b)", re.I)
+_EIGEN_CASE_RE = re.compile(
+    rf"\b(?:{_BEZIT}\s+)?eigen\s+{_CASE_FAMILIE}"
+    rf"|\b(?:jouw|jullie|je)\s+{_CASE_FAMILIE}", re.I)
+_CASE_HERKOMST_RE = re.compile(
+    rf"\b[\w-]*(?:case|cases|casus|casussen|materiaal|materialen)\b[^.;:!?]{{0,40}}?"
+    rf"\b(?:uit|van)\s+{_BEZIT}\s+(?:eigen\s+)?"
+    rf"(?:praktijk\w*|organisatie\w*|werk\w*|bedrijf\w*)", re.I)
+
 # Formuleringen "aan de onderkant" (humanisering_nl.md Sectie D, schrijfspec Sectie 0.19) -> FLAG.
 #
 # De grootste groep opmerkingen uit reviewronde 2: de belofte klopt wel, maar hij is zo mager
@@ -421,6 +485,47 @@ def check_reikwijdte(rw: dict, ctx: dict | None = None) -> list[Issue]:
                                     f"training, houd de opsomming dan insluitend ('Of je nu "
                                     f"in X, Y of Z werkt, …')."))
                 break
+    return issues
+
+
+def check_eigen_case(rw: dict, ctx: dict | None = None) -> list[Issue]:
+    """De deelnemer brengt zelf een case of opdracht mee. HARD.
+
+    Een open inschrijving kan dat niet waarmaken: werken aan materiaal dat de deelnemer zelf
+    aanlevert is een bedrijfstraining, en die staat als apart blok onder de Inleiding
+    (`sjabloon.BEDRIJFSTRAINING_TEKST`) precies omdat het daar wél kan. Belooft de standaard
+    beschrijving het ook, dan verkopen we iets anders dan we leveren.
+
+    Wat hier níét onder valt en gewoon mag: dat de training aansluit op je werksituatie, dat er
+    ruimte is voor je vragen en eigen situaties, en dat je aan *een* praktijkcase werkt. Alleen
+    het bezit verschuift de belofte, en daarom kijkt deze check op het bezittelijke woord en niet
+    op het onderwerp.
+
+    Zie de meetcijfers boven `_INBRENG_RE`: 1 respectievelijk 6 van de 78 goud-trainingen.
+    """
+    issues: list[Issue] = []
+    for section, text in _all_text_fields(rw):
+        m = _INBRENG_RE.search(text)
+        if m:
+            issues.append(Issue(section, HARD, "eigen_case_inbrengen",
+                                f"'{m.group(0)[:70]}' belooft dat de deelnemer zelf materiaal "
+                                f"meebrengt; dat kan alleen bij een bedrijfstraining. Schrijf dat "
+                                f"je aan een praktijkcase werkt, of dat de training aansluit op "
+                                f"je werksituatie."))
+            continue
+        m = _EIGEN_CASE_RE.search(text)
+        if m:
+            issues.append(Issue(section, HARD, "eigen_case",
+                                f"'{m.group(0)[:70]}' suggereert een case van de deelnemer zelf; "
+                                f"in een open inschrijving leveren wij de case. Laat het "
+                                f"bezittelijke woord weg: 'een praktijkcase'."))
+            continue
+        m = _CASE_HERKOMST_RE.search(text)
+        if m:
+            issues.append(Issue(section, HARD, "eigen_case_herkomst",
+                                f"'{m.group(0)[:70]}' laat de case uit de praktijk van de "
+                                f"deelnemer komen; in een open inschrijving leveren wij hem. "
+                                f"Schrijf 'herkenbare casussen uit de praktijk'."))
     return issues
 
 
@@ -1004,6 +1109,7 @@ def check_rewrite(rewrite: dict, ctx: dict | None = None) -> list[Issue]:
     issues += check_anglicismen(rw, ctx)
     issues += check_em_dash(rw, ctx)
     issues += check_reikwijdte(rw, ctx)
+    issues += check_eigen_case(rw, ctx)
     issues += check_zwakke_formulering(rw, ctx)
     issues += check_contactzin(rw, ctx)
     return issues

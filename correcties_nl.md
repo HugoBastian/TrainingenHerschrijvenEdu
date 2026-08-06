@@ -507,3 +507,51 @@ fout in plaats van een keuze. De code snoeit zo'n groep nu weg, introzin en al.
 
 ❌ "Wil je de stap zetten naar machine learning en AI-gedreven data-analyse, dan biedt deze training een visuele introductie:" met daaronder één titel.
 ✅ Eén groep met vier titels, en de vijfde training valt weg; of twee groepen die allebei minstens twee titels dragen.
+
+---
+
+## 29. De deelnemer brengt geen eigen case mee (schrijfspec §0.25)
+
+Training 3036 (Change Management voor DAMA-DMBOK) beloofde het twee keer: in het Overzicht en
+in het programma. Werken aan materiaal dat de deelnemer zelf aanlevert kan alleen bij een
+bedrijfstraining, en dáárvoor staat het aparte blok onder de Inleiding. In de standaard
+beschrijving is het een belofte die we niet nakomen.
+
+❌ Je werkt met stakeholderbetrokkenheid, communicatie en adoptie, en past alles toe op **je eigen praktijkcase**.
+✅ Je werkt met stakeholderbetrokkenheid, communicatie en adoptie, en past alles toe op **een praktijkcase**.
+
+❌ Een **eigen** veranderopgave rond datamanagement **inbrengen**
+✅ Een veranderopgave rond datamanagement **uitwerken**
+
+❌ De training biedt ruimte om **eigen vraagstukken mee te nemen**.
+✅ De training **sluit aan op** de vraagstukken die in jouw werkpraktijk **spelen**.
+
+❌ **Je eigen** document, proces of werkvraag **inbrengen** en uitwerken tot een toepasbare oplossing
+✅ **Een** document, proces of werkvraag **uitwerken** tot een toepasbare oplossing
+
+❌ Je werkt aan casussen **uit je eigen praktijk**.
+✅ Je werkt aan **herkenbare** casussen **uit de praktijk**.
+
+> De bron verleidt hiertoe, en dat is precies waarom de fout ontstond: daar staat "jouw
+> praktijkcase", maar dat betekent dat je een praktijkcase *krijgt* om aan te werken. Neem die
+> formulering niet over. Let ook op het bezittelijke woord zónder werkwoord: "een praktijkcase"
+> mag, "je eigen praktijkcase" en "jullie eigen casussen" niet. En het telt ook als het bezit
+> een zelfstandig naamwoord verderop staat ("casussen uit je eigen praktijk", "materiaal uit je
+> eigen werk"). `check_eigen_case` vuurt hard op alle drie de vormen.
+>
+> Twee dingen vallen er niet onder. Ten eerste, zie sectie 11: dat de training aansluit op je
+> werksituatie, dat er ruimte is voor jouw vragen en eigen situaties, en dat je het geleerde
+> vertaalt naar je eigen organisatie.
+>
+> Ten tweede, en dat is de belangrijkste: **wat je tijdens de training zelf máákt.** Wij leveren
+> de praktijkcase, en wat je daar vervolgens mee bouwt is de oefening waarvoor je komt. Die
+> belofte hoort er juist wél te staan; schrijfspec Sectie 0.15 noemt dat eindproduct met zoveel
+> woorden.
+
+✅ Je leert de belangrijkste patronen te benoemen, toe te passen en **in een praktijkcase te verwerken tot een eigen applicatie**.
+✅ **Een roadmap opstellen** voor een SIEM-oplossing binnen je eigen organisatie
+
+> **De richting beslist, niet het woord "eigen".** Naar binnen is verboden, naar buiten is de
+> opbrengst. Twee zinnen die bijna gelijk klinken en tegengesteld zijn: "je werkt **je eigen**
+> praktijkcase uit" (jij levert de case, fout) tegenover "je werkt **een** praktijkcase uit tot
+> een eigen applicatie" (wij leveren de case, jij bouwt het resultaat, goed).

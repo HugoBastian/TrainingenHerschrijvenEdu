@@ -183,6 +183,29 @@ hier het belangrijkste:
   een voorwaarde van ("Werk je in communicatie, beleid of HR, dan …"), dan is dat een
   grondingsfout en geen herformulering: de tweede vorm sluit iedereen daarbuiten uit. Andersom
   geldt hetzelfde, een concept dat de reikwijdte oprekt is net zo goed fout. Uit reviewronde 4.
+- **Wél afrekenen: de deelnemer die zelf een case meebrengt.** Belooft het concept dat je je
+  eigen case, opgave, opdracht, vraagstuk, project of dataset inbrengt, meeneemt of aanlevert,
+  dan is dat fout, ook als de bron er aanleiding toe gaf. Dat kan alleen bij een
+  bedrijfstraining, en dáárvoor staat het aparte blok onder de Inleiding; deze tekst beschrijft
+  de open inschrijving, waar wíj de case leveren. **Let op: dit is de uitzondering waarbij de
+  bron je op het verkeerde been zet.** Bronteksten schrijven vaak "jouw praktijkcase", en dat
+  betekent daar dat je een praktijkcase *krijgt* om aan te werken. Reken het concept dus af op
+  die belofte ook al lijkt hij gegrond, en reken een concept dat er "een praktijkcase" van maakt
+  omgekeerd niet af als afwijking van de bron. Ook het bezittelijke woord zonder werkwoord telt:
+  "een praktijkcase" is goed, "je eigen praktijkcase" en "jullie eigen casussen" niet. Wat hier
+  níét onder valt en gewoon mag: dat de training aansluit op je werksituatie, dat er ruimte is
+  voor jouw vragen en eigen situaties, en dat je het geleerde vertaalt naar je eigen organisatie.
+  Uit de review op training 3036.
+- **Niet afrekenen: wat de deelnemer tijdens de training zelf máákt.** Dit lijkt op het punt
+  hierboven en is er het tegendeel van, dus houd ze scherp uit elkaar. Wíj leveren de
+  praktijkcase; wat de deelnemer daar vervolgens mee bouwt is de oefening waarvoor hij komt, en
+  die belofte hóórt in de tekst te staan. "Je leert de belangrijkste patronen te benoemen, toe te
+  passen en in een praktijkcase te verwerken tot een **eigen applicatie**" is goed: er wordt
+  niets ingebracht. Net zo goed zijn "een roadmap opstellen voor een SIEM-oplossing binnen je
+  eigen organisatie" en "een monitoring-strategie voor je eigen AWS-omgeving opstellen". **De
+  richting beslist, niet het woord "eigen":** materiaal dat naar binnen komt is verboden,
+  materiaal dat eruit komt is de opbrengst. Reken een concept dus nooit af op "een eigen
+  applicatie ontwikkelen" of een vergelijkbaar eindproduct.
 - **Niet afrekenen:** een andere volgorde, een andere indeling, een andere formulering,
   samengevoegde of gesplitste modules, geschrapte ruis, weggelaten opsommingen. Dat ís
   herschrijven, precies waar de opdracht om vraagt. Vraag nooit om dichter bij de
