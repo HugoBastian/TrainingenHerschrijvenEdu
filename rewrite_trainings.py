@@ -48,7 +48,9 @@ from typing import Any
 
 # Deze herschrijf-module hergebruikt de content-ingestie van de scorer
 # (parse_content / build_source_text / extract_days / make_client / read_input) zodat
-# schrijver en scorer EXACT dezelfde brontekst zien. score_trainings.py leeft in het
+# schrijver en scorer EXACT dezelfde brontekst zien. Ook `orden_kolommen` komt daar vandaan:
+# de kolomvolgorde van het gedeelde reviewsheet hoort bij de partij die dat sheet schrijft, en
+# beide projecten schrijven erin. score_trainings.py leeft in het
 # scoring-project (een aparte map). Standaard zoeken we het als zustermap onder
 # .../Eduvision/; override met de omgevingsvariabele SCORE_TRAININGEN_DIR.
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -60,7 +62,7 @@ if _SCORE_DIR and _SCORE_DIR not in sys.path:
 try:
     from score_trainings import (
         parse_content, build_source_text, extract_days, make_client,
-        read_input as read_source_input,
+        orden_kolommen, read_input as read_source_input,
     )
 except ModuleNotFoundError as e:  # pragma: no cover
     raise ModuleNotFoundError(
@@ -638,12 +640,19 @@ class RewriteBriefing:
     gaten: list[str] = field(default_factory=list)
     goedgekeurd: list[bes.Besluit] = field(default_factory=list)
     afgewezen: list[bes.Besluit] = field(default_factory=list)
+    # kolom `rewrite_guidance`: de vrije aanwijzing. De scorer vult hem, de reviewer stelt hem bij
+    # in dezelfde cel -- dit is het enige scorer-veld dat letterlijk naar de schrijver gaat, dus
+    # ook het enige dat de reviewer niet alleen naleest maar aanpast.
     rewrite_guidance: str = ""
     menselijke_input_nodig: bool = False
     kern_reviewer: str = ""
     modus_reviewer: str = ""      # kolom `modus_reviewer`: het besluit van een mens
     modus_voorstel: str = ""      # kolom `modus_voorstel`: uit scan_vorm + schat_modus
-    guidance_reviewer: str = ""   # kolom `guidance_reviewer`: vrije aanwijzing van de reviewer
+    # kolom `guidance_reviewer`: legacy. Tot augustus 2026 de aparte reviewerkolom, aangemaakt door
+    # `modus_voorstellen`. Die stap komt ná de scoor-review, dus het reviewteam kwam er nooit bij;
+    # sindsdien staat de vrije aanwijzing in `rewrite_guidance`. Blijft gelezen zodat bestaande
+    # sheets (`scoresheet_met_modus.xlsx`, oudere batches) niets verliezen.
+    guidance_reviewer: str = ""
     huidige_content: dict = field(default_factory=dict)   # de bestaande CMS-content
     herschreven: bool = False     # kolom `herschreven`: stond al in de nieuwe stijl
     modules_nb_reviewer: str = ""  # kolom `modules_nb_reviewer`: besluit van een mens
@@ -699,11 +708,15 @@ class RewriteBriefing:
 
     @property
     def guidance_definitief(self) -> str:
-        """Scorer-guidance plus de vrije aanwijzing van de reviewer, in die volgorde.
+        """De vrije aanwijzing die de schrijver krijgt.
 
-        Beide gaan mee: de scorer zegt waar het bronmateriaal het beste landt, de reviewer
-        zegt wat hij bij het nalezen zag. De reviewer staat achteraan omdat hij het laatste
-        woord heeft, en wordt als zodanig gelabeld zodat het model weet wie wat zegt.
+        `rewrite_guidance` is één kolom voor scorer én reviewer: de scorer zegt waar het
+        bronmateriaal het beste landt, de reviewer stelt dat bij in dezelfde cel. Er valt daar
+        dus niets meer te labelen -- wat er staat is de aanwijzing.
+
+        `guidance_reviewer` is de legacy-kolom uit de tijd dat dit twee velden waren. Staat hij
+        gevuld (een sheet van voor augustus 2026), dan gaat hij nog steeds mee, achteraan en met
+        het label erbij: de reviewer had daar het laatste woord over de scorer-tekst.
         """
         delen = []
         if self.rewrite_guidance.strip():
@@ -1837,8 +1850,12 @@ def judge_document(client, b: RewriteBriefing, document: dict) -> dict:
 # trainingen werden volledig herschreven terwijl de scan `format` voorstelde, en een
 # training met `modules_nb_voorstel = actueel` kreeg toch de stabiele NB.
 _PIJPLIJN_KOLOMMEN: tuple[str, ...] = ("modus_voorstel", "modules_nb_voorstel")
+# `rewrite_guidance` en niet `guidance_reviewer`: de vrije aanwijzing is sinds augustus 2026 één
+# kolom die de scorer vult en de reviewer bijstelt (zie `guidance_definitief`). Hij staat vooraan
+# in het gedeelde reviewsheet, dus in dezelfde ronde als `actie_besluit` en `kern_reviewer` --
+# `guidance_reviewer` ontstond pas in sectie 3b en kwam daardoor nooit bij het reviewteam terecht.
 _REVIEWER_KOLOMMEN: tuple[str, ...] = ("modus_reviewer", "kern_reviewer",
-                                       "guidance_reviewer", "modules_nb_reviewer")
+                                       "rewrite_guidance", "modules_nb_reviewer")
 
 
 def _waarschuw_ontbrekende_kolommen(df, path: str) -> None:
@@ -2357,7 +2374,10 @@ def modus_voorstellen(scored_path: str, source_path: str, out_path: str | None =
     scored["modus_ondergrens"] = ondergrenzen
     scored["modules_nb_voorstel"] = nb_voorstellen
     scored["modules_nb_reden"] = nb_redenen
-    for kolom in ("modus_reviewer", "guidance_reviewer", "modules_nb_reviewer"):
+    # `guidance_reviewer` maken we hier niet meer aan: de vrije aanwijzing is `rewrite_guidance`
+    # geworden, en die staat al in het scoresheet omdat de scorer hem vult. Ontbreekt hij (een met
+    # de hand samengestelde prioriteitslijst), dan komt hij er leeg bij.
+    for kolom in ("modus_reviewer", "modules_nb_reviewer", "rewrite_guidance"):
         if kolom not in scored.columns:
             scored[kolom] = ""
 
@@ -2374,6 +2394,12 @@ def modus_voorstellen(scored_path: str, source_path: str, out_path: str | None =
             print(f"LET OP: {n_actueel}x de voorbehoud-zin onder kopje Modules. Die hoort de "
                   f"uitzondering te zijn;\nlees de NB-redenen na en zet 'stabiel' in "
                   f"`modules_nb_reviewer` waar je het er niet mee eens bent.")
+    # De vijf modus-kolommen zijn hier net achteraan aangeplakt; `orden_kolommen` zet de
+    # scorer-kolommen weer in de volgorde van het gedeelde reviewsheet en laat het modus-blok
+    # staan waar het staat. Dat blok wordt nooit geplakt -- de modus wordt pas ná de scoor-review
+    # bepaald -- maar de rest van het sheet moet wel dezelfde volgorde houden als de scoring-output.
+    scored = orden_kolommen(scored)
+
     if out_path:
         scored.to_excel(out_path, index=False)
         if verbose:
@@ -2716,6 +2742,44 @@ def build_actualisatie_tool() -> dict:
     }
 
 
+def build_actualisatie_user(b: RewriteBriefing, content: dict, titel: str) -> str:
+    """De user-prompt voor een gerichte actualisering; los zodat hij zonder API te lezen is.
+
+    Zelfde reden als bij `build_writer_user` en `build_judge_user`: een prompt die alleen
+    ontstaat binnen een functie die ook de call doet, is niet te testen en dus niet te bewaken.
+    """
+    return (
+        f"Titel: {titel}\n"
+        f"Persona: {b.persona}\n"
+        f"Aantal dagen: {b.dagen if b.dagen is not None else 'onbekend'}\n\n"
+        f"KERN — het niveau van deze training; schrijf daar nooit boven:\n"
+        f"{b.kern_definitief}\n\n"
+        f"{BESLISSING_UITLEG}\n\n"
+        "GOEDGEKEURDE ACTUALISERINGEN — dit is het enige wat er mag veranderen. Staat er een\n"
+        "VOORWAARDE bij, dan is die bindend:\n"
+        f"{_opsomming(x.als_instructie() for x in b.goedgekeurd)}\n\n"
+        "NIET DOEN — afgewezen door de reviewer:\n"
+        f"{_opsomming(x.als_instructie() for x in b.afgewezen)}\n\n"
+        # Hier stond alleen `guidance_reviewer`, en dat kon toen: de aanwijzing van de reviewer
+        # was een eigen kolom, los van de scorer-guidance die over hérschrijven gaat. Nu het één
+        # kolom is valt dat onderscheid weg, en beide keuzes zijn slecht: alleen de oude kolom
+        # lezen laat elke aanwijzing van het reviewteam vallen, en de hele guidance kaal
+        # doorgeven nodigt in déZE modus uit tot precies de herstructurering die `overnemen`
+        # verbiedt ("cluster de vijf modules naar 4-6"). Vandaar de aanwijzing mét de grens
+        # eromheen; de opdracht eronder blijft het enige mandaat.
+        + (f"AANWIJZING bij deze training (van scorer en reviewer). Hij is GEEN opdracht om de\n"
+           f"tekst te herstructureren; volg hem alleen waar hij een goedgekeurde actualisering\n"
+           f"hierboven raakt:\n{b.guidance_definitief}\n\n"
+           if b.guidance_definitief.strip() else "")
+        + "OPDRACHT — deze training staat al in de nieuwe stijl en wordt NIET herschreven.\n"
+          "Voer alleen de goedgekeurde actualiseringen hierboven door. Lever uitsluitend de\n"
+          "kopjes die daardoor veranderen, elk in zijn geheel en in dezelfde stijl als nu.\n"
+          "Raakt een actie maar één kopje, lever dan ook maar één kopje. Verander niets aan\n"
+          "de kopjes die je weglaat — die blijven letterlijk staan.\n\n"
+        + "HUIDIGE VERSIE:\n" + huidige_versie_blok(content, titel)
+    )
+
+
 def actualiseer_content(client, b: RewriteBriefing, content: dict,
                         titel: str) -> tuple[dict, list[str]]:
     """Voert de goedgekeurde actualiseringen door in een verder ongemoeide training.
@@ -2731,27 +2795,7 @@ def actualiseer_content(client, b: RewriteBriefing, content: dict,
     if client is None or not b.goedgekeurd:
         return content, []
     tool = build_actualisatie_tool()
-    user_text = (
-        f"Titel: {titel}\n"
-        f"Persona: {b.persona}\n"
-        f"Aantal dagen: {b.dagen if b.dagen is not None else 'onbekend'}\n\n"
-        f"KERN — het niveau van deze training; schrijf daar nooit boven:\n"
-        f"{b.kern_definitief}\n\n"
-        f"{BESLISSING_UITLEG}\n\n"
-        "GOEDGEKEURDE ACTUALISERINGEN — dit is het enige wat er mag veranderen. Staat er een\n"
-        "VOORWAARDE bij, dan is die bindend:\n"
-        f"{_opsomming(x.als_instructie() for x in b.goedgekeurd)}\n\n"
-        "NIET DOEN — afgewezen door de reviewer:\n"
-        f"{_opsomming(x.als_instructie() for x in b.afgewezen)}\n\n"
-        + (f"Aanwijzing van de reviewer: {b.guidance_reviewer}\n\n"
-           if b.guidance_reviewer.strip() else "")
-        + "OPDRACHT — deze training staat al in de nieuwe stijl en wordt NIET herschreven.\n"
-          "Voer alleen de goedgekeurde actualiseringen hierboven door. Lever uitsluitend de\n"
-          "kopjes die daardoor veranderen, elk in zijn geheel en in dezelfde stijl als nu.\n"
-          "Raakt een actie maar één kopje, lever dan ook maar één kopje. Verander niets aan\n"
-          "de kopjes die je weglaat — die blijven letterlijk staan.\n\n"
-        + "HUIDIGE VERSIE:\n" + huidige_versie_blok(content, titel)
-    )
+    user_text = build_actualisatie_user(b, content, titel)
     out = _call_tool(client, build_writer_system(), user_text, [tool], "submit_actualisatie")
     if not isinstance(out, dict):
         return content, ["actualisering niet doorgevoerd: geen bruikbaar antwoord van het model"]

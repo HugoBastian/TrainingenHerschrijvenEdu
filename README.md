@@ -68,8 +68,29 @@ De scorer-output bevat geen brontekst, dus de rewriter joint op `training_id` �
 
 | Bestand | Inhoud |
 | --- | --- |
-| **scoresheet** | Alle scorer-velden + de handmatig ingevulde kolommen `actie_besluit`, `kern_reviewer`, `modus_reviewer` en `guidance_reviewer` + `herschreven`. |
+| **scoresheet** | Alle scorer-velden + de handmatig ingevulde kolommen `actie_besluit`, `kern_reviewer`, `rewrite_guidance`, `modus_reviewer` en `modules_nb_reviewer` + `herschreven`. |
 | **bronsheet** | `id`, `name`, `herschreven`, `content` (JSON-string met de CMS-velden). |
+
+Sinds augustus 2026 neemt de scorer `content` en `herschreven` uit zijn invoersheet over, dus in
+de praktijk kan het scoresheet zijn eigen bronsheet zijn.
+
+### Een blad uit de gedeelde reviewsheet meegeven
+
+Het reviewen gebeurt met een team in één Google Sheet, en een blad daaruit mag rechtstreeks als
+scoresheet mee. Er wordt op **kolomnaam** gematcht:
+
+- de **kolomvolgorde doet niet mee**. `id`/`name` in plaats van `training_id`/`titel` werkt ook
+  (`besluiten.normaliseer_scored_kolommen`);
+- **extra kolommen zijn onschadelijk** en worden nooit gelezen — `Status`, `Link naar CRM` met
+  formule en al;
+- de **rijvolgorde doet wél mee**: `bouw_wachtrij` loopt het sheet van boven naar beneden af;
+- wat er niet mag ontbreken zijn de kolommen uit stap 1d: zonder `modus_voorstel` en
+  `modules_nb_voorstel` valt élke training terug op modus `volledig` en NB `stabiel`. Dat is een
+  waarschuwing naar stderr en geen fout, dus lees hem.
+
+De kolomvolgorde van de scoring-output staat vast in `score_trainings.KOLOM_VOLGORDE`, precies
+zoals de gedeelde sheet hem heeft: `kern` t/m `scorer_confidence` is één blok van 28 kolommen dat
+je in één handeling plakt. `ok`, `error` en het modus-blok staan er bewust áchter.
 
 ## Draaien
 
@@ -117,22 +138,34 @@ anders suggereert — een mens heeft ervoor getekend. Een kern die alleen van de
 lezing: botst die met de brontekst, dan wint de brontekst en meldt de schrijver het conflict in
 `notities`. Zo kost een verkeerd gelezen kern nooit meer dan een signaal.
 
-### 1c. De mate van aanpassing kiezen
+### 1c. De guidance nakijken (zelfde ronde)
+
+Twee kolommen verder staat **`rewrite_guidance`**, gevuld door de scorer. Dit is het enige
+scorer-veld dat letterlijk in de prompt van de schrijver belandt (`guidance_definitief`), en dus
+het enige dat je niet naleest maar bijstelt: schrijf in dezelfde cel wat er wél moet gebeuren.
+"Modules 3 en 4 overlappen", "de inleiding mag blijven zoals hij is".
+
+Anders dan bij de kern is er hier géén tweede kolom. Een herscoring overschrijft deze cel dus
+wel; de versiegeschiedenis van de gedeelde sheet is de terugval. Sheets van vóór augustus 2026
+hebben de aanwijzing in een aparte kolom `guidance_reviewer` staan — die wordt nog gelezen, met
+het label erbij, maar er komt niets nieuws meer in.
+
+### 1d. De mate van aanpassing kiezen
 
 ```bash
 python rewrite_trainings.py --scan-modus scoresheet_met_voorstel.xlsx \
   --scored "scoresheet.xlsx" --source "/pad/naar/bronsheet.xlsx"
 ```
 
-Vult per training `modus_voorstel` en `modus_reden` en levert lege kolommen `modus_reviewer` en
-`guidance_reviewer` aan. Jij kijkt het voorstel na en vult `modus_reviewer` waar je het er niet
+Vult per training `modus_voorstel` en `modus_reden` en levert een lege kolom `modus_reviewer`
+aan. Jij kijkt het voorstel na en vult `modus_reviewer` waar je het er niet
 mee eens bent; leeg laten betekent "voorstel is goed". Zie **De mate van aanpassing** hieronder
 voor wat de vier niveaus betekenen. `--geen-llm` slaat de modelcall over en laat alleen de
 deterministische ondergrens staan — bruikbaar als kalibratie, niet als voorstel.
 
-`guidance_reviewer` is vrije tekst en gaat letterlijk mee naar de schrijver, achter de
-`rewrite_guidance` van de scorer en met het label dat hij vóór gaat: "modules 3 en 4 overlappen",
-"de inleiding mag blijven zoals hij is".
+Deze stap komt ná de scoor-review, dus zijn kolommen belanden nooit in de gedeelde sheet; ze
+worden achteraan het scoresheet geschreven, buiten het blok dat je plakt. Vrije aanwijzingen
+horen daarom in `rewrite_guidance` (stap 1c) en niet hier.
 
 Dezelfde call vult ook `modules_nb_voorstel` en `modules_nb_reden`, met `modules_nb_reviewer`
 ernaast — de Modules-NB, zie **De vaste NB onder kopje Modules** hieronder. Die keuze gaat over

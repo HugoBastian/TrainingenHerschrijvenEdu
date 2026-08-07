@@ -809,7 +809,7 @@ def test_scoresheet_met_modus_kolommen_zwijgt():
         pad = os.path.join(d, "met_modus.xlsx")
         _scored_df(id=[42], name=["Training XML"], modus_voorstel=["format"],
                    modules_nb_voorstel=["actueel"], modus_reviewer=[""], kern_reviewer=[""],
-                   guidance_reviewer=[""], modules_nb_reviewer=[""]).to_excel(pad, index=False)
+                   rewrite_guidance=[""], modules_nb_reviewer=[""]).to_excel(pad, index=False)
         _, melding = _laad_scored_met_stderr(pad)
     assert melding == "", melding
 
@@ -824,6 +824,105 @@ def test_load_scored_faalt_nog_steeds_zonder_id_kolom():
             assert "training_id" in str(e)
             return
     raise AssertionError("verwachtte ValueError bij een sheet zonder id-kolom")
+
+
+# ---------------------------------------------------------------------------
+# Een gedownload blad uit de gedeelde reviewsheet
+#
+# Het reviewen gebeurt met een team in één Google Sheet. Een blad daaruit downloaden en
+# rechtstreeks aan de pijplijn geven moet werken: er wordt op kolomNAAM gematcht, dus de
+# volgorde doet niet mee en kolommen die het team zelf bijhoudt rijden ongelezen mee. Deze
+# twee tests leggen dat vast, want het is een belofte aan een werkwijze en niet aan één functie.
+# ---------------------------------------------------------------------------
+
+def _review_sheet_rijen() -> dict:
+    """Eén training met alle kolommen die de pijplijn leest, in dict-vorm."""
+    return {
+        "training_id": [2347], "titel": ["Cursus Big Data Foundation"],
+        "kern": ["Scorer leest de training als introducerend."],
+        "kern_reviewer": ["Introducerend: kennismaken met het proces."],
+        "actualiteit_actie": ["1. refresh: eerste"], "actie_besluit": ["1 prima"],
+        "rewrite_guidance": ["Leg de nadruk op governance."],
+        "verdict": ["redelijk"], "herschreven": [0],
+        "vermoedelijk_persona": ["A"], "aantal_dagen_bron": [2],
+        "actualiteit_type": ["additief"],
+        "bruikbaar": ["Praktijkcase | Module een"], "strippen": ["Alternatief-paragraaf"],
+        "gaten": ["Geen doelgroep"], "menselijke_input_nodig": [False],
+        "modus_voorstel": ["format"], "modules_nb_voorstel": ["stabiel"],
+        "modus_reviewer": [""], "modules_nb_reviewer": [""],
+    }
+
+
+def _schrijf_bron(pad: str) -> None:
+    import pandas as pd
+    pd.DataFrame({"id": [2347], "name": ["Cursus Big Data Foundation"],
+                  "content": [json.dumps({"days": 2, "intro": "<p>CRISP-DM.</p>"})]}
+                 ).to_excel(pad, index=False)
+
+
+def test_gedownload_reviewblad_levert_dezelfde_briefing():
+    """Kolomvolgorde en vreemde kolommen veranderen de briefing niet -- alles matcht op naam."""
+    import pandas as pd
+    with tempfile.TemporaryDirectory() as d:
+        bron = os.path.join(d, "bron.xlsx")
+        kaal = os.path.join(d, "kaal.xlsx")
+        uit_de_sheet = os.path.join(d, "uit_de_sheet.xlsx")
+        _schrijf_bron(bron)
+
+        rijen = _review_sheet_rijen()
+        pd.DataFrame(rijen).to_excel(kaal, index=False)
+
+        # zoals het blad er na een teamronde uitziet: omgekeerde volgorde, plus de kolommen die
+        # het team zelf bijhoudt -- inclusief een formule, want zo staat de CRM-link erin
+        gehusseld = {k: rijen[k] for k in reversed(list(rijen))}
+        gehusseld.update({"Verantwoordelijk voor input": ["Remko"], "Status": ["nagekeken"],
+                          "Link naar CRM": ['=HYPERLINK("https://crm.eduvision.nl/", "crm")'],
+                          "Link naar herschreven training": [None]})
+        pd.DataFrame(gehusseld).to_excel(uit_de_sheet, index=False)
+
+        a = rw.build_briefing_for_id(kaal, bron, 2347)
+        b = rw.build_briefing_for_id(uit_de_sheet, bron, 2347)
+
+    assert a == b, "de gehusselde, verrijkte sheet levert een andere briefing"
+    # niet alleen gelijk, ook goed: de velden die de reviewer vulde zijn echt aangekomen
+    assert b.modus == "format", b.modus
+    assert b.kern_definitief.startswith("Introducerend"), b.kern_definitief
+    assert "governance" in b.guidance_definitief
+
+
+def test_modus_voorstellen_houdt_de_kolomvolgorde_van_het_reviewsheet():
+    """Het modus-blok komt achteraan; de scorer-kolommen houden de volgorde van het sheet.
+
+    `met_llm=False` doet geen enkele API-call: `schat_modus` valt bij `client is None` meteen
+    terug op de deterministische ondergrens.
+    """
+    import pandas as pd
+    import score_trainings as st
+    with tempfile.TemporaryDirectory() as d:
+        bron = os.path.join(d, "bron.xlsx")
+        scored = os.path.join(d, "scored.xlsx")
+        uit_pad = os.path.join(d, "met_modus.xlsx")
+        _schrijf_bron(bron)
+
+        rijen = {k: v for k, v in _review_sheet_rijen().items()
+                 if k not in ("modus_voorstel", "modules_nb_voorstel",
+                              "modus_reviewer", "modules_nb_reviewer")}
+        rijen["Status"] = ["nagekeken"]
+        pd.DataFrame(rijen).to_excel(scored, index=False)
+
+        rw.modus_voorstellen(scored, bron, uit_pad, met_llm=False, verbose=False)
+        kolommen = list(pd.read_excel(uit_pad).columns)
+
+    canoniek = [k for k in st.KOLOM_VOLGORDE if k in kolommen]
+    assert kolommen[:len(canoniek)] == canoniek, f"canonieke voorloop gebroken: {kolommen}"
+    for modus_kolom in ("modus_voorstel", "modus_reden", "modus_ondergrens",
+                        "modules_nb_voorstel", "modules_nb_reden", "modus_reviewer",
+                        "modules_nb_reviewer"):
+        assert kolommen.index(modus_kolom) >= len(canoniek), \
+            f"{modus_kolom} staat binnen het plakblok"
+    # de kolom van het reviewteam overleeft, en `guidance_reviewer` komt er niet meer bij
+    assert "Status" in kolommen
+    assert "guidance_reviewer" not in kolommen, "de legacy-kolom wordt weer aangemaakt"
 
 
 # ---------------------------------------------------------------------------
@@ -1585,6 +1684,11 @@ def test_judge_weet_in_welke_modus_hij_oordeelt():
 
 
 def test_guidance_van_de_reviewer_gaat_achter_die_van_de_scorer():
+    """De legacy-kolom `guidance_reviewer` blijft gelezen, gelabeld en achteraan.
+
+    Sheets van voor augustus 2026 hebben de aanwijzing in die tweede kolom staan; sindsdien
+    stelt de reviewer `rewrite_guidance` zelf bij. Beide moeten bij de schrijver aankomen.
+    """
     b = _briefing(rewrite_guidance="Leg de nadruk op governance.",
                   guidance_reviewer="Modules 3 en 4 samenvoegen.")
     assert b.guidance_definitief.index("governance") < b.guidance_definitief.index("samenvoegen")
@@ -1593,6 +1697,24 @@ def test_guidance_van_de_reviewer_gaat_achter_die_van_de_scorer():
     assert "AANWIJZING VAN DE REVIEWER" in tekst
     # zonder reviewer-aanwijzing verandert er niets aan de bestaande regel
     assert "AANWIJZING VAN DE REVIEWER" not in rw.build_writer_user(_briefing())
+
+
+def test_bijgestelde_guidance_bereikt_ook_de_actualisering():
+    """Een aanwijzing die de reviewer in `rewrite_guidance` typt, komt ook op het overnemen-pad.
+
+    Dit pad las alleen `guidance_reviewer`, en dat kon toen dat een eigen kolom was. Nu de vrije
+    aanwijzing in `rewrite_guidance` staat, zou die lezing elke aanwijzing van het reviewteam
+    laten vallen -- precies bij de trainingen waar de reviewer de enige is die iets vraagt.
+    """
+    b = _briefing(rewrite_guidance="Noem de nieuwe wetgeving bij naam.",
+                  goedgekeurd=[bes.Besluit(1, "T", 1, "refresh: wetgeving", "prima",
+                                           bes.DOEN, "", bes.BRON_REGEL, "")])
+    tekst = rw.build_actualisatie_user(b, _content(), "Training X")
+    assert "Noem de nieuwe wetgeving bij naam." in tekst
+    # ... maar met de grens eromheen: `overnemen` mag geen herstructurering worden
+    assert "GEEN opdracht om de" in tekst
+    assert "AANWIJZING bij deze training" not in rw.build_actualisatie_user(
+        _briefing(goedgekeurd=b.goedgekeurd), _content(), "Training X")
 
 
 def test_actualisatie_tool_heeft_geen_verplichte_kopjes():

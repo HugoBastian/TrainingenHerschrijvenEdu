@@ -84,6 +84,28 @@ zijn dus verschillende trainingen zodra er één rij is weggefilterd, en de wach
 bij élke geslaagde run. Dat kostte een keer een verkeerde training; vandaar `alleen_ids=`,
 dat niet meeschuift, en `toon_wachtrij()` dat beide nummeringen naast elkaar zet.
 
+### Het scoresheet is een gedeelde Google Sheet
+
+Een heel team reviewt daarin, en batches worden er met de hand in geplakt. Twee gevolgen die je
+niet uit de code afleidt:
+
+- **de kolomvolgorde ligt vast** in `score_trainings.KOLOM_VOLGORDE`, met `orden_kolommen()` als
+  enige toepassing ervan (in `run_file` en in `modus_voorstellen`). `kern` t/m
+  `scorer_confidence` is één blok van 28 kolommen dat in één handeling geplakt wordt; `ok`,
+  `error` en het modus-blok uit sectie 3b staan er bewust achter. Verschuif daar niets zonder de
+  gedeelde sheet mee te verschuiven — `test_plakblok_staat_in_de_volgorde_van_het_gedeelde_sheet`
+  houdt een tweede kopie van de volgorde vast om die botsing zichtbaar te maken;
+- **een gedownload blad mag rechtstreeks als scoresheet mee.** Alles matcht op kolomnaam, dus
+  volgorde en extra kolommen (`Status`, `Link naar CRM` met formule) doen niets. Wat wél telt:
+  de rijvolgorde (`bouw_wachtrij`) en de aanwezigheid van `modus_voorstel` /
+  `modules_nb_voorstel`. `test_gedownload_reviewblad_levert_dezelfde_briefing` legt dat vast.
+
+`rewrite_guidance` is sinds augustus 2026 één kolom voor scorer én reviewer: het enige
+scorer-veld dat letterlijk in de prompt belandt, dus het enige dat een reviewer bijstelt in plaats
+van naleest. Bewust géén tweede kolom zoals bij `kern`/`kern_reviewer` — de versiegeschiedenis van
+de sheet is de terugval. De oude aparte kolom `guidance_reviewer` ontstond pas in sectie 3b en
+kwam daardoor nooit bij het reviewteam; hij wordt nog gelezen maar niet meer aangemaakt.
+
 ### De prompt is vaak het probleem
 
 De system-prefix van de schrijver is één gecachet blok: schrijfspec + humanisering +
