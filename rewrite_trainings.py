@@ -608,9 +608,10 @@ def _split_pipe(val: Any) -> list[str]:
 def bepaal_dagen(source_content: dict, scored_dagen: Any = None) -> int | None:
     """Aantal dagen: de bron-JSON is gezaghebbend, daarna pas de schatting van de scorer.
 
-    `extract_days` in het scoringsproject zoekt op de sleutel "dagen", maar in de bron heet
-    hij "days" — daardoor viel dit altijd terug op de scorer-schatting. Hier eerst zelf de
-    juiste sleutel proberen; het scoringsproject blijft ongemoeid.
+    `extract_days` in het scoringsproject zocht tot augustus 2026 alleen op de sleutel "dagen",
+    terwijl hij in de bron "days" heet; daardoor viel dit altijd terug op de scorer-schatting.
+    Dat is daar inmiddels gerepareerd, maar deze functie blijft staan: hij houdt de herschrijver
+    onafhankelijk van welke versie van `score_trainings.py` er in de zusterrepo ligt.
     """
     for kandidaat in (source_content.get("days"), source_content.get("dagen")):
         if kandidaat is None or kandidaat == "":
