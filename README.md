@@ -51,6 +51,17 @@ Zet je API-sleutel in een `.env` (of de omgeving):
 ANTHROPIC_API_KEY=...
 ```
 
+Eenmalig, per checkout: zorg dat `herschrijven.ipynb` nooit met celuitvoer wordt gecommit.
+Celuitvoer bevat echte trainingsdata (id's, titels, batchstatussen) en die hoort net zomin in
+git als `*.xlsx` of `herschreven/`. Git-filters staan niet in de repo zelf, dus dit moet elke
+checkout opnieuw:
+
+```bash
+git config filter.strip-notebook-outputs.clean "python3 strip_notebook_outputs.py"
+git config filter.strip-notebook-outputs.smudge cat
+git config filter.strip-notebook-outputs.required true
+```
+
 ## Afhankelijkheid: het scoring-project
 
 `rewrite_trainings.py` hergebruikt de content-ingestie van `score_trainings.py`
