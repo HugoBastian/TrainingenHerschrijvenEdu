@@ -24,7 +24,7 @@ een rij in `herschreven.xlsx`.
 ## Commando's
 
 ```bash
-python test_rewrite.py                      # 220 offline tests, geen API-key nodig
+python test_rewrite.py                      # 236 offline tests, geen API-key nodig
 python -c "import test_rewrite as t; t.test_em_dash_is_hard_in_elk_schrijversveld()"   # één test
 python bouw_goud_v2.py                      # terugval-few-shot; nodig na een verse checkout
 
@@ -76,6 +76,29 @@ Vervolgstappen komen uit een aparte retrieval-call) laat de lus zinloos rondgaan
 nooit langs, en juist daarom mogen de patronen hard vuren. Breid dat niet uit naar het
 samengestelde document; dan flagt elke training zijn eigen boilerplate.
 
+### De tier: HARD/FLAG zegt wie het oplost, de tier zegt wie het leest
+
+Elke flag heeft daarnaast een **tier** (`hoog` / `mechanisch` / `laag`), afgeleid van de code via
+`TIER_PER_CODE` in `rewrite_checks.py`. Het review-tabblad zet ze in drie kolommen; alleen
+`flags_hoog` gaat naar de reviewers. Aanleiding: over de eerste 16 trainingen was 62% van de 34
+flags `lengte_richtlijn` (13, waarvan geen enkele in de buurt van de vangrail) of
+`zwakke_formulering` (8, waarvan 7 keer het woord "zelfstandig"). Uitgesplitst blijven er 10
+opmerkingen over in `flags_hoog` en houdt 7 van de 16 daar een lege cel.
+
+Drie dingen om te weten voor je iets toevoegt of verschuift:
+
+- **een code die niet in de tabel staat is `hoog`.** Zelfde richting als bij HARD/FLAG: een
+  nieuwe check komt binnen als werk voor een mens en zakt pas als de meting laat zien dat hij
+  vuurt zonder dat er iets mis is. Op het `overnemen`-pad belanden ook HARD-issues in de kolom;
+  die vallen daarmee vanzelf goed;
+- **verruim geen band om een lage tier te vermijden.** De lengtebanden zijn op het goud
+  gekalibreerd, niet op onze eigen output. Onze schrijver zit op p75 82 (Overzicht) en 213
+  (Inleiding), dus de band verschuiven omdat wij er structureel boven zitten is in een kringetje
+  meten. De flag klopt; hij hoort alleen niet in de kolom die om een oordeel vraagt;
+- **`per_tier()` ontdubbelt.** Dezelfde boodschap in twee kopjes wordt één regel
+  ("overzicht + inleiding: …"), hoofdletterongevoelig omdat de boodschap het gevonden woord
+  citeert. Een check die per kopje vuurt kost een reviewer dus één regel, niet vier.
+
 ### De wachtrij: `start` telt niet over het scoresheet
 
 `bouw_wachtrij()` is de enige plek waar wordt bepaald wélke trainingen een batch draait, en
@@ -98,7 +121,7 @@ niet uit de code afleidt:
   enige toepassing ervan (in `run_file` en in `modus_voorstellen`). `kern` t/m
   `scorer_confidence` is één blok van 28 kolommen dat in één handeling geplakt wordt; `ok`,
   `error` en het modus-blok uit sectie 3b staan er bewust achter. Verschuif daar niets zonder de
-  gedeelde sheet mee te verschuiven — `test_plakblok_staat_in_de_volgorde_van_het_gedeelde_sheet`
+  gedeelde sheet mee te verschuiven; `test_plakblok_staat_in_de_volgorde_van_het_gedeelde_sheet`
   houdt een tweede kopie van de volgorde vast om die botsing zichtbaar te maken;
 - **een gedownload blad mag rechtstreeks als scoresheet mee.** Alles matcht op kolomnaam, dus
   volgorde en extra kolommen (`Status`, `Link naar CRM` met formule) doen niets. Wat wél telt:
@@ -107,7 +130,7 @@ niet uit de code afleidt:
 
 `rewrite_guidance` is sinds augustus 2026 één kolom voor scorer én reviewer: het enige
 scorer-veld dat letterlijk in de prompt belandt, dus het enige dat een reviewer bijstelt in plaats
-van naleest. Bewust géén tweede kolom zoals bij `kern`/`kern_reviewer` — de versiegeschiedenis van
+van naleest. Bewust géén tweede kolom zoals bij `kern`/`kern_reviewer`: de versiegeschiedenis van
 de sheet is de terugval. De oude aparte kolom `guidance_reviewer` ontstond pas in sectie 3b en
 kwam daardoor nooit bij het reviewteam; hij wordt nog gelezen maar niet meer aangemaakt.
 
@@ -134,6 +157,22 @@ Daaruit volgen twee regels die tests bewaken:
   voorbeelden; die staan er uitgeschreven als `[liggend streepje]`. Dit bestand houdt zich er
   ook aan;
 - de few-shot moet zelf alle harde checks halen.
+
+Die eerste regel gold lang alleen voor de vijf `.md`-bestanden en de systemprefix, en dat was
+precies het gat: de laag eronder stond er 34 keer in. 9 in de beschrijvingen van
+`SUBMIT_REWRITE` (de tekst die de schrijver leest op het moment dat hij een kopje schrijft),
+8 in `build_writer_user`, 8 in `build_judge_user`, de rest in de modus- en actualiseerprompts.
+En de HARD-boodschap van `check_em_dash` deed het zelf ook: die gaat via `notes` letterlijk terug
+naar de schrijver, dus het teken stond in de zin die het verbood. Alles wat naar een model gaat is
+nu schoon, en `test_geen_liggend_streepje_in_de_userberichten_en_de_tools` houdt de user-berichten,
+alle tool-schema's en die correctieboodschap erbij. Wat in `rewrite_trainings.py` nog een liggend
+streepje bevat is uitsluitend menselijk: sectiekoppen, `reden`-teksten voor de wachtrij en
+terminaluitvoer. De regexen die het teken moeten herkennen staan er als `\u2014`/`\u2013`, zodat
+een bestand dat voor de helft prompt is het teken zelf nergens toont.
+
+Aan de invoerkant doet het scoringsproject hetzelfde: `zonder_liggend_streepje` in
+`score_trainings.py` houdt de gescoorde kern schoon (95 van de eerste 316 kernen bevatten er een),
+en de rubric die daar als systemprefix meegaat is ontdaan van zijn eigen 55 streepjes.
 
 De selectie van de few-shot is **vast** en wisselt niet per training: een prefix die per
 training verschilt maakt de prompt-cache waardeloos.

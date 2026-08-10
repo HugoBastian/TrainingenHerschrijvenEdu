@@ -486,7 +486,8 @@ eindigt op een dubbele punt. Twee groepen alleen als er echt twee richtingen zij
 introzin die één training aankondigt leest als een fout. Past er maar één training in een
 tweede richting, maak er dan één groep van.
 
-Gebruik geen liggende streepjes (— of –) in de introzin; een komma of een punt doet het werk.
+Gebruik geen liggend streepje (em-dash of en-dash) in de introzin; een komma of een punt doet
+het werk.
 
 Achter een kandidaat staat tussen blokhaken zijn vakgebied, bijvoorbeeld
 [ERP & CRM > CRM & Marketing Platforms]. Gebruik dat om de groepen langs échte
@@ -556,7 +557,7 @@ def kies_vervolgtrainingen(client, titel: str, kern: str, persona: str,
 # Liggende streepjes horen ook hier niet, maar de intro's komen niet van de schrijver: een
 # hard fail zou de schrijver terugsturen voor tekst die hij niet geschreven heeft. Eén zin
 # met een bijstelling erin verdraagt een komma prima, dus dit repareert de code zelf.
-_INTRO_DASH_RE = re.compile(r"\s*[—–]\s*")
+_INTRO_DASH_RE = re.compile("\\s*[\\u2014\\u2013]\\s*")
 
 
 def _schoon_intro(intro: str) -> str:
@@ -831,14 +832,14 @@ SUBMIT_REWRITE = {
                                "'Wil je …'. Geen bullets. Lengte is hier geen doel op zich: liever "
                                "wat langer en een complete introductie in de materie, dan kort door "
                                "de bocht. Blijft een wezenlijk onderwerp van de training buiten "
-                               "beeld, dan is het te kort. De TWEEDE zin — die de openingsvraag "
-                               "beantwoordt — begint met 'In deze training leer je …', of met "
+                               "beeld, dan is het te kort. De TWEEDE zin (die de openingsvraag "
+                               "beantwoordt) begint met 'In deze training leer je …', of met "
                                "'Tijdens deze training …' waar 'leer je' niet past. Nooit een kaal "
                                "'Je leert …' of 'Je werkt met …': dan staat de zin los van de vraag "
                                "erboven. Twee dingen die verder het vaakst misgaan: "
                                "(1) de openingsvraag dekt maar één deelaspect in plaats van het "
                                "zwaartepunt van de training; (2) de werkwoorden staan aan de "
-                               "onderkant — 'begrippen kunnen plaatsen', 'gerichter meepraten', "
+                               "onderkant: 'begrippen kunnen plaatsen', 'gerichter meepraten', "
                                "'ervaren hoe X in elkaar zit'. Kies binnen dezelfde scope het "
                                "sterkste ware werkwoord: 'de opbouw van X doorgronden', 'een stevige "
                                "basis leggen in X'. De slotzin staat in de in-staat-vorm ('Hierdoor "
@@ -848,7 +849,7 @@ SUBMIT_REWRITE = {
                                "4 dagen of meer mag het richting 230), verdiepend op Overzicht. "
                                "Ook hier telt de formulering zwaarder dan het exacte aantal. "
                                "De zin die de openingsvraag beantwoordt noemt de training ('Tijdens "
-                               "deze training …'), zonder de duur. Maak 'je' het onderwerp — niet "
+                               "deze training …'), zonder de duur. Maak 'je' het onderwerp: niet "
                                "'welke techniek bij welk vraagstuk hoort' maar 'met welke technieken "
                                "je die data omzet in bruikbare informatie'. Slotzin in de "
                                "in-staat-vorm, net als bij Overzicht. "
@@ -880,14 +881,14 @@ SUBMIT_REWRITE = {
             "doelgroep": {"type": "string",
                 "description": "Kopje Doelgroep. Één zin, begint met 'Deze training is bedoeld voor "
                                "…'. Geen functietitels/'professionals'. Gericht op wat iemand wil "
-                               "bereiken, niet op wie iemand is — dat scheelt ook dubbeling met "
+                               "bereiken, niet op wie iemand is; dat scheelt ook dubbeling met "
                                "Voorkennis, dat er pal onder staat."},
             "voorkennis": {"type": "string",
                 "description": "Kopje Voorkennis. Compact: één zin waar dat kan, twee als er een "
                                "voorbehoud of een contactzin bij hoort. Die contactzin luidt 'neem "
                                "DAN gerust contact met ons op'. Herhaal niet wat de Doelgroep al "
                                "zegt: staat daar 'iedereen die al in JavaScript ontwikkelt', dan "
-                               "voegt 'ervaring met JavaScript is vereist' niets toe — noem hier de "
+                               "voegt 'ervaring met JavaScript is vereist' niets toe. Noem hier de "
                                "concrete voorwaarde. Laat leeg als geen voorkennis nodig is (code "
                                "plaatst de fallbackzin)."},
             "aanpak_invulling": {"type": "string",
@@ -899,7 +900,7 @@ SUBMIT_REWRITE = {
                                "beoordeelt'. Fout: 'hoe je datamodellen opzet'."},
             "doelen": {"type": "array", "items": {"type": "string"},
                 "description": "Kopje Doelen. 4-5 doelen in de infinitief MET 'te', aansluitend op de "
-                               "vaste introzin 'Na deze training ben je in staat om:' — dus "
+                               "vaste introzin 'Na deze training ben je in staat om:', dus "
                                "'Dashboards te bouwen die de juiste vraag beantwoorden', niet "
                                "'Dashboards bouwen'. Herhaal 'in staat' niet; dat staat al in de "
                                "introzin. Hoofdletter aan het begin, zonder de introzin. Een "
@@ -907,7 +908,7 @@ SUBMIT_REWRITE = {
                                "houden, maar vervangt geen sterk werkwoord: 'de opbouw van X "
                                "scherper te doorgronden', niet 'gerichter mee te praten over X'."},
             "kortste_omschrijving": {"type": "string",
-                "description": "Kopje Kortste omschrijving. Maximaal 200 tekens — als enige lengte "
+                "description": "Kopje Kortste omschrijving. Maximaal 200 tekens, als enige lengte "
                                "een harde grens (Edudex kapt langere tekst af). Begint met "
                                "'Wil je …'. De zin daarna begint met 'Na deze training …' ('Na deze "
                                "training weet je hoe je …'); dit fragment staat vaak los van de rest "
@@ -921,8 +922,8 @@ SUBMIT_REWRITE = {
             "notities": {"type": "string",
                 "description": "Optioneel: signaleer 'thin' (dunne bron, veel geconstrueerd) of een "
                                "structurele twijfel. Meld hier ook wanneer de kern en de brontekst "
-                               "elkaar tegenspreken over wat de training doet of op welk niveau — "
-                               "begin die melding met 'kern-conflict:' en zeg wat elk van beide zegt."},
+                               "elkaar tegenspreken over wat de training doet of op welk niveau. "
+                               "Begin die melding met 'kern-conflict:' en zeg wat elk van beide zegt."},
         },
         "required": ["overzicht", "inleiding", "modules", "doelgroep",
                      "aanpak_invulling", "doelen", "kortste_omschrijving"],
@@ -1156,7 +1157,7 @@ def _opsomming(regels, leeg: str = "(geen)") -> str:
 BESLISSING_UITLEG = (
     "Let op bij acties die beginnen met 'BESLISSING NODIG:'. Staat zo'n actie hieronder\n"
     "onder ACTUALISERINGEN, dan hééft de reviewer de beslissing genomen en moet je de\n"
-    "wijziging doorvoeren — behandel hem als een opdracht, niet als een open vraag. Staat\n"
+    "wijziging doorvoeren; behandel hem als een opdracht, niet als een open vraag. Staat\n"
     "hij onder NIET DOEN, dan blijft de bestaande situatie ongewijzigd."
 )
 
@@ -1194,21 +1195,21 @@ KERN_GEZAG_REVIEWER = (
 )
 KERN_GEZAG_SCORER = (
     "De kern hierboven is een lezing van de scorer, geen besluit van een mens. Botst hij met de\n"
-    "brontekst over wat de training feitelijk doet of op welk niveau — dan wint de BRONTEKST.\n"
+    "brontekst over wat de training feitelijk doet of op welk niveau, dan wint de BRONTEKST.\n"
     "Meld die botsing in `notities`, zodat een mens ernaar kan kijken."
 )
 
 # Zonder deze regel is de brontekst het enige blok in de prompt zonder opdracht eromheen, en
 # leest het model hem als achtergrond bij de scorer-velden in plaats van als de training zelf.
 BRONTEKST_UITLEG = (
-    "BRONTEKST — de bestaande trainingsbeschrijving, ongewijzigd en onafgekapt. Dit is wat de\n"
+    "BRONTEKST. De bestaande trainingsbeschrijving, ongewijzigd en onafgekapt. Dit is wat de\n"
     "training feitelijk is: welke onderwerpen erin zitten, en wat de deelnemer ermee doet. De\n"
     "velden hierboven zijn een samenvatting ervan; deze tekst is het origineel. Let vooral op\n"
-    "de werkwoorden — \"maak je kennis met\", \"we introduceren\", \"we geven een overzicht\"\n"
+    "de werkwoorden: \"maak je kennis met\", \"we introduceren\", \"we geven een overzicht\"\n"
     "beschrijven een ander niveau dan \"je bouwt\", \"je richt in\", \"je optimaliseert\".\n"
     "Beloof nooit meer dan hier staat.\n\n"
     "Eén uitzondering, en die gaat vóór: de GOEDGEKEURDE ACTUALISERINGEN hierboven. Die voer\n"
-    "je uit, ook al staan ze niet in deze brontekst — dat is precies waarom ze bestaan. Deze\n"
+    "je uit, ook al staan ze niet in deze brontekst; dat is precies waarom ze bestaan. Deze\n"
     "alinea is geen reden om er één te laten liggen."
 )
 
@@ -1233,13 +1234,13 @@ BRONTEKST_UITLEG = (
 # `feitgetrouw.pass = true` met nul problemen, want de vrijstelling verbood hem letterlijk om
 # zo'n passage als te hoge belofte af te rekenen. Zie `ACTIE_WERKWOORD`.
 BRONTEKST_UITLEG_JUDGE = (
-    "BRONTEKST — de bestaande trainingsbeschrijving, ongewijzigd en onafgekapt. De velden\n"
+    "BRONTEKST. De bestaande trainingsbeschrijving, ongewijzigd en onafgekapt. De velden\n"
     "hierboven zijn een samenvatting ervan door de scorer; dit is het origineel. Gebruik hem\n"
     "als maatstaf voor precies twee dingen:\n"
-    "1. FEITGETROUWHEID — elke inhoudelijke claim (versie, vendor, tool, feature, cijfer,\n"
+    "1. FEITGETROUWHEID: elke inhoudelijke claim (versie, vendor, tool, feature, cijfer,\n"
     "   jaartal, certificering) moet herleidbaar zijn tot deze tekst, tot de feiten hierboven\n"
     "   of tot een goedgekeurde actualisering. Staat hij nergens, dan is het een feitfout.\n"
-    "2. NIVEAU — lees de werkwoorden. \"Maak je kennis met\", \"we introduceren\", \"we geven\n"
+    "2. NIVEAU: lees de werkwoorden. \"Maak je kennis met\", \"we introduceren\", \"we geven\n"
     "   een overzicht\" beschrijven iets anders dan \"je bouwt\", \"je richt in\", \"je\n"
     "   optimaliseert\". Belooft het concept meer dan hier staat, dan is dat een fail.\n\n"
     "UITZONDERING op punt 1, en die gaat vóór: het ONDERWERP van een GOEDGEKEURDE\n"
@@ -1278,15 +1279,15 @@ def huidige_versie_blok(content: dict, titel: str = "") -> str:
 
 
 HUIDIGE_VERSIE_UITLEG = (
-    "HUIDIGE VERSIE — de bestaande tekst van deze training, per kopje. Dit is je\n"
+    "HUIDIGE VERSIE. De bestaande tekst van deze training, per kopje. Dit is je\n"
     "uitgangsmateriaal én je maatstaf: dit is wat de training feitelijk is en belooft.\n"
-    "Let vooral op de werkwoorden — \"maak je kennis met\", \"we introduceren\", \"we geven\n"
+    "Let vooral op de werkwoorden: \"maak je kennis met\", \"we introduceren\", \"we geven\n"
     "een overzicht\" beschrijven een ander niveau dan \"je bouwt\", \"je richt in\", \"je\n"
     "optimaliseert\". Beloof nooit meer dan hier staat.\n\n"
     "Een kopje dat op \"(leeg)\" staat ontbrak in de bron; dat vul je aan uit wat de andere\n"
     "kopjes zeggen, niet uit wat je aannemelijk vindt.\n\n"
     "Eén uitzondering, en die gaat vóór: de GOEDGEKEURDE ACTUALISERINGEN hierboven. Die voer\n"
-    "je uit, ook al staan ze hier niet — dat is precies waarom ze bestaan."
+    "je uit, ook al staan ze hier niet; dat is precies waarom ze bestaan."
 )
 
 
@@ -1298,24 +1299,24 @@ HUIDIGE_VERSIE_UITLEG = (
 # `ACTUALISEREN_ONGEACHT_MODUS` hieronder en de toelichting bij `RewriteBriefing.modus`.
 MODUS_UITLEG: dict[str, str] = {
     "stijl": (
-        "OPDRACHT — BIJWERKEN NAAR DE ACTUELE SCHRIJFREGELS.\n"
+        "OPDRACHT: BIJWERKEN NAAR DE ACTUELE SCHRIJFREGELS.\n"
         "Je bent hier redacteur, geen auteur. De inhoud van deze training klopt en is\n"
         "compleet; wat niet meer klopt is de formulering. Herschrijf zin voor zin naar de\n"
-        "regels in de spec hierboven — de 'je'-vorm, de verplichte openingszinnen, het\n"
+        "regels in de spec hierboven: de 'je'-vorm, de verplichte openingszinnen, het\n"
         "stijlregister, het causale verband, weg met marketingtaal en verboden woorden.\n\n"
         "Verander NIET wát er staat. Geen onderwerpen toevoegen, geen onderwerpen weglaten,\n"
         "geen modules samenvoegen of splitsen, geen volgorde omgooien, geen doelen erbij\n"
         "verzinnen. Elk feit, elk onderwerp en elke belofte in jouw versie staat ook in de\n"
         "huidige versie hieronder. Kom je een kopje tegen dat inhoudelijk rammelt, laat het\n"
-        "dan rammelen en meld het in `notities` — dat is een besluit voor een mens."
+        "dan rammelen en meld het in `notities`; dat is een besluit voor een mens."
     ),
     "format": (
-        "OPDRACHT — BIJWERKEN NAAR HET ACTUELE FORMAT.\n"
+        "OPDRACHT: BIJWERKEN NAAR HET ACTUELE FORMAT.\n"
         "De inhoud van deze training klopt, maar de vorm niet: er ontbreken kopjes, of de\n"
         "structuur past niet op het format. Breng hem in vorm en pas daarbij ook de actuele\n"
         "schrijfregels toe.\n\n"
         "Wat je MAG: herindelen, modules samenvoegen of splitsen zodat je op 4-6 modules\n"
-        "uitkomt, de volgorde aanpassen, en de ontbrekende kopjes schrijven — maar die leid\n"
+        "uitkomt, de volgorde aanpassen, en de ontbrekende kopjes schrijven, maar die leid\n"
         "je AF uit wat er al staat. Doelgroep, Voorkennis en Doelen zijn bij deze trainingen\n"
         "vaak leeg; die volgen uit de modules en de inleiding.\n\n"
         "Wat je NIET mag: onderwerpen toevoegen die nergens in de huidige versie staan, of\n"
@@ -1346,7 +1347,7 @@ def build_writer_user(b: RewriteBriefing) -> str:
         f"Persona: {b.persona}\n"
         f"Aantal dagen: {dagen}\n"
         f"Verdict scorer: {b.verdict}{'  (THIN: markeer constructie)' if b.thin else ''}\n\n"
-        f"KERN ({herkomst}) — hierin staat het NIVEAU van de training; schrijf nooit boven dat\n"
+        f"KERN ({herkomst}). Hierin staat het NIVEAU van de training; schrijf nooit boven dat\n"
         f"niveau, ook niet als een kopje om meer tekst vraagt:\n{b.kern_definitief}\n\n"
         f"{kern_gezag}\n\n"
         f"Te verwerken feiten (bruikbaar):\n{_opsomming(b.bruikbaar)}\n\n"
@@ -1354,10 +1355,10 @@ def build_writer_user(b: RewriteBriefing) -> str:
         f"Gaten (vul plausibel waar afleidbaar):\n{_opsomming(b.gaten)}\n\n"
         f"{BESLISSING_UITLEG}\n\n"
         f"{ACTIE_WERKWOORD}\n\n"
-        "ACTUALISERINGEN — door de reviewer goedgekeurd. Voer deze uit; staat er een\n"
+        "ACTUALISERINGEN, door de reviewer goedgekeurd. Voer deze uit; staat er een\n"
         "VOORWAARDE bij, dan is die bindend en gaat hij vóór de actietekst:\n"
         f"{_opsomming(x.als_instructie() for x in b.goedgekeurd)}\n\n"
-        "NIET DOEN — door de reviewer afgewezen. Voer deze NIET uit, ook niet als de\n"
+        "NIET DOEN, door de reviewer afgewezen. Voer deze NIET uit, ook niet als de\n"
         "brontekst er aanleiding toe geeft:\n"
         f"{_opsomming(x.als_instructie() for x in b.afgewezen)}\n\n"
         f"Rewrite-guidance: {b.guidance_definitief or '(geen)'}\n\n"
@@ -1401,25 +1402,25 @@ def _modus_en_materiaal(b: RewriteBriefing) -> str:
 # conservatieve tekst, mist de herschrijving die hij gewend is, en stuurt hem terug.
 MODUS_UITLEG_JUDGE = {
     "stijl": (
-        "LET OP — deze training is bewust ALLEEN bijgewerkt naar de actuele schrijfregels.\n"
+        "LET OP: deze training is bewust ALLEEN bijgewerkt naar de actuele schrijfregels.\n"
         "De opdracht was: de formulering aanpassen, de inhoud ongemoeid laten. Beoordeel hem\n"
         "daarop.\n\n"
         "Dat betekent twee dingen. Reken het concept NIET af omdat het dicht bij de huidige\n"
         "versie blijft, dezelfde onderwerpen in dezelfde volgorde behandelt of weinig is\n"
-        "veranderd — dat was de opdracht, niet een tekortkoming. En reken het WÉL af op het\n"
+        "veranderd; dat was de opdracht, niet een tekortkoming. En reken het WÉL af op het\n"
         "omgekeerde: elk onderwerp, feit, doel of belofte in het concept moet herleidbaar\n"
         "zijn tot de huidige versie hieronder of tot een goedgekeurde actualisering. Wat er\n"
         "los van staat is drift, en drift is hier een fail."
     ),
     "format": (
-        "LET OP — deze training is bewust ALLEEN bijgewerkt naar het actuele format.\n"
+        "LET OP: deze training is bewust ALLEEN bijgewerkt naar het actuele format.\n"
         "De opdracht was: in vorm brengen, ontbrekende kopjes afleiden uit wat er al stond,\n"
         "en de inhoud verder ongemoeid laten.\n\n"
         "Herindelen hoort er dus bij: samengevoegde of gesplitste modules, een andere\n"
         "volgorde en nieuw geschreven Doelgroep-, Voorkennis- of Doelen-kopjes zijn geen\n"
         "fout. Wat wél een fout is: een onderwerp dat nergens in de huidige versie voorkomt,\n"
         "of een kopje dat is volgeschreven met inhoud die niet uit de andere kopjes volgt.\n"
-        "Dat is de fout die deze modus moet voorkomen — let er scherper op dan normaal."
+        "Dat is de fout die deze modus moet voorkomen; let er scherper op dan normaal."
     ),
 }
 
@@ -1441,12 +1442,12 @@ def build_judge_user(b: RewriteBriefing, document: dict) -> str:
     return (
         f"Persona: {b.persona}\n"
         f"Aantal dagen: {b.dagen if b.dagen is not None else 'onbekend'}\n\n"
-        f"KERN ({herkomst}) — hierin staat het niveau waarop de training hoort te liggen:\n"
+        f"KERN ({herkomst}). Hierin staat het niveau waarop de training hoort te liggen:\n"
         f"{b.kern_definitief}\n\n"
         f"Feiten (bruikbaar):\n{_opsomming(b.bruikbaar)}\n\n"
-        "Weggelaten (strippen) — deze mogen niet terug zijn in het concept:\n"
+        "Weggelaten (strippen). Deze mogen niet terug zijn in het concept:\n"
         f"{_opsomming(b.strippen)}\n\n"
-        "Gaten — hierover zweeg de bron. Wat het concept hier invult is constructie: geen\n"
+        "Gaten. Hierover zweeg de bron. Wat het concept hier invult is constructie: geen\n"
         "feitfout, wél reden om de output als thin te markeren:\n"
         f"{_opsomming(b.gaten)}\n\n"
         f"{BESLISSING_UITLEG}\n\n"
@@ -1460,7 +1461,7 @@ def build_judge_user(b: RewriteBriefing, document: dict) -> str:
         "Afgewezen actualiseringen (mogen NIET terugkomen):\n"
         f"{_opsomming(x.als_instructie() for x in b.afgewezen)}\n\n"
         f"{materiaal}\n\n"
-        f"CONCEPT — dit is wat je beoordeelt:\n{uit.render_markdown(document, b.nieuwe_titel)}"
+        f"CONCEPT. Dit is wat je beoordeelt:\n{uit.render_markdown(document, b.nieuwe_titel)}"
     )
 
 
@@ -1621,6 +1622,10 @@ class RewriteResult:
     reden: str = ""
     document: dict = field(default_factory=dict)
     flags: list[str] = field(default_factory=list)
+    # Dezelfde flags, maar gebundeld per tier en ontdubbeld (`checks.per_tier`). `flags`
+    # blijft het kale spoor voor de JSON; dit is wat de reviewer in zijn kolom leest, en dat
+    # is een andere vraag -- zie de tier-tabel in rewrite_checks.py. Leeg = alles hoog.
+    flags_tier: dict[str, list[str]] = field(default_factory=dict)
     judgment: dict = field(default_factory=dict)
     thin: bool = False
     toegepaste_acties: list[str] = field(default_factory=list)
@@ -1695,11 +1700,12 @@ def rewrite_one(client, b: RewriteBriefing, catalog: list[dict],
 
         document = assemble_document(writer_out, b, titels, groepen)
         flags = [str(i) for i in checks.flags(issues)]
+        flags_tier = checks.per_tier(checks.flags(issues))
 
         judgment = judge_document(client, b, document)
         last_judgment = judgment
         verdict = judgment.get("verdict", HUMAN_QUEUE)
-        gedeeld = dict(document=document, flags=flags, judgment=judgment,
+        gedeeld = dict(document=document, flags=flags, flags_tier=flags_tier, judgment=judgment,
                        toegepaste_acties=toegepast, oude_titel=b.titel, writer_out=writer_out,
                        modus=b.modus, modus_voorstel=b.modus_voorstel,
                        spec_versie=spec_versie(), goud_voorbeelden=actieve_goud_voorbeelden())
@@ -1823,7 +1829,7 @@ def hergenereer_kopje(client, b: RewriteBriefing, resultaat: dict, kopje: str,
         f"VOLLEDIGE HUIDIGE TRAINING:\n{uit.render_markdown(document, b.nieuwe_titel)}",
     ]
     if comment.strip():
-        opdracht += ["", f"AANWIJZING VAN DE REVIEWER — dit moet er anders:\n{comment.strip()}"]
+        opdracht += ["", f"AANWIJZING VAN DE REVIEWER, dit moet er anders:\n{comment.strip()}"]
     base_user = build_writer_user(b) + "\n\n---\n" + "\n".join(opdracht)
 
     tool = build_kopje_tool(kopje)
@@ -1861,7 +1867,8 @@ def hergenereer_kopje(client, b: RewriteBriefing, resultaat: dict, kopje: str,
         b.training_id, bepaal_titel(writer_out, b),
         APPROVED if status == APPROVED else HUMAN_QUEUE,
         reden="" if status == APPROVED else judgment.get("human_reden", status),
-        document=nieuw_document, flags=flags, judgment=judgment, thin=b.thin,
+        document=nieuw_document, flags=flags,
+        flags_tier=checks.per_tier(checks.flags(alle_issues)), judgment=judgment, thin=b.thin,
         toegepaste_acties=list(resultaat.get("toegepaste_acties") or []),
         oude_titel=b.titel, writer_out=writer_out,
         spec_versie=spec_versie(), goud_voorbeelden=actieve_goud_voorbeelden())
@@ -2238,7 +2245,7 @@ SUBMIT_MODUS = {
                                "default en past bij verreweg de meeste trainingen. Kies "
                                "'actueel' ALLEEN als het onderwerp zo snel beweegt dat een "
                                "programmabeschrijving binnen een jaar achterloopt op de "
-                               "praktijk — denk aan generatieve AI, cloudplatformen of "
+                               "praktijk: denk aan generatieve AI, cloudplatformen of "
                                "security. Een training over een stabiele taal, methode of "
                                "norm krijgt 'stabiel', ook als er af en toe een versie "
                                "uitkomt."},
@@ -2257,14 +2264,14 @@ minimaal moet gebeuren.
 
 De vier niveaus, van licht naar zwaar:
 
-- `overnemen`  — de tekst voldoet al aan deze regels. Kies dit alleen als je bij het
+- `overnemen`:  de tekst voldoet al aan deze regels. Kies dit alleen als je bij het
   nalezen niets zou veranderen.
-- `stijl`      — alle kopjes staan er en de inhoud klopt; alleen de formulering voldoet
+- `stijl`:      alle kopjes staan er en de inhoud klopt; alleen de formulering voldoet
   niet aan de regels (u-vorm, marketingtaal, ontbrekende openingszinnen, verboden woorden,
   geen causaal verband, verkeerd register voor de persona).
-- `format`     — er ontbreken kopjes, of de structuur klopt niet (modules niet als titel
+- `format`:     er ontbreken kopjes, of de structuur klopt niet (modules niet als titel
   met sub-bullets, verkeerde aantallen, inhoud die in het verkeerde kopje staat).
-- `volledig`   — de bestaande tekst is als basis onbruikbaar en de training moet vanaf de
+- `volledig`:   de bestaande tekst is als basis onbruikbaar en de training moet vanaf de
   brontekst opnieuw worden opgebouwd.
 
 Je krijgt een ONDERGRENS van een deterministische controle mee. Die controle vindt alleen
@@ -2277,9 +2284,9 @@ Beoordeel de tekst op de regels hierboven, niet op je eigen smaak.
 Je bepaalt daarnaast welke NB onder het kopje Modules hoort. Dat staat volledig los van de
 modus: het gaat niet over de kwaliteit van de tekst maar over het onderwerp.
 
-- `stabiel`  — de default, en de juiste keuze voor verreweg de meeste trainingen. Het
+- `stabiel`:  de default, en de juiste keuze voor verreweg de meeste trainingen. Het
   programma is wat het is; de NB nodigt uit tot afstemming op de eigen praktijksituatie.
-- `actueel`  — alleen als het expertisegebied zo snel beweegt dat de programmabeschrijving
+- `actueel`:  alleen als het expertisegebied zo snel beweegt dat de programmabeschrijving
   binnen een jaar achterloopt op de praktijk. Zet je die NB er zonder die noodzaak onder,
   dan doet hij afbreuk aan het geheel: hij suggereert dat wij zelf niet weten wat we geven.
 
@@ -2718,7 +2725,14 @@ def _review_rij(res: RewriteResult, content: dict, content_bron: dict | None = N
     de nieuwe tekst en kan hij een claim of een opgeschoven niveau niet zien -- dat is de
     fout die de tekst overleeft nadat de judge hem heeft goedgekeurd. Dezelfde reden waarom
     `build_judge_user` de bron meestuurt; hier alleen voor een mens in plaats van een model.
+
+    De flags staan in drie kolommen in plaats van één. `flags_hoog` is de kolom die naar de
+    reviewer gaat; toen alles in één kolom stond was 62% ervan een lengte-melding binnen de
+    vangrail of hetzelfde woord voor de derde keer, en dan leest niemand de kolom nog. Zie
+    de tier-tabel in rewrite_checks.py. Zonder `flags_tier` (oude resultaten, error-routes)
+    valt alles terug op `flags_hoog`: liever te veel laten zien dan iets verstoppen.
     """
+    tiers = res.flags_tier or {checks.TIER_HOOG: list(res.flags)}
     rij = {
         "training_id": res.training_id, "titel": res.titel,
         "oude_titel": res.oude_titel, "status": res.status,
@@ -2728,7 +2742,12 @@ def _review_rij(res: RewriteResult, content: dict, content_bron: dict | None = N
         # manier tegen, dan is dit meestal de verklaring en niet de spec.
         "goud_voorbeelden": " | ".join(res.goud_voorbeelden),
         "reden": res.reden, "thin": res.thin,
-        "n_flags": len(res.flags), "flags": " | ".join(res.flags),
+        # n_hoog is het triagegetal: hoeveel opmerkingen vragen om een oordeel? n_flags
+        # blijft het totaal, zodat een training met veel ruis nog steeds opvalt.
+        "n_hoog": len(tiers.get(checks.TIER_HOOG, [])), "n_flags": len(res.flags),
+        "flags_hoog": " | ".join(tiers.get(checks.TIER_HOOG, [])),
+        "flags_mechanisch": " | ".join(tiers.get(checks.TIER_MECHANISCH, [])),
+        "flags_laag": " | ".join(tiers.get(checks.TIER_LAAG, [])),
         "judge_confidence": (res.judgment or {}).get("judge_confidence", ""),
         "toegepaste_acties": " | ".join(res.toegepaste_acties),
         "approve_edit": "",   # reviewer vult in: approve / edit / reject
@@ -2804,17 +2823,17 @@ def build_actualisatie_user(b: RewriteBriefing, content: dict, titel: str) -> st
         f"Titel: {titel}\n"
         f"Persona: {b.persona}\n"
         f"Aantal dagen: {b.dagen if b.dagen is not None else 'onbekend'}\n\n"
-        f"KERN — het niveau van deze training; schrijf daar nooit boven:\n"
+        f"KERN. Het niveau van deze training; schrijf daar nooit boven:\n"
         f"{b.kern_definitief}\n\n"
         f"{BESLISSING_UITLEG}\n\n"
         # Dit pad draait géén code-checks: `actualiseer_content` levert losse kopjes, geen
         # compleet document, dus `check_rewrite` kan er niet overheen. De prompt is hier de
         # enige laag die de escalatie tegenhoudt.
         f"{ACTIE_WERKWOORD}\n\n"
-        "GOEDGEKEURDE ACTUALISERINGEN — dit is het enige wat er mag veranderen. Staat er een\n"
+        "GOEDGEKEURDE ACTUALISERINGEN, dit is het enige wat er mag veranderen. Staat er een\n"
         "VOORWAARDE bij, dan is die bindend:\n"
         f"{_opsomming(x.als_instructie() for x in b.goedgekeurd)}\n\n"
-        "NIET DOEN — afgewezen door de reviewer:\n"
+        "NIET DOEN, afgewezen door de reviewer:\n"
         f"{_opsomming(x.als_instructie() for x in b.afgewezen)}\n\n"
         # Hier stond alleen `guidance_reviewer`, en dat kon toen: de aanwijzing van de reviewer
         # was een eigen kolom, los van de scorer-guidance die over hérschrijven gaat. Nu het één
@@ -2827,11 +2846,11 @@ def build_actualisatie_user(b: RewriteBriefing, content: dict, titel: str) -> st
            f"tekst te herstructureren; volg hem alleen waar hij een goedgekeurde actualisering\n"
            f"hierboven raakt:\n{b.guidance_definitief}\n\n"
            if b.guidance_definitief.strip() else "")
-        + "OPDRACHT — deze training staat al in de nieuwe stijl en wordt NIET herschreven.\n"
+        + "OPDRACHT: deze training staat al in de nieuwe stijl en wordt NIET herschreven.\n"
           "Voer alleen de goedgekeurde actualiseringen hierboven door. Lever uitsluitend de\n"
           "kopjes die daardoor veranderen, elk in zijn geheel en in dezelfde stijl als nu.\n"
           "Raakt een actie maar één kopje, lever dan ook maar één kopje. Verander niets aan\n"
-          "de kopjes die je weglaat — die blijven letterlijk staan.\n\n"
+          "de kopjes die je weglaat; die blijven letterlijk staan.\n\n"
         + "HUIDIGE VERSIE:\n" + huidige_versie_blok(content, titel)
     )
 
@@ -2889,17 +2908,32 @@ def neem_over(b: RewriteBriefing, client=None) -> tuple[RewriteResult, dict]:
     naam = b.titel
     titel = b.nieuwe_titel
     flags: list[str] = []
+    tier_regels: dict[str, list[str]] = {t: [] for t in checks.TIERS}
+
+    def meld(regel: str, tier: str = checks.TIER_HOOG) -> None:
+        """Een wijziging op dit pad, met de aandacht die hij vraagt.
+
+        Alles wat hier wordt bijgewerkt is een flag, maar niet elke flag is werk voor een
+        reviewer: de vaste teksten en de vervolgstappen-titels komen deterministisch uit
+        `sjabloon` en kunnen daar niet fout gaan. Een gewijzigde titel of een doorgevoerde
+        actualisering wil een mens wél nalezen -- daar heeft iemand voor getekend.
+        """
+        flags.append(regel)
+        tier_regels[tier].append(regel)
+
     if content.get("follow_up"):
         content["follow_up"], gewijzigd = normaliseer_follow_up(content["follow_up"])
-        flags += [f"vervolgstappen-titel aangepast: {g}" for g in gewijzigd]
+        for g in gewijzigd:
+            meld(f"vervolgstappen-titel aangepast: {g}", checks.TIER_LAAG)
     if naam != titel:
-        flags.append(f"titel aangepast: {naam} -> {titel}")
+        meld(f"titel aangepast: {naam} -> {titel}")
 
     # Vaste teksten altijd verversen, ook op dit pad. "Overnemen" gaat over de geschreven
     # tekst; de boilerplate is van ons en volgt het template. Zonder dit zou een training die
     # niemand aanraakt met de vorige generatie vaste teksten in het CMS blijven staan.
     content, ververst = uit.ververs_vaste_teksten(content, titel, b.modules_nb)
-    flags += [f"vaste tekst bijgewerkt: {v}" for v in ververst]
+    for v in ververst:
+        meld(f"vaste tekst bijgewerkt: {v}", checks.TIER_LAAG)
 
     reden = "voldoet al aan het actuele format"
     toegepast: list[str] = []
@@ -2908,18 +2942,26 @@ def neem_over(b: RewriteBriefing, client=None) -> tuple[RewriteResult, dict]:
         toegepast = [f"{x.nr}. {x.actie}" + (f" [{x.voorwaarde}]" if x.voorwaarde else "")
                      for x in b.goedgekeurd]
         if aangepast:
-            flags += [f"geactualiseerd: {a}" for a in aangepast]
+            for a in aangepast:
+                meld(f"geactualiseerd: {a}")
             reden = f"{reden}; {len(b.goedgekeurd)} actualisering(en) doorgevoerd"
         else:
-            flags.append("goedgekeurde actualiseringen leverden geen wijziging op")
+            meld("goedgekeurde actualiseringen leverden geen wijziging op")
 
     # Modules tellen hier sinds kort mee: zolang `goud_naar_check_input` ze oversloeg, gaf
     # elke overgenomen training een misleidend schone lijst. Training 328 bleek zo modules
     # met 0 en 1 sub-bullets te hebben zonder dat iemand dat zag.
     rw = goud_naar_check_input(content, titel)
-    flags += [str(i) for i in checks.check_rewrite(rw, {"naam": titel})]
+    # Ook de HARD-issues gaan hier mee: op dit pad komt de schrijver er niet aan te pas, dus
+    # ze zijn signaal en geen revisie-opdracht. `per_tier` kent geen tier voor een HARD-code
+    # en zet ze daarmee vanzelf op hoog -- precies waar ze horen.
+    issues = checks.check_rewrite(rw, {"naam": titel})
+    flags += [str(i) for i in issues]
+    for tier_naam, regels in checks.per_tier(issues).items():
+        tier_regels[tier_naam] += regels
     res = RewriteResult(b.training_id, titel, OVERGENOMEN, reden=reden,
-                        flags=flags, oude_titel=naam, modus="overnemen",
+                        flags=flags, flags_tier=tier_regels, oude_titel=naam,
+                        modus="overnemen",
                         modus_voorstel=b.modus_voorstel, toegepaste_acties=toegepast,
                         spec_versie=spec_versie())
     return res, content

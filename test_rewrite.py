@@ -705,6 +705,98 @@ def test_catalogus_niet_geladen_is_flag():
 
 
 # ---------------------------------------------------------------------------
+# Tiers: wat komt er in de kolom die een reviewer leest?
+#
+# Over de eerste 16 herschreven trainingen was 62% van alle flags `lengte_richtlijn` of
+# `zwakke_formulering` -- een kolom die daarvoor twee derde uit ruis bestond. De tier zegt
+# hoeveel aandacht een flag vraagt; HARD/FLAG blijft zeggen wie hem oplost.
+# ---------------------------------------------------------------------------
+
+def _issue(code, section="overzicht", message="boodschap", severity=FLAG):
+    return checks.Issue(section, severity, code, message)
+
+
+def test_elke_tier_code_bestaat_ook_echt_als_check():
+    """Een typefout in TIER_PER_CODE laat een flag stilzwijgend op `hoog` staan.
+
+    Dat valt nergens op: de kolom klopt nog, hij is alleen weer even lang als voorheen.
+    Vandaar deze bewaker over de broncode -- dezelfde reden als de kolomvolgorde-test.
+    """
+    bron = open(os.path.join(os.path.dirname(__file__), "rewrite_checks.py")).read()
+    bestaande = set(re.findall(r'Issue\([^()]*?,\s*"([a-z_]+)"', bron))
+    bestaande |= set(re.findall(r'(?:HARD|FLAG|severity),\s*"([a-z_]+)"', bron))
+    onbekend = set(checks.TIER_PER_CODE) - bestaande
+    assert not onbekend, f"TIER_PER_CODE noemt codes die geen enkele check maakt: {onbekend}"
+    assert set(checks.TIER_PER_CODE.values()) <= set(checks.TIERS)
+
+
+def test_lengte_binnen_de_vangrail_is_lage_tier():
+    """De aanleiding: 13 van de 34 flags waren dit, geen enkele in de buurt van de vangrail."""
+    rw = _good_rewrite()
+    rw["overzicht"] = "Wil je data kunnen " + vul(82) + "?"     # 86 woorden; band 55-80
+    issues = check_rewrite(rw, _CTX)
+    assert not hard_fails(issues), [str(i) for i in hard_fails(issues)]
+    kolommen = checks.per_tier(flags(issues))
+    assert any("86 woorden" in r for r in kolommen[checks.TIER_LAAG])
+    assert not any("86 woorden" in r for r in kolommen[checks.TIER_HOOG])
+
+
+def test_een_oordeel_blijft_hoog_en_een_woordvervanging_wordt_mechanisch():
+    kolommen = checks.per_tier([_issue("lerend_aspect"), _issue("anglicisme"),
+                                _issue("lengte_richtlijn")])
+    assert len(kolommen[checks.TIER_HOOG]) == 1
+    assert len(kolommen[checks.TIER_MECHANISCH]) == 1
+    assert len(kolommen[checks.TIER_LAAG]) == 1
+
+
+def test_onbekende_code_valt_op_hoog():
+    """De goede kant om op te falen: een nieuwe check komt binnen als werk voor een mens."""
+    assert checks.tier(_issue("een_code_die_nog_niet_bestaat")) == checks.TIER_HOOG
+    # ook een HARD-issue, dat via `neem_over` in de kolom kan belanden
+    assert checks.tier(_issue("modules_te_weinig", severity=HARD)) == checks.TIER_HOOG
+
+
+def test_dezelfde_opmerking_in_twee_kopjes_wordt_een_regel():
+    """Training 27 kreeg "zelfstandig" in het Overzicht en de Inleiding: één beslissing.
+
+    De hoofdletter verschilt omdat de boodschap het gevonden woord citeert en dat aan het
+    begin van een zin met een hoofdletter staat; op die twee mag het niet stukgaan.
+    """
+    kolommen = checks.per_tier([
+        _issue("zwakke_formulering", "overzicht", "'zelfstandig': voegt weinig toe."),
+        _issue("zwakke_formulering", "inleiding", "'Zelfstandig': voegt weinig toe."),
+        _issue("zwakke_formulering", "doelen", "'plaatsen': zegt niet wat de deelnemer kan."),
+    ])
+    regels = kolommen[checks.TIER_HOOG]
+    assert len(regels) == 2, regels
+    assert "overzicht + inleiding" in regels[0]
+    # de volgorde van de kopjes is die van de checks zelf, niet alfabetisch
+    assert regels[0].endswith("'zelfstandig': voegt weinig toe.")
+
+
+def test_review_tabblad_scheidt_de_drie_tiers():
+    """De kolom die naar de reviewer gaat, houdt alleen wat om een oordeel vraagt."""
+    res = rw.RewriteResult(1, "Training X", rw.APPROVED, flags_tier={
+        checks.TIER_HOOG: ["[FLAG] overzicht: mist het lerende aspect."],
+        checks.TIER_MECHANISCH: ["[FLAG] modules: 'Insights' -- schrijf inzichten."],
+        checks.TIER_LAAG: ["[FLAG] inleiding: 214 woorden; richtlijn is 180-210 woorden."],
+    }, flags=["a", "b", "c"])
+    rij = rw._review_rij(res, {})
+    assert rij["flags_hoog"] == "[FLAG] overzicht: mist het lerende aspect."
+    assert "Insights" in rij["flags_mechanisch"]
+    assert "214 woorden" in rij["flags_laag"]
+    assert rij["n_hoog"] == 1 and rij["n_flags"] == 3
+
+
+def test_zonder_tiers_komt_alles_in_de_hoge_kolom():
+    """Een oud resultaat of een error-route: liever te veel tonen dan iets verstoppen."""
+    res = rw.RewriteResult(1, "Training X", rw.APPROVED, flags=["[FLAG] overzicht: iets."])
+    rij = rw._review_rij(res, {})
+    assert rij["flags_hoog"] == "[FLAG] overzicht: iets."
+    assert rij["flags_mechanisch"] == "" and rij["flags_laag"] == ""
+
+
+# ---------------------------------------------------------------------------
 # Besluiten: structurele splitsing van actie_besluit
 #
 # De strings hieronder komen letterlijk uit `Nieuwe lijst herschreven en dagen.xlsx`.
@@ -1171,7 +1263,7 @@ def test_judge_krijgt_de_brontekst_en_alle_feiten():
     assert "verouderde prijsinfo" in tekst
     assert "voorkennis niet beschreven" in tekst
     # het concept staat achteraan: de bron is naslag, het concept is wat hij beoordeelt
-    assert tekst.index("BRONTEKST") < tekst.index("CONCEPT — dit is wat je beoordeelt")
+    assert tekst.index("BRONTEKST") < tekst.index("CONCEPT. Dit is wat je beoordeelt")
 
 
 def test_judge_mag_de_bron_niet_als_vormnorm_gebruiken():
@@ -2479,10 +2571,49 @@ def test_geen_liggend_streepje_in_de_systemprompts():
     de schrijver naar vorm zoekt.
     """
     for naam, blokken in (("writer", rw.build_writer_system()),
-                          ("judge", rw.build_judge_system())):
+                          ("judge", rw.build_judge_system()),
+                          ("modus", rw.build_modus_system())):
         tekst = "".join(b["text"] for b in blokken)
         gevonden = [r for r in ("—", "–") if r in tekst]
         assert not gevonden, f"{naam}-systemprompt bevat {gevonden}"
+
+
+def test_geen_liggend_streepje_in_de_userberichten_en_de_tools():
+    """Het gat dat de twee tests hierboven lieten liggen.
+
+    De systemprompt was schoon en de spec-bestanden ook, maar daaronder stond het teken er
+    34 keer: 9 in de beschrijvingen van `submit_rewrite` (de tekst die de schrijver leest op het
+    moment dat hij een kopje schrijft), 8 in het user-bericht van de schrijver, 8 in dat van de
+    judge en de rest in de modus- en actualiseerprompts. De HARD-boodschap van `check_em_dash`
+    deed het zelf ook: die gaat via `notes` letterlijk terug naar de schrijver, dus het teken
+    stond in de zin die het verbood.
+
+    De user-berichten wisselen per training, dus dit test wat de code eromheen bouwt met een
+    minimale briefing. Wat uit de bron of uit een scorer-veld komt telt niet mee, dat kunnen we
+    hier niet afdwingen; het scoringsproject houdt de kern schoon (`zonder_liggend_streepje`).
+    """
+    b = _briefing(huidige_content={"algemene_omschrijving": "Bestaande tekst."})
+    stukken = {
+        "writer-user": rw.build_writer_user(b),
+        "judge-user": rw.build_judge_user(b, {"titel": "T", "overzicht": "Wil je iets?"}),
+        "actualisatie-user": rw.build_actualisatie_user(b, b.huidige_content, "Training T"),
+        "hergenereer-tool": json.dumps(rw.build_kopje_tool("overzicht"), ensure_ascii=False),
+        "actualisatie-tool": json.dumps(rw.build_actualisatie_tool(), ensure_ascii=False),
+        "modus-instructie": rw.SCHAT_MODUS_INSTRUCTIE,
+        "kies-vervolg": rw.KIES_VERVOLG_SYSTEM,
+    }
+    for naam, tool in (("submit_rewrite", rw.SUBMIT_REWRITE), ("submit_judgment", rw.SUBMIT_JUDGMENT),
+                       ("submit_modus", rw.SUBMIT_MODUS),
+                       ("submit_vervolgstappen", rw.SUBMIT_VERVOLGSTAPPEN)):
+        stukken[naam] = json.dumps(tool, ensure_ascii=False)
+    for naam, tekst in stukken.items():
+        gevonden = [r for r in ("—", "–") if r in tekst]
+        assert not gevonden, f"{naam} bevat {gevonden}"
+
+    # De correctie die de schrijver terugkrijgt mag het teken evenmin tonen.
+    issues = checks.check_em_dash({"overzicht": "Wil je leren — echt leren?"})
+    bericht = str(issues[0])
+    assert "—" not in bericht and "–" not in bericht, f"de HARD-boodschap toont het teken: {bericht}"
 
 
 def test_em_dash_check_raakt_de_vaste_teksten_niet():

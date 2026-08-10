@@ -36,7 +36,7 @@ het model.
 | `rewrite_output.py` | Document → CMS-`content`-JSON (HTML) en → markdown met kop 1/2/3. |
 | `rewrite_trainings.py` | Hybride schrijver + orchestratie + I/O. |
 | `herschrijven.ipynb` | Notebook om de pijplijn stap voor stap te draaien en te inspecteren. |
-| `test_rewrite.py` | 220 offline tests (geen API-key nodig). |
+| `test_rewrite.py` | 236 offline tests (geen API-key nodig). |
 
 ## Setup
 
@@ -208,11 +208,12 @@ Output in `--out-dir`:
   (`error`/`rejected`) krijgt geen `.md`;
 - `herschreven.xlsx`, tabblad **cms** — `id` / `name` / `content`, met dezelfde
   JSON-structuur als het bronsheet, zodat het zo terug het CMS in kan;
-- `herschreven.xlsx`, tabblad **review** — status, `modus`, `modus_voorstel`, `spec_versie`, flags
-  en elk kopje in platte tekst, met een lege `approve_edit`-kolom en als laatste kolom de
-  **brontekst**. Die staat er zodat je een claim of een opgeschoven niveau naast het origineel kunt
-  leggen; zonder die kolom lees je alleen de nieuwe tekst en is precies de fout onzichtbaar die de
-  judge net doorliet.
+- `herschreven.xlsx`, tabblad **review** — status, `modus`, `modus_voorstel`, `spec_versie`, de
+  flags in drie kolommen (`flags_hoog` / `flags_mechanisch` / `flags_laag`, zie
+  "Drie tiers" verderop) en elk kopje in platte tekst, met een lege `approve_edit`-kolom en als
+  laatste kolom de **brontekst**. Die staat er zodat je een claim of een opgeschoven niveau naast
+  het origineel kunt leggen; zonder die kolom lees je alleen de nieuwe tekst en is precies de fout
+  onzichtbaar die de judge net doorliet.
 
 `spec_versie` is een korte hash over de schrijfspec, `humanisering_nl.md`, `stijlregister_nl.md` en
 het template. Zodra die bestanden veranderen is "welke goedgekeurde trainingen dateren van vóór de
@@ -757,6 +758,71 @@ grens die het makkelijkst meeschuift zodra iemand de patronen verbreedt.
 De idioomval zit bij de gescheiden werkwoordsvorm: "in kaart brengen" staat er met een
 negatieve lookahead uit.
 
+### Drie tiers: wat komt er in de kolom die een reviewer leest
+
+HARD versus FLAG beantwoordt de vraag *wie lost dit op*. Na de eerste zestien trainingen bleek er
+een tweede vraag onder te zitten die daar niet in past: *wat moet een mens hiervan lezen?* Die
+zestien leverden 34 flags op, en de verdeling was scheef:
+
+| Code | Flags | Trainingen (van 16) |
+| --- | ---: | ---: |
+| `lengte_richtlijn` | 13 | 11 |
+| `zwakke_formulering` | 8 | 6 |
+| `anglicisme` | 5 | 3 |
+| `lerend_aspect` | 3 | 3 |
+| `zin_lang` | 3 | 3 |
+| `voorkennis_lang`, `llm_taal` | 1 + 1 | 1 + 1 |
+
+**Twee codes waren 62% van alles wat een reviewer las.** En geen van die dertien lengtes zat in
+de buurt van de vangrail: Overzicht 81 t/m 86 op een band van 55-80 met vangrail 110, Inleiding
+212 t/m 231 op 180-210 met vangrail 260, twee ervan één woord over de grens. De boodschap zei het
+zelf al ("alleen bijstellen als de tekst er beter van wordt"). Van de acht
+`zwakke_formulering`-meldingen waren er zeven letterlijk het woord "zelfstandig". Een kolom die
+voor twee derde uit zulke regels bestaat, wordt niet meer met aandacht gelezen — en dan sneuvelt
+óók de opmerking die er wél toe deed.
+
+De verleiding is dan om de lengteband te verruimen: de eigen output zit op mediaan 76 woorden
+(Overzicht) en 204 (Inleiding), met p75 op 82 respectievelijk 213, dus de band snijdt
+systematisch de bovenste kwart van een verder prima verdeling af. Toch is dat de verkeerde fix.
+De band is gekalibreerd op het **goud**, niet op onszelf; hem verschuiven omdat onze eigen
+schrijver erboven zit, is in een kringetje meten. De flag klopt — hij hoort alleen niet in de
+kolom die om een oordeel vraagt.
+
+Vandaar een derde as naast `section` en `severity`: de **tier**, afgeleid van de code via
+`TIER_PER_CODE` in `rewrite_checks.py`.
+
+| Tier | Wat erin staat | Wat een reviewer ermee moet |
+| --- | --- | --- |
+| `hoog` | Kan een echte fout zijn: `lerend_aspect`, `reikwijdte`, `actie_escalatie`, `zwakke_formulering`, `marketing`, `llm_taal`, `vaag`, `groep_te_klein`, `tweede_zin`, `een_zin`, `geen_na_deze_training` | Lezen en oordelen |
+| `mechanisch` | Eén woord vervangen, het alternatief staat in de melding: `anglicisme`, `contactzin_zonder_dan`, `soortwoord_hoofdletter`, `meeting`, `u_vorm`, `dubbel_in_staat` | Doorvoeren, geen oordeel nodig |
+| `laag` | Een meting buiten de richtlijn maar binnen de vangrail, of telemetrie: `lengte_richtlijn`, `zin_lang`, `voorkennis_lang`, `invulling_voegwoord`, `catalogus_ontbreekt` | Niets |
+
+Drie keuzes daarin zijn niet vanzelfsprekend:
+
+- **een onbekende code is `hoog`.** Een nieuwe check komt binnen als werk voor een mens en zakt
+  pas als de meting laat zien dat hij vaak vuurt zonder dat er iets mis is. Dezelfde richting als
+  bij HARD/FLAG: liever te veel laten zien dan iets verstoppen. `test_elke_tier_code_bestaat_ook_echt_als_check`
+  bewaakt de andere kant — een typefout in de tabel laat een code stil op `hoog` staan, en dat
+  zou nergens opvallen omdat de kolom dan gewoon weer even lang is;
+- **`invulling_voegwoord` is `laag` en geen `mechanisch`**, want de code heeft het al weggehaald
+  (`sjabloon.schoon_invulling`). De melding bestaat om te zien of de tool-description werkt; dat
+  is telemetrie over de prompt en geen opdracht aan een mens;
+- **dezelfde opmerking in twee kopjes wordt één regel.** Training 27 kreeg "zelfstandig" in het
+  Overzicht én de Inleiding, 3159 in de Modules én de Doelen: één beslissing, geen twee.
+  `per_tier()` vouwt ze samen tot "overzicht + inleiding: …", hoofdletterongevoelig, want de
+  boodschap citeert het gevonden woord en dat staat aan het begin van een zin met een hoofdletter.
+
+Netto over dezelfde zestien trainingen: **10 opmerkingen in `flags_hoog`** (van 34), 3 in
+`flags_mechanisch`, 17 in `flags_laag` — en zeven van de zestien trainingen houdt een lege
+`flags_hoog`. Dat is de kolom die naar de reviewers gaat.
+
+Op het `overnemen`-pad gaan ook de HARD-issues de kolom in: daar komt de schrijver er niet aan te
+pas, dus ze zijn signaal en geen revisie-opdracht. `per_tier()` kent geen tier voor een HARD-code
+en zet ze daarmee vanzelf op `hoog`. Het wijzigingsspoor van dat pad is óók gesplitst: een
+gewijzigde titel of een doorgevoerde actualisering is `hoog` (daar heeft een mens voor getekend),
+bijgewerkte vaste teksten en genormaliseerde vervolgtitels zijn `laag` (die komen deterministisch
+uit `sjabloon` en kunnen daar niet fout gaan).
+
 ### De scoresheet-val
 
 De pijplijn heeft twee scoresheets: het ruwe (`SCORED`) en dat wat sectie 3b oplevert
@@ -776,7 +842,7 @@ roept hem aan met `waarschuw=False`: dat is de stap die die kolommen juist máá
 ```bash
 python bouw_goud_v2.py     # terugval-few-shot opbouwen; `herschreven/` is gitignored, dus dit
                            # hoort bij een verse checkout. Geen API-key nodig.
-python test_rewrite.py     # 220 offline checks, geen API-key nodig
+python test_rewrite.py     # 236 offline checks, geen API-key nodig
 ```
 
 Getest wordt de deterministische laag: de code-check, de structurele splitsing van

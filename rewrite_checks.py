@@ -4,8 +4,10 @@ rewrite_checks.py
 Deterministische code-check voor een herschreven training (de 9 kopjes).
 Geen LLM: plain Python-functies die een lijst `Issue`-objecten teruggeven,
 gesplitst in HARD-FAIL (moet terug naar de schrijver) en FLAG (mag mee naar
-judge/review). Zelfde geest als `finalize_scores` in score_trainings.py:
-de code beslist deterministisch, het model schrijft alleen.
+judge/review). Elke flag heeft daarnaast een tier (hoog/mechanisch/laag) die zegt
+hoeveel aandacht van een mens hij vraagt; zie "Tiers" verderop. Zelfde geest als
+`finalize_scores` in score_trainings.py: de code beslist deterministisch, het model
+schrijft alleen.
 
 Verwachte input `rewrite` (de gestructureerde schrijver-output, `submit_rewrite`):
     {
@@ -71,6 +73,86 @@ def flags(issues: list[Issue]) -> list[Issue]:
 def format_issues(issues: list[Issue]) -> str:
     """Bundelt issues tot tekst die als revisie-instructie de schrijver in kan."""
     return "\n".join(f"- {i}" for i in issues)
+
+
+# ---------------------------------------------------------------------------
+# Tiers: hoeveel aandacht van een mens vraagt deze flag?
+# ---------------------------------------------------------------------------
+#
+# HARD/FLAG bepaalt wie een issue oplost (de schrijver of een mens). De tier beantwoordt een
+# andere vraag: wat moet de reviewer lezen? Over de eerste 16 herschreven trainingen stonden
+# 34 flags, waarvan 13 keer `lengte_richtlijn` (11 van de 16 trainingen) en 8 keer
+# `zwakke_formulering`. Samen 62% van alles wat een mens onder ogen kreeg. Geen van die 13
+# lengtes zat in de buurt van de vangrail -- Overzicht 81 t/m 86 op een band van 55-80 met
+# vangrail 110, Inleiding 212 t/m 231 op 180-210 met vangrail 260, twee ervan één woord over
+# de grens. Een kolom die voor twee derde uit "een woord over de richtlijn" bestaat, leest
+# niemand meer met aandacht; vandaar drie tiers in plaats van één lijst.
+#
+#   hoog        de reviewer moet de tekst lezen en oordelen; dit kan een echte fout zijn
+#   mechanisch  eenduidig te repareren zonder de tekst te wegen: vervang dit woord
+#   laag        een meting buiten de richtlijn maar binnen de vangrail, of telemetrie
+#
+# Alles wat hier niet in staat is `hoog`. Dat is bewust de goede kant om op te falen: een
+# nieuwe check komt binnen als iets waar een mens naar kijkt en zakt pas als de meting laat
+# zien dat hij vaak vuurt zonder dat er iets mis is. Dezelfde volgorde als bij HARD/FLAG.
+TIER_HOOG = "hoog"
+TIER_MECHANISCH = "mechanisch"
+TIER_LAAG = "laag"
+TIERS: tuple[str, ...] = (TIER_HOOG, TIER_MECHANISCH, TIER_LAAG)
+
+TIER_PER_CODE: dict[str, str] = {
+    # Metingen. De boodschap zegt het zelf al ("alleen bijstellen als de tekst er beter van
+    # wordt"); buiten de vangrail is het geen flag meer maar een HARD en komt het hier niet
+    # langs. `invulling_voegwoord` meldt bovendien iets dat de code al heeft weggehaald --
+    # dat is telemetrie over de prompt en geen opdracht aan een mens. `catalogus_ontbreekt`
+    # vuurt overal zodra er zonder catalogus gemeten wordt.
+    "lengte_richtlijn": TIER_LAAG,
+    "zin_lang": TIER_LAAG,
+    "voorkennis_lang": TIER_LAAG,
+    "invulling_voegwoord": TIER_LAAG,
+    "catalogus_ontbreekt": TIER_LAAG,
+    # Eén woord vervangen, het alternatief staat in de boodschap. De reviewer hoeft de zin
+    # er niet voor te wegen -- de je-vorm en het Nederlandse woord zijn voorgeschreven.
+    "anglicisme": TIER_MECHANISCH,
+    "contactzin_zonder_dan": TIER_MECHANISCH,
+    "soortwoord_hoofdletter": TIER_MECHANISCH,
+    "meeting": TIER_MECHANISCH,
+    "u_vorm": TIER_MECHANISCH,
+    "dubbel_in_staat": TIER_MECHANISCH,
+}
+
+
+def tier(issue: Issue) -> str:
+    """De tier van dit issue; onbekende codes zijn `hoog`."""
+    return TIER_PER_CODE.get(issue.code, TIER_HOOG)
+
+
+def per_tier(issues: list[Issue]) -> dict[str, list[str]]:
+    """Groepeert issues per tier tot leesbare regels: één regel per opmerking.
+
+    Dezelfde opmerking in twee kopjes is voor een reviewer één ding om over te beslissen en
+    geen twee: training 27 kreeg "zelfstandig" in het Overzicht én de Inleiding, 3159 in de
+    Modules én de Doelen. Die vouwen samen tot "overzicht + inleiding: ...". Vergelijken
+    gaat hoofdletterongevoelig, want de boodschap citeert het gevonden woord en dat staat
+    aan het begin van een zin met een hoofdletter ('Zelfstandig' naast 'zelfstandig').
+
+    Geeft alle drie de tiers terug, ook de lege -- de aanroeper hoeft niet te weten welke
+    tiers er bestaan.
+    """
+    gebundeld: dict[tuple[str, str, str], tuple[Issue, list[str]]] = {}
+    for i in issues:
+        sleutel = (i.severity, i.code, i.message.lower())
+        if sleutel in gebundeld:
+            secties = gebundeld[sleutel][1]
+            if i.section not in secties:
+                secties.append(i.section)
+        else:
+            gebundeld[sleutel] = (i, [i.section])
+    uit: dict[str, list[str]] = {t: [] for t in TIERS}
+    for eerste, secties in gebundeld.values():
+        uit[tier(eerste)].append(
+            f"[{eerste.severity.upper()}] {' + '.join(secties)}: {eerste.message}")
+    return uit
 
 
 # ---------------------------------------------------------------------------
@@ -153,7 +235,12 @@ _ANGLICISME_RE = [(re.compile(p, re.I), nl) for p, nl in ANGLICISMEN]
 # Liggende streepjes: em-dash (U+2014) en en-dash (U+2013) -> HARD, zie `check_em_dash`.
 # Het gewone koppelteken (-) staat er bewust niet bij: dat hoort in "data-analyse" en in
 # "hands-on". Alleen de lange varianten, want die zijn nooit een koppelteken.
-_EM_DASH_RE = re.compile(r"[—–]")
+#
+# Als escape geschreven en niet als teken. De boodschap van een HARD-issue gaat letterlijk
+# terug naar de schrijver (`notes` in `rewrite_one`), dus een bestand dat het teken toont op
+# de plek waar het verboden wordt, demonstreert het alsnog. Zelfde reden waarom de
+# promptbestanden "[liggend streepje]" uitschrijven.
+_EM_DASH_RE = re.compile("[\\u2014\\u2013]")
 
 # Een voorwaardelijke bijzin met een opsomming in de voorwaarde -> FLAG, zie `check_reikwijdte`.
 # De voorwaarde loopt van het werkwoord tot de komma vóór "dan" of tot een dubbele punt; verder
@@ -455,9 +542,9 @@ def check_em_dash(rw: dict, ctx: dict | None = None) -> list[Issue]:
     for section, text in velden:
         if text and _EM_DASH_RE.search(text):
             issues.append(Issue(section, HARD, "em_dash",
-                                "bevat een liggend streepje (— of –). Gebruik een punt, een "
-                                "komma of haakjes; een gedachtestreepje is hier nooit de "
-                                "juiste keuze (humanisering_nl.md Sectie D)."))
+                                "bevat een liggend streepje (em-dash of en-dash). Gebruik een "
+                                "punt, een komma of haakjes; een gedachtestreepje is hier "
+                                "nooit de juiste keuze (humanisering_nl.md Sectie D)."))
     return issues
 
 
