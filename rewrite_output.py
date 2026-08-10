@@ -448,6 +448,35 @@ def render_markdown(document: dict, titel: str) -> str:
     return "\n\n---\n\n".join(delen) + "\n"
 
 
+# De importer van Google Drive gokt zonder deze meta latin-1 en maakt dan van elke e-umlaut
+# twee tekens. Eén regel, en `ë`/`é`/`ï` komen heel aan de andere kant.
+_DOCS_HTML_KOP = '<html><head><meta charset="utf-8"><title>{titel}</title></head><body>'
+
+
+def render_docs_html(content: dict, titel: str) -> str:
+    """De CMS-`content` als één HTML-pagina, voor conversie naar een Google Doc.
+
+    Zelfde structuur als `render_markdown`: titel als kop 1, elk kopje als kop 2, een
+    horizontale lijn ertussen. Drive zet `<h1>`/`<h2>` om naar echte Docs-koppen, en daarmee
+    krijgt de reviewer een werkende documentoverzicht-zijbalk -- de reden om HTML te uploaden
+    in plaats van platte tekst.
+
+    Draait op `content` en niet op het document, want `neem_over` levert geen document: een
+    training op modus `overnemen` heeft alleen CMS-content. Een document-gebaseerde renderer
+    zou precies de trainingen overslaan die al goede tekst hebben. Bijvangst is dat het doc
+    letterlijk toont wat het CMS in gaat, en niet een tweede weergave daarvan.
+
+    Lege kopjes krijgen wél hun kop: een reviewer moet kunnen zien dát er niets staat.
+    """
+    delen = [f"<h1>{_esc(titel)}</h1>"]
+    for kopje in sjabloon.KOPJES:
+        waarde = content.get(kopje.cms) or ""
+        # `summary` en `summary_edudex` staan als platte tekst in het CMS (Kopje.html is False)
+        fragment = str(waarde) if kopje.html else _paragrafen(waarde)
+        delen.append(f"<h2>{_esc(kopje.kop)}</h2>{fragment}")
+    return _DOCS_HTML_KOP.format(titel=_esc(titel)) + "<hr>".join(delen) + "</body></html>"
+
+
 def content_naar_platte_tekst(content: dict, naam: str = "") -> dict:
     """Leesbare weergave per veld -- voor het review-tabblad en voor diffen met de bron."""
     from score_trainings import clean_text

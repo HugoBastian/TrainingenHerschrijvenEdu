@@ -71,6 +71,7 @@ except ModuleNotFoundError as e:  # pragma: no cover
     ) from e
 
 import besluiten as bes
+import drive_upload
 import rewrite_checks as checks
 import rewrite_output as uit
 import sjabloon
@@ -3006,8 +3007,11 @@ def schrijf_training_artefacten(json_dir: str, tid: Any, res: RewriteResult,
     Eén plek, zodat batch, hergeneratie en de losse notebook-cel hetzelfde wegschrijven.
     De markdown is exact de weergave die de judge beoordeelt en die het notebook onder de
     cel toont -- om terug te lezen zonder de JSON open te klappen. Zonder document
-    (`error`/`rejected`) is er niets te renderen; een oudere .md van dezelfde training zou
-    dan bij een nieuwere JSON gaan liggen, dus die gaat weg.
+    (`error`/`rejected`, en ook het spoor `overnemen`) is er niets te renderen; een oudere .md
+    van dezelfde training zou dan bij een nieuwere JSON gaan liggen, dus die gaat weg. Dat is
+    meteen het enige randgeval: een training die eerst is herschreven en later op `overnemen`
+    komt te staan, raakt zijn .md kwijt. De JSON en `herschreven.xlsx` houden alles vast, en
+    de Drive-upload draait op `content` en niet op de markdown.
 
     Geeft de paden terug ({"json": ..., "md": ... of None}).
     """
@@ -3071,6 +3075,76 @@ def _werk_xlsx_rij_bij(out_path: str, res: RewriteResult, content_uit: dict, ver
     with pd.ExcelWriter(out_path) as writer:
         cms.to_excel(writer, sheet_name="cms", index=False)
         review.to_excel(writer, sheet_name="review", index=False)
+
+
+def _zet_drive_urls_in_xlsx(out_path: str, urls: dict, verbose: bool = True) -> int:
+    """Vult de kolom `drive_url` in het review-tabblad bij, op training_id.
+
+    Achteraf en niet in `_review_rij`: die rij wordt gebouwd voordat er ook maar iets geüpload
+    is. De kolom staat daarmee achter `brontekst`, en dat is precies waar losse kolommen in dit
+    project horen -- het plakblok van het gedeelde scoresheet ligt vast, alles wat wij er zelf
+    bij verzinnen komt erachter.
+    """
+    import pandas as pd
+    if not urls or not os.path.exists(out_path):
+        return 0
+    vorige = pd.read_excel(out_path, sheet_name=None)
+    review = vorige.get("review")
+    if review is None or "training_id" not in review.columns:
+        return 0
+    # de sleutels komen uit de JSON en zijn int; de kolom kan numpy-typen bevatten
+    per_id = {str(k): v for k, v in urls.items() if v}
+    nieuw = review["training_id"].map(lambda t: per_id.get(str(t), ""))
+    if "drive_url" in review.columns:
+        # Een lege nieuwe waarde mag een bestaande link niet wissen (deelupload, andere batch).
+        # Via `_cel` en niet via `str(o or "")`: een lege cel komt uit Excel terug als NaN, en
+        # NaN is truthy -- dat zou de tekst "nan" in de kolom zetten.
+        review["drive_url"] = [n or _cel(o) for n, o in zip(nieuw, review["drive_url"])]
+    else:
+        review["drive_url"] = nieuw
+    with pd.ExcelWriter(out_path) as writer:
+        for naam, blad in vorige.items():
+            (review if naam == "review" else blad).to_excel(writer, sheet_name=naam, index=False)
+    gevuld = int((review["drive_url"] != "").sum())
+    if verbose:
+        print(f"drive_url gevuld voor {gevuld} van de {len(review)} rijen in {out_path}")
+    return gevuld
+
+
+def upload_naar_drive(out_dir: str = "herschreven", drive_map: str = "", **kw) -> dict:
+    """De artefacten in `out_dir` als Google Docs naar Drive, en de links in het reviewblad.
+
+    Dunne schil om `drive_upload.upload_naar_drive`: die module kent geen pandas en geen xlsx,
+    en dat moet zo blijven. Hier hoort de sheetkolom thuis, want dit is de module die het sheet
+    bezit.
+
+    Los aan te roepen, en dat is geen luxe: is de upload halverwege gestrand of stond er een
+    batch van voor deze functie op schijf, dan is dit de manier om hem alsnog naar Drive te
+    krijgen. De batch overslaan wat er al staat, dus herhalen kost niets.
+    """
+    verbose = kw.get("verbose", True)
+    resultaat = drive_upload.upload_naar_drive(out_dir, drive_map, **kw)
+    _zet_drive_urls_in_xlsx(os.path.join(out_dir, "herschreven.xlsx"),
+                            resultaat.get("urls") or {}, verbose=verbose)
+    return resultaat
+
+
+def _upload_na_batch(out_dir: str, drive_map: str | None, service, verbose: bool) -> None:
+    """De upload aan het eind van een batch, met een vangnet eromheen.
+
+    De artefacten staan op schijf en het sheet is geschreven voordat dit draait, dus een
+    kapotte Drive-verbinding kan hoogstens de upload kosten en nooit een batch die net een uur
+    aan API-calls heeft opgesoupeerd. De melding wijst naar de losse aanroep, want dat is wat
+    je daarna wilt doen.
+    """
+    if not drive_map:
+        return
+    try:
+        upload_naar_drive(out_dir, drive_map, service=service, verbose=verbose)
+    except Exception as fout:   # noqa: BLE001 -- de batch is af; dit is bijwerk
+        print(f"LET OP: uploaden naar Drive mislukt ({type(fout).__name__}: {fout}) -> "
+              f"de artefacten staan op schijf; draai "
+              f"rw.upload_naar_drive({out_dir!r}, {drive_map!r}) als je het opnieuw wilt.")
 
 
 def hergenereer_kopje_op_schijf(scored_path: str, source_path: str, training_id: Any,
@@ -3254,12 +3328,17 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
                  besluiten_path: str | None = None, start: int = 0,
                  limit: int | None = None, skip_herschreven: bool = True,
                  append: bool = True, skip_existing: bool = True, verbose: bool = True,
-                 alleen_ids=None):
+                 alleen_ids=None, drive_map: str | None = None):
     """Herschrijft de trainingen en schrijft de artefacten in `out_dir`.
 
     - trainingen/<id>.json   lossless: document + CMS-content + oordeel
     - trainingen/<id>.md     het leesbare document (kopstructuur van het template)
     - herschreven.xlsx       tabblad `cms` (id/name/content) + tabblad `review`
+
+    Met `drive_map` gaat alles wat er in `out_dir` ligt daarna als Google Doc naar een Drive-map
+    met die naam. Dat is bewust een synchronisatie van de héle map en niet van deze run: een
+    training die eerder wel is geschreven maar niet geüpload, valt buiten de wachtrij van de
+    volgende run en zou anders nooit meer langskomen.
     """
     import pandas as pd
     os.makedirs(out_dir, exist_ok=True)
@@ -3293,11 +3372,19 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
         bestaand_cms = vorige.get("cms")
         bestaand_review = vorige.get("review")
 
+    # Authenticeren vóór de eerste Claude-call: een verlopen token wil je weten voordat er een
+    # uur aan schrijf- en oordeelcalls in zit, niet erna.
+    drive_service = drive_upload.bouw_service() if drive_map else None
+
     if not len(gekozen):
-        # niets te doen: geen client openen en het bestaande sheet met rust laten
+        # Niets te herschrijven: geen client openen en het bestaande sheet met rust laten. De
+        # upload draait wél door -- dit is juist het geval waarin een eerdere run alles al
+        # heeft geschreven maar de upload strandde, en de wachtrij die trainingen niet meer
+        # aandraagt.
         for regel in _wachtrij_waarschuwingen(q, start, limit, alleen_ids):
             if not verbose:
                 print(regel)
+        _upload_na_batch(out_dir, drive_map, drive_service, verbose)
         return bestaand_review if bestaand_review is not None else pd.DataFrame()
 
     catalog = load_catalog()
@@ -3326,6 +3413,10 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
         content_bron = parse_content(src_row[cols["content"]])
         b = build_briefing(scored_dict, content_bron, naam, per_training.get(tid, []))
         res, content_uit = neem_over(b, client)
+        # Ook dit spoor legt zijn artefact vast. Tot deze ronde deed het dat niet, en dan
+        # bestaat een overgenomen training nergens op schijf: niet te inspecteren in sectie 7
+        # en niet te uploaden naar Drive, terwijl een reviewer hem net zo goed moet lezen.
+        schrijf_training_artefacten(json_dir, tid, res, content_uit)
         cms_records.append({"id": tid, "name": res.titel,
                             "content": json.dumps(content_uit, ensure_ascii=False, default=_json_default)})
         review_records.append(_review_rij(res, content_uit, content_bron))
@@ -3381,6 +3472,8 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
     if verbose:
         print(f"\nGeschreven: {out_path} — cms {len(cms)} rijen, review {len(review)} rijen; "
               f"JSON + markdown in {json_dir}/")
+
+    _upload_na_batch(out_dir, drive_map, drive_service, verbose)
     return review
 
 
@@ -3411,7 +3504,20 @@ def main():
                         "reviewer; herschrijft niets")
     p.add_argument("--geen-llm", action="store_true",
                    help="alleen bij --scan-modus: alleen de deterministische ondergrens")
+    p.add_argument("--drive-map", metavar="NAAM",
+                   help="upload de trainingen na afloop als Google Docs naar een Drive-map "
+                        "met deze naam")
+    # eigen modus: uploaden zonder te herschrijven, om een gestrande upload op te pakken of
+    # een batch van voor deze functie alsnog naar Drive te krijgen
+    p.add_argument("--alleen-uploaden", action="store_true",
+                   help="alleen bij --drive-map: upload wat er in --out-dir staat en "
+                        "herschrijf niets")
     a = p.parse_args()
+    if a.alleen_uploaden:
+        if not a.drive_map:
+            raise SystemExit("--alleen-uploaden vraagt om --drive-map.")
+        upload_naar_drive(a.out_dir, a.drive_map)
+        return
     if a.toon_wachtrij:
         # kijken kost niets: geen key, geen besluiten-sheet, geen bronsheet nodig
         toon_wachtrij(a.scored, a.out_dir, start=a.start, limit=a.limit,
@@ -3430,7 +3536,8 @@ def main():
     if not os.getenv("ANTHROPIC_API_KEY"):
         raise SystemExit("Zet ANTHROPIC_API_KEY (in een .env-bestand of je omgeving).")
     rewrite_file(a.scored, a.source, a.out_dir, besluiten_path=a.besluiten,
-                 start=a.start, limit=a.limit, append=not a.no_append, alleen_ids=a.ids)
+                 start=a.start, limit=a.limit, append=not a.no_append, alleen_ids=a.ids,
+                 drive_map=a.drive_map)
 
 
 if __name__ == "__main__":

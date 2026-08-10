@@ -33,10 +33,11 @@ het model.
 | `stijlregister_nl.md` | Wat je wél schrijft: registers, causale constructies, actieve werkwoorden, vergrotende trappen. Van de schrijfstijl-eigenaar. |
 | `besluiten.py` | De besluitenlaag: `actie_besluit` → expliciete doen/niet/mits per actie. |
 | `rewrite_checks.py` | Deterministische code-check: `Issue`-lijsten, hard-fail vs flag. |
-| `rewrite_output.py` | Document → CMS-`content`-JSON (HTML) en → markdown met kop 1/2/3. |
+| `rewrite_output.py` | Document → CMS-`content`-JSON (HTML), → markdown met kop 1/2/3, en → HTML voor Google Docs. |
+| `drive_upload.py` | De herschreven trainingen als opgemaakte Google Docs naar een map in Google Drive. |
 | `rewrite_trainings.py` | Hybride schrijver + orchestratie + I/O. |
 | `herschrijven.ipynb` | Notebook om de pijplijn stap voor stap te draaien en te inspecteren. |
-| `test_rewrite.py` | 236 offline tests (geen API-key nodig). |
+| `test_rewrite.py` | 266 offline tests (geen API-key nodig). |
 
 ## Setup
 
@@ -50,6 +51,10 @@ Zet je API-sleutel in een `.env` (of de omgeving):
 ```
 ANTHROPIC_API_KEY=...
 ```
+
+Wil je de output ook als Google Docs in Drive, zet dan `DRIVE_ROOT_ID` erbij; zie
+"2b. Naar Google Drive" verderop. Zonder die stap raakt de pijplijn Google niet aan.
+`.env.example` staat model voor beide.
 
 Eenmalig, per checkout: zorg dat `herschrijven.ipynb` nooit met celuitvoer wordt gecommit.
 Celuitvoer bevat echte trainingsdata (id's, titels, batchstatussen) en die hoort net zomin in
@@ -221,9 +226,60 @@ huidige regels" precies de vraag die bepaalt wie er een `stijl`-ronde in moet �
 dat een filter, zonder is het een gok op bestandsdatums.
 
 Trainingen op modus `overnemen` worden **niet** herschreven maar wél doorgezet (status
-`overgenomen`), zodat `herschreven.xlsx` één compleet CMS-document is. Het scoresheet bepaalt wat
-erin hoort. De run **hervat** verder standaard: wat al in `herschreven.xlsx` staat wordt
-overgeslagen. Gebruik `--no-append` om te overschrijven.
+`overgenomen`), zodat `herschreven.xlsx` één compleet CMS-document is. Ook zij krijgen hun
+`trainingen/<id>.json`; alleen geen `.md`, want `neem_over` levert geen document. Het scoresheet
+bepaalt wat erin hoort. De run **hervat** verder standaard: wat al in `herschreven.xlsx` staat
+wordt overgeslagen. Gebruik `--no-append` om te overschrijven.
+
+### 2b. Naar Google Drive, één doc per training
+
+Het reviewen gebeurt in Google Docs, en de weg ernaartoe was handwerk: per training de markdown
+kopiëren naar een leeg document. Met `--drive-map` (of `DRIVE_MAP` in het notebook) doet de
+pijplijn dat zelf.
+
+```bash
+# als onderdeel van de batch
+python rewrite_trainings.py --scored ... --source ... --besluiten besluiten.xlsx \
+  --drive-map "batch 2026-08-10"
+
+# of los, over een map die er al staat
+python rewrite_trainings.py --alleen-uploaden --drive-map "batch 2026-08-10" \
+  --out-dir herschreven --scored scoresheet.xlsx
+```
+
+Elk doc heet `{id} - {titel} (automatisch herschreven)`. Drive converteert de HTML uit
+`render_docs_html` bij het uploaden naar een echt Google Doc, dus de koppen komen in de
+documentoverzicht-zijbalk en de modules houden hun sub-bullets. De links belanden in de kolom
+`drive_url` van het review-tabblad.
+
+Vier dingen die de vorm bepalen:
+
+- **het is een synchronisatie van `--out-dir`, geen verzendlijst van deze run.** De wachtrij
+  slaat over wat al in `herschreven.xlsx` staat, dus een training die eerder wel werd geschreven
+  maar niet geüpload zou anders nooit meer langskomen. Om dezelfde reden draait de upload door
+  als de wachtrij leeg is;
+- **wat er al staat blijft staan.** Een reviewer zet opmerkingen in een doc, en die raken hun
+  ankers kwijt zodra de inhoud eronder wordt vervangen. Is de tekst sinds de upload veranderd,
+  dan meldt de lus dat; met `bij_bestaand="nieuwe_versie"` werk je alsnog bij;
+- **één mislukte upload stopt de rest niet**, en de geslaagde staan in `drive_uploads.json`.
+  Dezelfde aanroep opnieuw draaien pakt alleen op wat er nog niet is;
+- **de upload hangt achter de batch, met een vangnet.** De artefacten en het sheet staan dan al
+  op schijf, dus een kapot token kost hoogstens de upload. Authenticeren gebeurt juist vooraf,
+  vóór de eerste Claude-call, om precies die reden omgekeerd.
+
+**Eenmalig inrichten.** In de Google Cloud Console: project kiezen, **Google Drive API** aanzetten,
+onder Google Auth Platform de scope `.../auth/drive.file` toevoegen (die staat onder
+Non-sensitive) en een OAuth-client van het type **Desktop app** aanmaken. De JSON komt als
+`google_client_secret.json` naast het notebook te staan. Staat het project buiten de
+eduvision.nl-Workspace, publiceer de app dan (Audience → Publish app): een app die in "Testing"
+blijft, laat zijn refresh-token elke 7 dagen verlopen.
+
+Bij de eerste run opent er een browservenster; daarna staat er een `google_token.json` (0600) en
+draait alles zonder tussenkomst. De code maakt zelf een map `Herschreven trainingen` in Mijn
+Drive en print de id voor `DRIVE_ROOT_ID` in `.env`. Dat de app haar eigen rootmap maakt is geen
+gemak maar een gevolg van de scope: `drive.file` geeft toegang tot uitsluitend wat de app zelf
+aanmaakt, en een bestaande map van de gebruiker als `parents` geeft een 404. De ruimere scope
+`drive` is bij Google *restricted* en kost een jaarlijks betaald assessment.
 
 ## De mate van aanpassing
 

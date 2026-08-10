@@ -12,7 +12,9 @@ splitsing van `actie_besluit` en de uitlijning met `actualiteit_actie`.
 
 from __future__ import annotations
 
+import contextlib
 import copy
+import io
 import json
 import os
 import re
@@ -20,6 +22,7 @@ import tempfile
 from types import SimpleNamespace
 
 import besluiten as bes
+import drive_upload as drive
 import rewrite_checks as checks
 import rewrite_output as uit
 import rewrite_trainings as rw
@@ -1527,6 +1530,58 @@ def test_markdown_heeft_kop_1_2_en_3():
 
 
 # ---------------------------------------------------------------------------
+# Document -> HTML voor Google Docs
+# ---------------------------------------------------------------------------
+
+def test_docs_html_heeft_een_h1_en_tien_h2_koppen():
+    """De koppen zijn de winst: Drive maakt er de documentoverzicht-zijbalk van."""
+    doc = uit.render_docs_html(uit.document_to_content(_document(), {}), "Cursus XML")
+    assert "<h1>Cursus XML</h1>" in doc
+    for kopje in sjabloon.KOPJES:
+        assert f"<h2>{kopje.kop}</h2>" in doc, kopje.kop
+    assert doc.count("<h2>") == len(sjabloon.KOPJES)
+    # zelfde kop 3 als in de markdown, uit `render_inleiding`
+    assert f"<h3>{sjabloon.BEDRIJFSTRAINING_KOP}</h3>" in doc
+
+
+def test_docs_html_zet_utf8_meta_in_de_kop():
+    """Zonder deze meta gokt de importer latin-1 en gaat elke e-umlaut stuk."""
+    doc = uit.render_docs_html(_content(), "Training Data")
+    assert doc.startswith('<html><head><meta charset="utf-8">')
+    assert doc.endswith("</body></html>")
+
+
+def test_docs_html_zet_platte_kopjes_in_paragrafen():
+    """`summary` en `summary_edudex` staan als platte tekst in het CMS (Kopje.html is False)."""
+    content = _content(summary="Eerste zin.\n\nTweede zin.", summary_edudex="Kort.")
+    doc = uit.render_docs_html(content, "Training Data")
+    assert "<p>Eerste zin.</p><p>Tweede zin.</p>" in doc
+    assert "<p>Kort.</p>" in doc
+
+
+def test_docs_html_laat_geneste_bullets_uit_modules_intact():
+    """De sub-bullets zijn de reden om HTML te uploaden en geen platte tekst."""
+    doc = uit.render_docs_html(_content(), "Training Data")
+    assert "<li>Module een<ul><li>Punt a</li>" in doc
+
+
+def test_docs_html_rendert_ook_een_overgenomen_training():
+    """`neem_over` levert geen document, alleen content -- die trainingen moeten mee."""
+    b = _briefing(modus_reviewer="overnemen", huidige_content=_content())
+    res, content = rw.neem_over(b)
+    assert not res.document, "vertrekpunt van deze test: het overnemen-spoor heeft geen document"
+    doc = uit.render_docs_html(content, res.titel)
+    for kopje in sjabloon.KOPJES:
+        assert f"<h2>{kopje.kop}</h2>" in doc, kopje.kop
+
+
+def test_docs_html_geeft_een_leeg_kopje_toch_zijn_kop():
+    """Een reviewer moet kunnen zien dat er niets staat, niet dat het kopje ontbreekt."""
+    doc = uit.render_docs_html(_content(follow_up=""), "Training Data")
+    assert "<h2>Vervolgstappen</h2><hr>" in doc
+
+
+# ---------------------------------------------------------------------------
 # Artefacten op schijf: <id>.json + <id>.md
 # ---------------------------------------------------------------------------
 
@@ -1555,6 +1610,22 @@ def test_zonder_document_geen_markdown_en_een_oude_md_gaat_weg():
         paden = rw.schrijf_training_artefacten(d, 5, res, {})
         assert paden["md"] is None
         assert os.listdir(d) == ["5.json"]
+
+
+def test_overgenomen_training_landt_als_artefact_op_schijf():
+    """Zonder dit bestaat een overgenomen training nergens op schijf, en mist hij op Drive.
+
+    `neem_over` levert geen document, dus er komt geen .md -- maar wel de JSON met `content`,
+    en dat is waar zowel sectie 7 als de doc-renderer op draait.
+    """
+    b = _briefing(modus_reviewer="overnemen", huidige_content=_content())
+    res, content = rw.neem_over(b)
+    with tempfile.TemporaryDirectory() as d:
+        paden = rw.schrijf_training_artefacten(os.path.join(d, "trainingen"), 1, res, content)
+        assert paden["md"] is None
+        gevonden = drive.verzamel_uit_map(d)
+    assert [t["training_id"] for t in gevonden] == [1]
+    assert gevonden[0]["status"] == rw.OVERGENOMEN
 
 
 def test_json_default_zet_numpy_scalars_om():
@@ -2945,6 +3016,318 @@ def test_start_voorbij_het_einde_waarschuwt_in_plaats_van_stil_niets_te_doen():
         assert not q["geselecteerd"].any()
         melding = " ".join(rw._wachtrij_waarschuwingen(q, 5, None, None))
         assert "START=5" in melding and "1 trainingen" in melding, melding
+
+
+# ---------------------------------------------------------------------------
+# Upload naar Google Drive
+# ---------------------------------------------------------------------------
+
+class _DriveFout(Exception):
+    """Staat voor een HttpError; die klasse importeren zou googleapiclient vereisen."""
+
+
+def _fake_drive(bestaand=(), faal_op=()):
+    """Een Drive-service zonder netwerk, in hetzelfde SimpleNamespace-idioom als de fake client.
+
+    `bestaand` zijn de files die `files().list` teruggeeft (op naam gefilterd), `faal_op` de
+    namen waarop `create` een fout gooit -- nodig om te laten zien dat één mislukte upload de
+    rest van de batch niet meeneemt.
+    """
+    gemaakt, vervangen = [], []
+
+    def _list(**kw):
+        naam = kw.get("q", "")
+        treffers = [f for f in bestaand if f"name = '{f['name']}'" in naam]
+        return SimpleNamespace(execute=lambda **_: {"files": treffers})
+
+    def _create(**kw):
+        naam = kw["body"]["name"]
+        if naam in faal_op:
+            raise _DriveFout(f"503 op {naam}")
+        gemaakt.append(kw)
+        fid = f"f{len(gemaakt)}"
+        return SimpleNamespace(execute=lambda **_: {
+            "id": fid, "name": naam, "webViewLink": f"https://docs.google.com/d/{fid}"})
+
+    def _update(**kw):
+        vervangen.append(kw)
+        return SimpleNamespace(execute=lambda **_: {
+            "id": kw["fileId"], "name": "", "webViewLink": f"https://docs.google.com/d/{kw['fileId']}"})
+
+    files = SimpleNamespace(list=_list, create=_create, update=_update)
+    return SimpleNamespace(files=lambda: files, gemaakt=gemaakt, vervangen=vervangen)
+
+
+def _artefact(d, tid, titel="Training Data", **overrides):
+    """Eén <id>.json op schijf, zoals `schrijf_training_artefacten` hem wegschrijft."""
+    os.makedirs(os.path.join(d, "trainingen"), exist_ok=True)
+    data = {"training_id": tid, "titel": titel, "status": rw.APPROVED,
+            "content": _content(), **overrides}
+    with open(os.path.join(d, "trainingen", f"{tid}.json"), "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False)
+    return data
+
+
+def test_docnaam_volgt_het_afgesproken_format():
+    assert drive.docnaam(2347, "Training Big Data") == \
+        "2347 - Training Big Data (automatisch herschreven)"
+
+
+def test_docnaam_klapt_witruimte_in_de_titel_in():
+    """Een regeleinde in de titel maakt een Drive-naam die je in de lijst niet meer leest."""
+    assert drive.docnaam(27, "Training\nSQL  Basis") == \
+        "27 - Training SQL Basis (automatisch herschreven)"
+
+
+def test_upload_zet_de_conversie_mimetype_op_google_docs():
+    """Doelformaat in de body, bronformaat in de media: dat verschil is de hele conversie."""
+    service = _fake_drive()
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 2347)
+        drive.upload_naar_drive(d, "batch 1", service=service, root_id="root", verbose=False)
+    docs = [c for c in service.gemaakt if c["body"]["mimeType"] == drive.DOC_MIME]
+    assert len(docs) == 1, service.gemaakt
+    assert docs[0]["body"]["name"] == "2347 - Training Data (automatisch herschreven)"
+    assert docs[0]["media_body"].mimetype() == "text/html"
+    assert docs[0]["fields"] == "id,name,webViewLink"
+
+
+def test_upload_maakt_de_batchmap_onder_de_rootmap():
+    service = _fake_drive()
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 2347)
+        res = drive.upload_naar_drive(d, "batch 1", service=service, root_id="root",
+                                      verbose=False)
+    mappen = [c for c in service.gemaakt if c["body"]["mimeType"] == drive.MAP_MIME]
+    assert len(mappen) == 1, mappen
+    assert mappen[0]["body"]["name"] == "batch 1" and mappen[0]["body"]["parents"] == ["root"]
+    # de docs komen in de batchmap terecht, niet los in de rootmap
+    docs = [c for c in service.gemaakt if c["body"]["mimeType"] == drive.DOC_MIME]
+    assert docs[0]["body"]["parents"] == [res["map_id"]] != ["root"]
+
+
+def test_batchmap_wordt_hergebruikt_in_plaats_van_opnieuw_aangemaakt():
+    """Drive staat twee mappen met dezelfde naam toe; zonder zoektocht groeit de Drive vol."""
+    service = _fake_drive(bestaand=[{"id": "m1", "name": "batch 1",
+                                     "webViewLink": "https://drive/m1"}])
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 2347)
+        res = drive.upload_naar_drive(d, "batch 1", service=service, root_id="root",
+                                      verbose=False)
+    assert res["map_id"] == "m1"
+    assert not [c for c in service.gemaakt if c["body"]["mimeType"] == drive.MAP_MIME]
+
+
+def test_upload_slaat_een_training_over_die_al_in_het_manifest_staat():
+    service = _fake_drive()
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 2347)
+        eerst = drive.upload_naar_drive(d, "batch 1", service=service, root_id="root",
+                                        verbose=False)
+        opnieuw = drive.upload_naar_drive(d, "batch 1", service=service, root_id="root",
+                                          verbose=False)
+    assert eerst["nieuw"] == [2347] and opnieuw["nieuw"] == []
+    assert opnieuw["overgeslagen"] == [2347]
+    assert opnieuw["urls"][2347] == eerst["urls"][2347]
+    assert len([c for c in service.gemaakt if c["body"]["mimeType"] == drive.DOC_MIME]) == 1
+
+
+def test_upload_vindt_een_bestaand_doc_op_naam_als_het_manifest_weg_is():
+    """Anders levert een weggegooid manifest een tweede doc naast het eerste op."""
+    naam = drive.docnaam(2347, "Training Data")
+    service = _fake_drive(bestaand=[{"id": "d9", "name": naam, "webViewLink": "https://docs/d9"}])
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 2347)
+        res = drive.upload_naar_drive(d, "batch 1", service=service, root_id="root",
+                                      verbose=False)
+    assert res["overgeslagen"] == [2347] and res["urls"][2347] == "https://docs/d9"
+    assert not [c for c in service.gemaakt if c["body"]["mimeType"] == drive.DOC_MIME]
+
+
+def test_upload_meldt_gewijzigde_tekst_in_plaats_van_stil_over_te_slaan():
+    service = _fake_drive()
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 2347)
+        drive.upload_naar_drive(d, "batch 1", service=service, root_id="root", verbose=False)
+        _artefact(d, 2347, content=_content(summary="Een heel andere samenvatting."))
+        uitvoer = io.StringIO()
+        with contextlib.redirect_stdout(uitvoer):
+            drive.upload_naar_drive(d, "batch 1", service=service, root_id="root")
+    assert "de tekst is gewijzigd" in uitvoer.getvalue(), uitvoer.getvalue()
+
+
+def test_nieuwe_versie_werkt_het_bestaande_doc_bij():
+    service = _fake_drive()
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 2347)
+        drive.upload_naar_drive(d, "batch 1", service=service, root_id="root", verbose=False)
+        res = drive.upload_naar_drive(d, "batch 1", service=service, root_id="root",
+                                      bij_bestaand="nieuwe_versie", verbose=False)
+    assert res["nieuw"] == [2347]
+    assert [c["fileId"] for c in service.vervangen] == ["f2"]
+
+
+def test_een_mislukte_upload_stopt_de_rest_van_de_batch_niet():
+    faal = drive.docnaam(2, "Training Data")
+    service = _fake_drive(faal_op=[faal])
+    with tempfile.TemporaryDirectory() as d:
+        for tid in (1, 2, 3):
+            _artefact(d, tid)
+        uitvoer = io.StringIO()
+        with contextlib.redirect_stdout(uitvoer):
+            res = drive.upload_naar_drive(d, "batch 1", service=service, root_id="root",
+                                          verbose=False)
+        # het manifest houdt de geslaagde vast, zodat een herdraai alleen de rest oppakt
+        manifest = drive.lees_manifest(d)
+    assert res["nieuw"] == [1, 3] and res["mislukt"] == [2]
+    assert sorted(manifest["docs"]) == ["1", "3"]
+    assert "upload mislukt" in uitvoer.getvalue()
+
+
+def test_verzamel_uit_map_slaat_een_artefact_zonder_content_over():
+    """Een leeg doc ziet een reviewer aan voor werk dat af is."""
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 1)
+        _artefact(d, 2, status="error", content={})
+        gevonden = drive.verzamel_uit_map(d)
+    assert [t["training_id"] for t in gevonden] == [1]
+
+
+def test_verzamel_uit_map_respecteert_alleen_ids():
+    with tempfile.TemporaryDirectory() as d:
+        for tid in (1, 2, 3):
+            _artefact(d, tid)
+        assert [t["training_id"] for t in drive.verzamel_uit_map(d, [3, 1])] == [1, 3]
+
+
+def test_verzamel_uit_map_sorteert_numeriek():
+    """Op bestandsnaam zou 27 tussen 2669 en 2725 belanden."""
+    with tempfile.TemporaryDirectory() as d:
+        for tid in (2725, 27, 2669):
+            _artefact(d, tid)
+        assert [t["training_id"] for t in drive.verzamel_uit_map(d)] == [27, 2669, 2725]
+
+
+def test_upload_weigert_een_lege_mapnaam():
+    """Zonder mapnaam belandt de hele batch los in de rootmap; dat is niet terug te draaien."""
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 1)
+        for leeg in ("", "   "):
+            try:
+                drive.upload_naar_drive(d, leeg, service=_fake_drive(), root_id="root")
+                assert False, f"lege mapnaam {leeg!r} werd geaccepteerd"
+            except ValueError:
+                pass
+
+
+def _herschreven_xlsx(pad, ids, extra=None):
+    """Een `herschreven.xlsx` met alleen de kolommen die `_zet_drive_urls_in_xlsx` aanraakt."""
+    import pandas as pd
+    review = pd.DataFrame([{"training_id": t, "titel": f"T{t}", "brontekst": "x",
+                            **(extra or {})} for t in ids])
+    with pd.ExcelWriter(pad) as writer:
+        pd.DataFrame([{"id": t, "name": f"T{t}", "content": "{}"} for t in ids]).to_excel(
+            writer, sheet_name="cms", index=False)
+        review.to_excel(writer, sheet_name="review", index=False)
+
+
+def test_drive_url_komt_als_laatste_kolom_in_het_reviewblad():
+    """Het plakblok van het gedeelde sheet ligt vast; wat wij erbij verzinnen komt erachter."""
+    import pandas as pd
+    with tempfile.TemporaryDirectory() as d:
+        pad = os.path.join(d, "herschreven.xlsx")
+        _herschreven_xlsx(pad, [1, 2])
+        rw._zet_drive_urls_in_xlsx(pad, {1: "https://docs/a"}, verbose=False)
+        review = pd.read_excel(pad, sheet_name="review")
+    assert list(review.columns)[-1] == "drive_url"
+    assert list(review["drive_url"].fillna("")) == ["https://docs/a", ""]
+
+
+def test_een_deelupload_wist_geen_bestaande_drive_links():
+    """Batch 2 uploadt niet wat in batch 1 al stond; die links moeten blijven staan."""
+    import pandas as pd
+    with tempfile.TemporaryDirectory() as d:
+        pad = os.path.join(d, "herschreven.xlsx")
+        _herschreven_xlsx(pad, [1, 2], extra={"drive_url": ""})
+        rw._zet_drive_urls_in_xlsx(pad, {1: "https://docs/a"}, verbose=False)
+        rw._zet_drive_urls_in_xlsx(pad, {2: "https://docs/b"}, verbose=False)
+        review = pd.read_excel(pad, sheet_name="review")
+    assert list(review["drive_url"]) == ["https://docs/a", "https://docs/b"]
+
+
+def test_een_lege_drive_url_blijft_leeg_en_wordt_geen_nan():
+    """Een lege cel komt uit Excel terug als NaN, en NaN is truthy -- vandaar `_cel`.
+
+    Uitgelezen met openpyxl en niet met pandas: `read_excel` maakt van de tekst "nan" opnieuw
+    een NaN, en dan is de fout precies zo onzichtbaar als in het sheet zelf niet.
+    """
+    import openpyxl
+    with tempfile.TemporaryDirectory() as d:
+        pad = os.path.join(d, "herschreven.xlsx")
+        _herschreven_xlsx(pad, [1, 2], extra={"drive_url": ""})
+        rw._zet_drive_urls_in_xlsx(pad, {1: "https://docs/a"}, verbose=False)
+        blad = openpyxl.load_workbook(pad)["review"]
+        cellen = [str(c.value) for c in blad["A"][1:]]   # training_id, zonder de kopregel
+        kolom = [k for k, c in enumerate(blad[1], start=1) if c.value == "drive_url"][0]
+        waarden = [blad.cell(row=r + 2, column=kolom).value for r in range(len(cellen))]
+    assert "nan" not in [str(w) for w in waarden], waarden
+    assert waarden[0] == "https://docs/a" and not (waarden[1] or "")
+
+
+def test_drive_urls_laten_het_cms_tabblad_ongemoeid():
+    """Het cms-tabblad gaat rechtstreeks het CMS in; daar hoort geen reviewkolom in."""
+    import pandas as pd
+    with tempfile.TemporaryDirectory() as d:
+        pad = os.path.join(d, "herschreven.xlsx")
+        _herschreven_xlsx(pad, [1])
+        rw._zet_drive_urls_in_xlsx(pad, {1: "https://docs/a"}, verbose=False)
+        bladen = pd.read_excel(pad, sheet_name=None)
+    assert sorted(bladen) == ["cms", "review"]
+    assert list(bladen["cms"].columns) == ["id", "name", "content"]
+
+
+def test_wrapper_zet_de_links_in_het_sheet_na_de_upload():
+    """De uploadmodule kent geen pandas; deze schil is de enige plek waar het sheet bijkomt."""
+    import pandas as pd
+    service = _fake_drive()
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 1)
+        _herschreven_xlsx(os.path.join(d, "herschreven.xlsx"), [1])
+        rw.upload_naar_drive(d, "batch 1", service=service, root_id="root", verbose=False)
+        review = pd.read_excel(os.path.join(d, "herschreven.xlsx"), sheet_name="review")
+    assert review["drive_url"][0].startswith("https://docs.google.com/d/")
+
+
+def test_zonder_drive_map_raakt_de_batch_drive_niet():
+    """Geen mapnaam = geen OAuth, geen manifest, geen enkele call. De default blijft offline."""
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 1)
+        rw._upload_na_batch(d, None, None, False)
+        rw._upload_na_batch(d, "", None, False)
+        assert not os.path.exists(drive.manifest_pad(d))
+
+
+def test_een_kapotte_upload_sloopt_een_geslaagde_batch_niet():
+    """De artefacten staan al op schijf; de melding moet naar de losse aanroep wijzen."""
+    class _StukService:
+        def files(self):
+            raise RuntimeError("token verlopen")
+
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 1)
+        uitvoer = io.StringIO()
+        with contextlib.redirect_stdout(uitvoer):
+            rw._upload_na_batch(d, "batch 1", _StukService(), False)
+    assert "uploaden naar Drive mislukt" in uitvoer.getvalue()
+    assert "rw.upload_naar_drive(" in uitvoer.getvalue(), uitvoer.getvalue()
+
+
+def test_manifest_wordt_atomisch_geschreven():
+    """Halveert het schrijven, dan uploadt de volgende run alles opnieuw."""
+    with tempfile.TemporaryDirectory() as d:
+        drive.schrijf_manifest(d, {"root_id": "r", "mappen": {}, "docs": {}})
+        assert not [f for f in os.listdir(d) if f.endswith(".tmp")]
+        assert drive.lees_manifest(d)["root_id"] == "r"
 
 
 # ---------------------------------------------------------------------------

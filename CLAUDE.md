@@ -24,7 +24,7 @@ een rij in `herschreven.xlsx`.
 ## Commando's
 
 ```bash
-python test_rewrite.py                      # 236 offline tests, geen API-key nodig
+python test_rewrite.py                      # 266 offline tests, geen API-key nodig
 python -c "import test_rewrite as t; t.test_em_dash_is_hard_in_elk_schrijversveld()"   # één test
 python bouw_goud_v2.py                      # terugval-few-shot; nodig na een verse checkout
 
@@ -33,6 +33,9 @@ python rewrite_trainings.py --scored SHEET.xlsx --source BRON.xlsx --besluiten b
 python rewrite_trainings.py --toon-wachtrij --scored SHEET.xlsx   # wie draait er? geen calls
 python rewrite_trainings.py --scan-modus UIT.xlsx --scored SHEET.xlsx --source BRON.xlsx
 python rewrite_trainings.py --goud --source BRON.xlsx --out-dir herschreven
+
+# de output als Google Docs naar Drive; --alleen-uploaden herschrijft niets
+python rewrite_trainings.py --alleen-uploaden --drive-map "batch 3" --out-dir herschreven
 ```
 
 De testrunner is met de hand geschreven (onderaan `test_rewrite.py`); pytest werkt ook maar
@@ -49,13 +52,16 @@ voorbeeldmateriaal en geen data.
 | `sjabloon.py` | Het template als code. **Enige** plek voor vaste teksten en kopstructuur. Importeert niets uit het project. |
 | `rewrite_checks.py` | Deterministische checks → `Issue`-lijsten, HARD of FLAG. Importeert bewust **niets** uit het project, ook `sjabloon` niet. |
 | `rewrite_output.py` | Document → CMS-`content` (HTML) en → markdown. Pure renderer; kent alleen `sjabloon`. |
+| `drive_upload.py` | De herschreven trainingen als Google Docs naar Drive. Kent geen pandas en geen xlsx. |
 | `rewrite_trainings.py` | ~3000 regels: catalogus, briefing, prompts, writer/judge-calls, moduskeuze, goud, batch-I/O, CLI. |
 | `besluiten.py` | De reviewerlaag: `actie_besluit` → doen/niet/mits per actualisering. |
 | `bouw_goud_v2.py` | Bouwt de vier handmatig gerepareerde `v2_*`-voorbeelden. Terugvaloptie. |
 
-De importrichting is eenrichtingsverkeer: `sjabloon` ← `rewrite_output` ← `rewrite_trainings`,
-met `rewrite_checks` los ernaast. Doorbreek dat niet. Waar een getal in beide werelden nodig is
-(zoals `MIN_TITELS_PER_GROEP`) staat er een kopie in `rewrite_checks` met een verwijzing.
+De importrichting is eenrichtingsverkeer:
+`sjabloon` ← `rewrite_output` ← `drive_upload` ← `rewrite_trainings`, met `rewrite_checks` los
+ernaast. Doorbreek dat niet. Waar iets in beide werelden nodig is (zoals
+`MIN_TITELS_PER_GROEP`, en `_schrijf_atomisch` voor het Drive-manifest) staat er een kopie met
+een verwijzing naar het origineel; dat is goedkoper dan de richting omdraaien.
 
 ### HARD versus FLAG
 
@@ -222,6 +228,36 @@ die band heeft dus geen voorbeeld. Komt er een, dan is dat de eerste kandidaat.
 demonstreren die de check net had moeten vangen, en dat legde drie gaten bloot (`\w` matcht geen
 koppelteken; het bezit kan een naamwoord verderop staan). Zelfde les als de 173 em-dashes: wat de
 schrijver in zijn context ziet, schrijft hij ook.
+
+### De Drive-upload is een synchronisatie, geen verzendlijst
+
+`upload_naar_drive()` leest `herschreven/trainingen/*.json` en zet daar Google Docs van in een
+map per batch. De invoer is dus de **map**, niet "wat deze run schreef", en dat is geen detail:
+`bouw_wachtrij` slaat over wat al in `herschreven.xlsx` staat, dus een training die in run 1 wel
+werd geschreven maar niet geüpload, komt in run 2 niet meer langs en zou nooit op Drive belanden.
+Om dezelfde reden draait de upload ook door als de wachtrij leeg is.
+
+Vier dingen die je niet uit de code afleidt:
+
+- **het `overnemen`-spoor schrijft sindsdien ook zijn `<id>.json`.** Dat deed het niet, en die
+  trainingen bestonden daardoor nergens op schijf. `neem_over` levert geen `document`, dus er
+  komt geen `.md`; de doc-renderer draait daarom op `content` en niet op het document;
+- **`bij_bestaand="overslaan"` is de default en dat is een reviewbesluit, geen voorzichtigheid.**
+  `files.update` behoudt de opmerkingen van een reviewer wel, maar niet hun ankers. Een verouderd
+  doc is minder erg dan commentaar dat nergens meer op slaat. Wijkt de sha256 af, dan meldt de
+  lus dat in plaats van stil over te slaan;
+- **scope `drive.file`, en de app maakt haar eigen rootmap.** `drive` is bij Google een
+  *restricted* scope en kost bij een External app een jaarlijks betaald assessment. De prijs van
+  `drive.file` is dat een bestaande map van de gebruiker als `parents` een 404 geeft -- vandaar
+  `zorg_voor_rootmap`. De id gaat daarna in `.env` als `DRIVE_ROOT_ID`;
+- **de google-imports staan in de functies**, zodat `test_rewrite.py` de module kan importeren
+  zonder die packages. Alleen `upload_doc` heeft `googleapiclient` echt nodig; de tests raken die
+  wel, want de fake-service geeft het `MediaIoBaseUpload`-object terug dat ze inspecteren.
+
+De upload hangt aan het eind van `rewrite_file` in een `try/except`: de artefacten en het sheet
+staan dan al op schijf, dus een kapot token kost hoogstens de upload en nooit een batch die net
+een uur aan API-calls heeft gekost. Authenticeren gebeurt wél vooraf, vóór `make_client()`, om
+precies die reden omgekeerd.
 
 ### Wat er per training wordt vastgelegd
 

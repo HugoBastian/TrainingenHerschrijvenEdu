@@ -3,6 +3,11 @@
 .env.*
 !.env.example
 
+# Google Drive: de OAuth-client en het token (dat laatste bevat een refresh-token)
+google_client_secret.json
+google_token.json
+*client_secret*.json
+
 # Python
 __pycache__/
 *.py[cod]
