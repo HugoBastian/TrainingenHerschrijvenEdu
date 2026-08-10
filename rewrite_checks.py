@@ -27,7 +27,8 @@ pas buiten de vangrail een HARD-FAIL. Zie "Lengtebanden" verderop. De 200 tekens
 Kortste omschrijving zijn de uitzondering -- die grens komt van Edudex en is wél hard.
 
 Context `ctx` (optioneel):
-    { "catalog_titles": {"Titel A", ...}, "naam": "Trainingsnaam", "dagen": 3 }
+    { "catalog_titles": {"Titel A", ...}, "naam": "Trainingsnaam", "dagen": 3,
+      "acties": ["refresh: benoem ...", ...] }   # de goedgekeurde actualiseringen, kaal
 
 Gebruik:
     issues = check_rewrite(rewrite, ctx)
@@ -1082,6 +1083,120 @@ def check_soortwoorden(rw: dict) -> list[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Actualiseringen: uitgevoerd op het niveau van hun eigen werkwoord?
+# ---------------------------------------------------------------------------
+
+# Kopieën van wat `besluiten.py` en de scorer weten; deze module importeert bewust niets uit
+# het project. `refresh:` en `BESLISSING NODIG:` zijn de twee prefixen die
+# `score_trainings.actie_voor_rewriter` wegschrijft.
+_ACTIE_PREFIX_RE = re.compile(r"^\s*(?:refresh|BESLISSING NODIG)\s*:\s*", re.I)
+
+# De onderste trede van de werkwoordladder (schrijfspec Sectie 12). Alleen hierop vuurt deze
+# check: bij "behandel"/"voeg toe"/"vervang" is een leeractiviteit juist de bedoeling.
+_NOEM_WERKWOORD_RE = re.compile(r"^(?:benoem|noem|vermeld|verwijs naar)\b", re.I)
+
+# Een term uit de actietekst: een acroniem (SOAR, RLS, DORA), een merknaam of CamelCase
+# (PostgreSQL, CloudWatch, Tableau), of een reeks daarvan (SQL Server, Row Level Security,
+# ISO/IEC 27002:2022).
+_ACTIE_TERM_RE = re.compile(r"\b[A-Z][A-Za-z0-9]*(?:[-/:][A-Za-z0-9]+)*"
+                            r"(?: [A-Z][A-Za-z0-9]*(?:[-/:][A-Za-z0-9]+)*)*")
+
+# Woorden die met een hoofdletter beginnen omdat ze vooraan de zin staan, niet omdat het
+# termen zijn. Zonder deze lijst wordt "Benoem" zelf een term.
+_ACTIE_TERM_STOP = {
+    "benoem", "noem", "vermeld", "verwijs", "refresh", "beslissing", "nodig", "training",
+    "trainingen", "de", "het", "een", "en", "of", "als", "bij", "in", "op", "naar", "voor",
+    "van", "met", "dat", "die", "deze", "dit", "expliciet", "concrete", "moderne", "kort",
+}
+
+# De bovenste trede: de deelnemer doet er iets mee. Bewust alleen vormen met "je" als
+# onderwerp, want "van toepassing" is een idioom en geen leeractiviteit -- dat leverde in de
+# meting een vals-positief op ("de wetgeving is volledig van toepassing").
+_TOEPASSEN_RE = re.compile(
+    r"\b(?:pas(?:t)? je\b[^.]{0,40}?\btoe"
+    r"|je (?:past|toepast)\b[^.]{0,40}?\btoe"
+    r"|(?:werk|bouw|oefen|configureer|implementeer|schrijf|ontwerp|beheer|test) je\b"
+    r"|je (?:werkt|bouwt|oefent|configureert|implementeert|schrijft|ontwerpt|beheert|test)\b"
+    r"|richt je\b[^.]{0,30}?\bin\b"
+    r"|aan de slag met\b"
+    r"|toepassen op\b)", re.I)
+
+
+def check_actie_escalatie(rw: dict, ctx: dict | None = None) -> list[Issue]:
+    """Een "benoem"-actie die een leeractiviteit is geworden. FLAG.
+
+    Uit training 27 (SQL). De actie luidde "refresh: benoem concrete SQL-platformen (bv.
+    PostgreSQL, SQL Server, cloud data warehouses) als context bij de training"; de schrijver
+    maakte er "De SQL die je leert, pas je direct toe op verschillende platformen, van
+    PostgreSQL en SQL Server tot cloud data warehouses" van. De reviewer-voorwaarde was
+    gerespecteerd, het werkwoord niet: die platformen komen in de training niet voor. De judge
+    liet het door, want zijn spec verbood hem toen om een passage uit een goedgekeurde actie af
+    te rekenen als te hoge belofte.
+
+    Geen randgeval: 11 van de 16 trainingen met output hebben minstens één goedgekeurde
+    noem-actie. Gemeten over datzelfde corpus vuurt deze check op 1 van de 16, en dat is 27.
+    Zonder het frequentiefilter hieronder zijn het er 3, waarvan 2 vals: 2660 ("noem OLS
+    expliciet naast RLS" in een training die Power BI Security héét) en 2669, waar de term uit
+    de actie de bestaande inhoud aanduidt en niet de toevoeging ("... als aanvulling op de
+    klassieke ML-algoritmen").
+
+    Het frequentiefilter heeft een blinde vlek die je moet kennen: een schrijver die een
+    genoemde term door de héle training weeft, komt er juist door de herhaling onderuit. Dat is
+    bewust. Deze check is een smal net voor de fout die niemand ziet -- één zin die een
+    vermelding tot een belofte maakt -- en niet voor een onderwerp dat overal opduikt; dat
+    laatste ziet de judge, en een mens ook.
+
+    FLAG en geen HARD, om dezelfde reden als `check_reikwijdte`: code kan niet beslissen of
+    "je werkt met X" hier noemen of behandelen is -- daarvoor moet je de actie en de brontekst
+    ernaast leggen. Een vals-positief zou anders twee revisierondes kosten.
+    """
+    acties = (ctx or {}).get("acties") or []
+    termen = _noem_termen(acties)
+    if not termen:
+        return []
+
+    velden = _all_text_fields(rw)
+    naam = _norm((ctx or {}).get("naam")).lower()
+    # Een term die het onderwerp van de training zélf is, zegt niets: dat de deelnemer met
+    # CloudWatch werkt in een CloudWatch-training is geen escalatie. Twee signalen daarvoor:
+    # de term staat in de titel, of hij komt in de tekst zo vaak terug dat hij het onderwerp
+    # draagt in plaats van als voorbeeld genoemd te worden.
+    alle_tekst = " ".join(t for _, t in velden).lower()
+    termen = [t for t in termen
+              if t.lower() not in naam and alle_tekst.count(t.lower()) <= 2]
+
+    issues: list[Issue] = []
+    for section, text in velden:
+        for zin in zinnen(text):
+            gevonden = [t for t in termen if t.lower() in zin.lower()]
+            if not gevonden or not _TOEPASSEN_RE.search(zin):
+                continue
+            fragment = zin if len(zin) <= 90 else zin[:87].rstrip() + "…"
+            issues.append(Issue(section, FLAG, "actie_escalatie",
+                                f"\"{fragment}\" -- de actualisering vroeg om {gevonden[0]} te "
+                                f"benoemen, deze zin belooft dat de deelnemer ermee werkt. Het "
+                                f"werkwoord van de actie is de bovengrens (schrijfspec Sectie "
+                                f"12); noem de term als context zonder er een leeractiviteit "
+                                f"van te maken."))
+            return issues   # één signaal per training is genoeg; de reviewer leest de rest zelf
+    return issues
+
+
+def _noem_termen(acties) -> list[str]:
+    """De concrete termen uit de goedgekeurde acties die alleen om noemen vragen."""
+    uit: list[str] = []
+    for actie in acties:
+        kaal = _ACTIE_PREFIX_RE.sub("", _norm(actie))
+        if not _NOEM_WERKWOORD_RE.match(kaal):
+            continue
+        for m in _ACTIE_TERM_RE.finditer(kaal):
+            term = m.group(0).strip()
+            if len(term) > 2 and term.lower() not in _ACTIE_TERM_STOP and term not in uit:
+                uit.append(term)
+    return uit
+
+
+# ---------------------------------------------------------------------------
 # Top-level
 # ---------------------------------------------------------------------------
 
@@ -1112,6 +1227,7 @@ def check_rewrite(rewrite: dict, ctx: dict | None = None) -> list[Issue]:
     issues += check_eigen_case(rw, ctx)
     issues += check_zwakke_formulering(rw, ctx)
     issues += check_contactzin(rw, ctx)
+    issues += check_actie_escalatie(rw, ctx)
     return issues
 
 

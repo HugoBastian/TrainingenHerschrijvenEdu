@@ -1161,6 +1161,29 @@ BESLISSING_UITLEG = (
 )
 
 
+# Het werkwoord van de actie is de bovengrens. Training 27 (SQL) kreeg "benoem concrete
+# SQL-platformen (bv. PostgreSQL, SQL Server, cloud data warehouses) als context bij de
+# training" mee en schreef "De SQL die je leert, pas je direct toe op verschillende
+# platformen" -- een belofte die we niet nakomen, want die platformen komen in de training
+# niet voor. De reviewer-voorwaarde ("in inleiding is dat prima") was wél gerespecteerd; het
+# ging mis op de niveau-as, en daar stond nergens een regel over. Geen randgeval: 11 van de
+# 16 trainingen met output hebben minstens één goedgekeurde noem-actie.
+#
+# Deze uitleg staat bewust IN het actualiseringenblok en niet in het modusblok. De enige rem
+# die er was, `ACTUALISEREN_ONGEACHT_MODUS`, gaat over de omvang van de wijziging en wordt
+# alleen gerenderd als er een MODUS_UITLEG is; in modus `volledig` kreeg de schrijver dus
+# helemaal niets.
+ACTIE_WERKWOORD = (
+    "Het werkwoord van een actie is de bovengrens, geen startpunt. 'Benoem', 'noem' en\n"
+    "'vermeld' betekenen dat de term ergens in de lopende tekst voorkomt als context, en\n"
+    "verder niets: geen eigen module, geen bullet-onderwerp, geen doel, en vooral geen\n"
+    "belofte dat de deelnemer er iets mee doet. Moet de training het onderwerp ook echt\n"
+    "behandelen, dan staat er 'behandel', 'voeg toe' of 'neem op'; moet er iets voor wijken,\n"
+    "dan staat er 'vervang' of 'update'. Twijfel je tussen twee lezingen, kies dan de\n"
+    "lichtste. Wat je noemt maar niet traint, beloof je niet."
+)
+
+
 # De kern legt het niveau van de training vast en stuurt daarmee elk kopje. Wie hem schreef
 # bepaalt hoeveel gezag hij heeft: een reviewer-kern is een besluit, een scorer-kern een
 # lezing. Zonder dit onderscheid wint de kern altijd -- en dat is precies hoe een tweedaagse
@@ -1204,6 +1227,11 @@ BRONTEKST_UITLEG = (
 # Een goedgekeurde actie voegt per definitie iets toe dat niet in de bron staat -- dat is
 # waarom hij bestaat. Met de bron als enige maatstaf is elke actualisering een "verzonnen
 # feit", en draait de judge precies het werk terug dat de reviewer in de sessie deed.
+#
+# Maar hij dekt het onderwerp, niet het niveau, en dat stond er eerst niet bij. Training 27
+# kreeg "benoem concrete SQL-platformen" en schreef "pas je direct toe op"; de judge zette
+# `feitgetrouw.pass = true` met nul problemen, want de vrijstelling verbood hem letterlijk om
+# zo'n passage als te hoge belofte af te rekenen. Zie `ACTIE_WERKWOORD`.
 BRONTEKST_UITLEG_JUDGE = (
     "BRONTEKST — de bestaande trainingsbeschrijving, ongewijzigd en onafgekapt. De velden\n"
     "hierboven zijn een samenvatting ervan door de scorer; dit is het origineel. Gebruik hem\n"
@@ -1214,12 +1242,18 @@ BRONTEKST_UITLEG_JUDGE = (
     "2. NIVEAU — lees de werkwoorden. \"Maak je kennis met\", \"we introduceren\", \"we geven\n"
     "   een overzicht\" beschrijven iets anders dan \"je bouwt\", \"je richt in\", \"je\n"
     "   optimaliseert\". Belooft het concept meer dan hier staat, dan is dat een fail.\n\n"
-    "UITZONDERING, en die gaat vóór allebei: wat een GOEDGEKEURDE ACTUALISERING hierboven\n"
-    "voorschrijft hoort in de tekst, ook al staat het niet in deze brontekst en verschuift het\n"
-    "waar de training over gaat. De reviewer heeft daarvoor getekend en de bron is juist het\n"
-    "verouderde deel. Reken zo'n passage nooit af als ongegrond of als een te hoge belofte;\n"
-    "twijfel je of iets onder een goedgekeurde actie valt, dan valt het eronder. De enige grens\n"
-    "is de VOORWAARDE die de reviewer eraan hing.\n\n"
+    "UITZONDERING op punt 1, en die gaat vóór: het ONDERWERP van een GOEDGEKEURDE\n"
+    "ACTUALISERING hierboven hoort in de tekst, ook al staat het niet in deze brontekst en\n"
+    "verschuift het waar de training over gaat. De reviewer heeft daarvoor getekend en de bron\n"
+    "is juist het verouderde deel. Reken zo'n term nooit af als ongegrond of verzonnen; twijfel\n"
+    "je of iets onder een goedgekeurde actie valt, dan valt het eronder.\n\n"
+    "Die uitzondering dekt het ONDERWERP, niet het NIVEAU. Punt 2 blijft dus gewoon gelden:\n"
+    "het werkwoord van de actie is de bovengrens. Een actie die vraagt om iets te BENOEMEN\n"
+    "rechtvaardigt een vermelding en niets meer; wordt daar een leeractiviteit of een belofte\n"
+    "van gemaakt (\"pas je toe op\", \"je werkt met\"), dan is dat een te hoge belofte en een\n"
+    "fail, ook al is de term zelf goedgekeurd. Twijfel je hoe zwaar een actie uitgevoerd mocht\n"
+    "worden, dan geldt de lichtste lezing. De andere grens is de VOORWAARDE die de reviewer\n"
+    "eraan hing.\n\n"
     "Reken het concept NIET af op vorm. Een andere volgorde, andere indeling, andere\n"
     "formulering, samengevoegde of gesplitste modules, geschrapte ruis: dat is herschrijven,\n"
     "geen fout. Ontbrekende broninhoud is alleen een punt als er iets wezenlijks verdween."
@@ -1319,6 +1353,7 @@ def build_writer_user(b: RewriteBriefing) -> str:
         f"Weglaten (strippen):\n{_opsomming(b.strippen)}\n\n"
         f"Gaten (vul plausibel waar afleidbaar):\n{_opsomming(b.gaten)}\n\n"
         f"{BESLISSING_UITLEG}\n\n"
+        f"{ACTIE_WERKWOORD}\n\n"
         "ACTUALISERINGEN — door de reviewer goedgekeurd. Voer deze uit; staat er een\n"
         "VOORWAARDE bij, dan is die bindend en gaat hij vóór de actietekst:\n"
         f"{_opsomming(x.als_instructie() for x in b.goedgekeurd)}\n\n"
@@ -1415,10 +1450,15 @@ def build_judge_user(b: RewriteBriefing, document: dict) -> str:
         "feitfout, wél reden om de output als thin te markeren:\n"
         f"{_opsomming(b.gaten)}\n\n"
         f"{BESLISSING_UITLEG}\n\n"
-        "Goedgekeurde actualiseringen (moeten verwerkt zijn):\n"
+        f"{ACTIE_WERKWOORD}\n\n"
+        "Goedgekeurde actualiseringen (moeten verwerkt zijn, en niet zwaarder dan hun\n"
+        "werkwoord toelaat):\n"
         f"{_opsomming(x.als_instructie() for x in b.goedgekeurd)}\n\n"
+        # Mét de REDEN erbij: de schrijver kreeg die al (`build_writer_user`), de judge niet.
+        # Zonder de reden ziet hij alleen dat iets niet mag en niet waaróm, en dat is precies
+        # het verschil tussen "staat er niet in" en "is bewust weggehouden".
         "Afgewezen actualiseringen (mogen NIET terugkomen):\n"
-        f"{_opsomming(x.actie for x in b.afgewezen)}\n\n"
+        f"{_opsomming(x.als_instructie() for x in b.afgewezen)}\n\n"
         f"{materiaal}\n\n"
         f"CONCEPT — dit is wat je beoordeelt:\n{uit.render_markdown(document, b.nieuwe_titel)}"
     )
@@ -1550,6 +1590,20 @@ def build_check_input(writer_out: dict, titels: list[str], titel: str = "",
     }
 
 
+def build_check_ctx(b: RewriteBriefing, catalog: list[dict] | None) -> dict:
+    """De context voor `check_rewrite`, op één plek zodat de twee aanroepers niet uiteenlopen.
+
+    `rewrite_one` en `hergenereer_kopje` bouwden dit allebei zelf, en toen `acties` erbij kwam
+    was dat meteen een plek waar de ene aanroeper een check kon draaien die de andere niet had.
+
+    De acties gaan kaal mee, zonder de reviewer-voorwaarde: `check_actie_escalatie` kijkt
+    alleen naar het werkwoord van de actie zelf.
+    """
+    return {"catalog_titles": catalog_titles(catalog) if catalog else None,
+            "naam": b.nieuwe_titel, "dagen": b.dagen,
+            "acties": [x.actie for x in b.goedgekeurd]}
+
+
 def render_document(doc: dict, titel: str = "") -> str:
     """Leesbare weergave met de kopstructuur van het template (kop 1/2/3)."""
     return uit.render_markdown(doc, titel)
@@ -1617,8 +1671,7 @@ def rewrite_one(client, b: RewriteBriefing, catalog: list[dict],
                  for x in b.goedgekeurd]
 
     titels, groepen = bepaal_vervolgstappen(client, b, catalog, boom)
-    ctx = {"catalog_titles": catalog_titles(catalog) if catalog else None,
-           "naam": b.nieuwe_titel, "dagen": b.dagen}
+    ctx = build_check_ctx(b, catalog)
     writer_system = build_writer_system()
     base_user = build_writer_user(b)
 
@@ -1759,8 +1812,7 @@ def hergenereer_kopje(client, b: RewriteBriefing, resultaat: dict, kopje: str,
     if not titels and catalog:
         titels, groepen = bepaal_vervolgstappen(client, b, catalog, boom)
 
-    ctx = {"catalog_titles": catalog_titles(catalog) if catalog else None,
-           "naam": b.nieuwe_titel, "dagen": b.dagen}
+    ctx = build_check_ctx(b, catalog)
     huidig = json.dumps(writer_out.get(kopje), ensure_ascii=False, indent=2)
     opdracht = [
         f"Schrijf ALLEEN het kopje '{kopje}' opnieuw. Alle andere kopjes blijven zoals ze zijn;",
@@ -2755,6 +2807,10 @@ def build_actualisatie_user(b: RewriteBriefing, content: dict, titel: str) -> st
         f"KERN — het niveau van deze training; schrijf daar nooit boven:\n"
         f"{b.kern_definitief}\n\n"
         f"{BESLISSING_UITLEG}\n\n"
+        # Dit pad draait géén code-checks: `actualiseer_content` levert losse kopjes, geen
+        # compleet document, dus `check_rewrite` kan er niet overheen. De prompt is hier de
+        # enige laag die de escalatie tegenhoudt.
+        f"{ACTIE_WERKWOORD}\n\n"
         "GOEDGEKEURDE ACTUALISERINGEN — dit is het enige wat er mag veranderen. Staat er een\n"
         "VOORWAARDE bij, dan is die bindend:\n"
         f"{_opsomming(x.als_instructie() for x in b.goedgekeurd)}\n\n"

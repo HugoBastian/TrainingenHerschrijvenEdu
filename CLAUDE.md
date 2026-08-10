@@ -65,6 +65,11 @@ Dit onderscheid stuurt de hele revisielus, dus kies bewust:
   voor wat de schrijver zelf kan repareren, en alleen op velden die hij zelf schrijft.
 - **FLAG** = naar de judge en de menselijke review, nooit terug naar de schrijver.
 
+De `ctx` van `check_rewrite` draagt sinds `check_actie_escalatie` ook briefinggegevens
+(`acties`, de goedgekeurde actualiseringen kaal). Bouw hem via `build_check_ctx()`: `rewrite_one`
+en `hergenereer_kopje` maakten die dict allebei zelf, en dat was meteen een plek waar de ene
+aanroeper een check kon draaien die de andere niet had.
+
 Twee vallen: een HARD-check op tekst die de schrijver niet levert (de groep-intro's van
 Vervolgstappen komen uit een aparte retrieval-call) laat de lus zinloos rondgaan. En
 `_all_text_fields()` levert uitsluitend schrijverstekst op: vaste sjabloonteksten komen daar
@@ -110,9 +115,18 @@ kwam daardoor nooit bij het reviewteam; hij wordt nog gelezen maar niet meer aan
 
 De system-prefix van de schrijver is één gecachet blok: schrijfspec + humanisering +
 stijlregister + correcties + de few-shot. Wijkt de output systematisch af, kijk dan **eerst**
-naar wat er in dat blok staat en pas daarna naar de regels. Twee keer is dat de echte oorzaak
+naar wat er in dat blok staat en pas daarna naar de regels. Drie keer is dat de echte oorzaak
 gebleken (de few-shot demonstreerde modules met twee sub-bullets; de spec-bestanden bevatten
-173 em-dashes terwijl de spec ze verbood).
+173 em-dashes terwijl de spec ze verbood; en training 27 maakte van "benoem concrete
+SQL-platformen" een "pas je direct toe op").
+
+Die derde had een variant die je apart moet kennen: **de judge liet het door omdat zijn spec
+hem dat opdroeg.** De vrijstelling die voorkomt dat een goedgekeurde actualisering als
+"verzonnen feit" sneuvelt, verbood hem letterlijk om zo'n passage af te rekenen als te hoge
+belofte. Vind je een fout die de judge had moeten zien, kijk dan of de beoordelingsspec hem
+niet juist verbiedt te kijken. Die vrijstelling dekt sinds deze ronde het **onderwerp** en niet
+het **niveau**; het werkwoord van de actie is de bovengrens (`ACTIE_WERKWOORD`, schrijfspec
+§12, `correcties_nl.md` §30, `check_actie_escalatie`).
 
 Daaruit volgen twee regels die tests bewaken:
 

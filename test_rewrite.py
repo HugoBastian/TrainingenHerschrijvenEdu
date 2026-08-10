@@ -1202,10 +1202,100 @@ def test_goedgekeurde_actualisering_gaat_voor_de_brontekst():
     assert schrijver.index("Beloof nooit meer dan hier staat") < schrijver.index("uitzondering")
 
     judge = rw.build_judge_user(b, {"titel": "T", "overzicht": "Wil je iets?"})
-    assert "UITZONDERING, en die gaat vóór allebei" in judge
+    assert "UITZONDERING op punt 1, en die gaat vóór" in judge
     assert "nooit af als ongegrond" in judge
-    # de voorwaarde is de enige grens, en die gaat mee naar allebei
+    # ... maar die uitzondering dekt het onderwerp en niet het niveau. Zonder die grens liet
+    # de judge training 27 door: "benoem concrete SQL-platformen" werd "pas je direct toe op",
+    # en de spec verbood hem letterlijk om dat als te hoge belofte af te rekenen.
+    assert "dekt het ONDERWERP, niet het NIVEAU" in judge
+    assert "Punt 2 blijft dus gewoon gelden" in judge
+    # de voorwaarde is de tweede grens, en die gaat mee naar allebei
     assert "alleen als voorbeeld" in schrijver and "alleen als voorbeeld" in judge
+
+
+def test_werkwoord_van_de_actie_is_de_bovengrens_in_elke_actie_prompt():
+    """Uit training 27: "benoem concrete SQL-platformen" werd "pas je direct toe op".
+
+    De regel hoort in het actualiseringenblok en niet in het modusblok. De enige rem die er
+    was, `ACTUALISEREN_ONGEACHT_MODUS`, wordt alleen gerenderd als er een MODUS_UITLEG is; in
+    `volledig` kreeg de schrijver dus niets. Vandaar dat deze test juist die modus pakt.
+    """
+    actie = bes.Besluit(1, "T", 1, "refresh: benoem concrete SQL-platformen als context",
+                        "in inleiding is dat prima", "mits", "in inleiding is dat prima",
+                        "handmatig")
+    b = _briefing(modus_reviewer="volledig", goedgekeurd=[actie])
+
+    schrijver = rw.build_writer_user(b)
+    assert "staan LOS van deze opdracht" not in schrijver     # geen modusblok in `volledig`
+    for prompt in (schrijver,
+                   rw.build_judge_user(b, {"titel": "T", "overzicht": "Wil je iets?"}),
+                   rw.build_actualisatie_user(b, _content(), "Training SQL")):
+        assert "Het werkwoord van een actie is de bovengrens" in prompt
+        assert "Wat je noemt maar niet traint, beloof je niet." in prompt
+
+
+def test_judge_ziet_de_reden_bij_een_afgewezen_actie():
+    """De schrijver kreeg de reden al, de judge niet: die zag alleen `actie`.
+
+    Zonder de reden ziet hij dat iets niet mag, maar niet waaróm, en dat is het verschil
+    tussen "staat er niet in" en "is bewust weggehouden".
+    """
+    afgewezen = bes.Besluit(1, "T", 1, "refresh: voeg window functions toe",
+                            "nee dat is advanced", "niet", "nee dat is advanced", "handmatig")
+    b = _briefing(afgewezen=[afgewezen])
+    judge = rw.build_judge_user(b, {"titel": "T", "overzicht": "Wil je iets?"})
+    assert "REDEN (reviewer): nee dat is advanced" in judge
+
+
+def test_noem_actie_die_toepassen_wordt_is_een_flag():
+    """De letterlijke zin uit training 27, met de letterlijke actie ernaast."""
+    ctx = {"naam": "Training SQL",
+           "acties": ["refresh: benoem concrete SQL-platformen (bv. PostgreSQL, SQL Server, "
+                      "cloud data warehouses) als context bij de training"]}
+    rwin = {"inleiding": "De training is praktijkgericht opgezet. De SQL die je leert, pas je "
+                         "direct toe op verschillende platformen, van PostgreSQL en SQL Server "
+                         "tot cloud data warehouses."}
+    issues = checks.check_actie_escalatie(rwin, ctx)
+    assert len(issues) == 1, issues
+    assert issues[0].code == "actie_escalatie" and issues[0].severity == checks.FLAG
+    assert issues[0].section == "inleiding"
+    # nooit hard: de grens tussen noemen en behandelen is niet deterministisch vast te stellen
+    assert not checks.hard_fails(checks.check_actie_escalatie(rwin, ctx))
+
+
+def test_noem_actie_zonder_escalatie_vuurt_niet():
+    """Drie vrijwaringen die de meting over `herschreven/trainingen/` heeft opgeleverd."""
+    actie = ["refresh: benoem concrete SQL-platformen (bv. PostgreSQL, SQL Server) als context"]
+
+    # 1. dezelfde platformen, netjes benoemd in plaats van beloofd
+    goed = {"inleiding": "De SQL die je leert, werkt op de platformen die je in de praktijk "
+                         "tegenkomt, zoals PostgreSQL en SQL Server."}
+    assert not checks.check_actie_escalatie(goed, {"naam": "Training SQL", "acties": actie})
+
+    # 2. "van toepassing" is een idioom, geen leeractiviteit (viel op 3077)
+    idioom = {"inleiding": "Sinds januari 2025 is PostgreSQL 17 volledig van toepassing binnen "
+                           "de standaard."}
+    assert not checks.check_actie_escalatie(idioom, {"naam": "Training SQL", "acties": actie})
+
+    # 3. een term die het onderwerp van de training zélf is (viel op 2808)
+    eigen = {"inleiding": "Je werkt met PostgreSQL als centrale database."}
+    assert not checks.check_actie_escalatie(
+        eigen, {"naam": "Training PostgreSQL", "acties": actie})
+
+    # en een actie die wél om behandelen vraagt, mag een leeractiviteit worden
+    zwaar = ["refresh: voeg een module toe over PostgreSQL en SQL Server"]
+    beloofd = {"inleiding": "Je werkt met PostgreSQL en past SQL Server toe op je eigen queries."}
+    assert not checks.check_actie_escalatie(beloofd, {"naam": "Training SQL", "acties": zwaar})
+
+
+def test_check_ctx_is_voor_beide_aanroepers_hetzelfde():
+    """`rewrite_one` en `hergenereer_kopje` bouwden dit allebei zelf; toen `acties` erbij kwam
+    was dat meteen een plek waar de ene een check kon draaien die de andere niet had."""
+    actie = bes.Besluit(1, "T", 1, "refresh: benoem PostgreSQL", "ja", "doen", "", "handmatig")
+    ctx = rw.build_check_ctx(_briefing(goedgekeurd=[actie]), None)
+    assert ctx["acties"] == ["refresh: benoem PostgreSQL"]     # kaal, zonder voorwaarde
+    assert set(ctx) == {"catalog_titles", "naam", "dagen", "acties"}
+    assert "ctx = build_check_ctx(b, catalog)" in open(rw.__file__, encoding="utf-8").read()
 
 
 def test_judge_oordeel_met_verkeerd_gevormd_blok_loopt_niet_stuk():

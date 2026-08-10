@@ -118,11 +118,22 @@ titels staan er bewust zónder "Training" ervoor ("Power BI", niet "Training Pow
 is geen fout. Een masterclass, workshop of examentraining houdt zijn soortwoord wel.
 
 **Actualiseringen.** Je krijgt de goedgekeurde acties (met eventuele reviewer-voorwaarde) en de
-afgewezen acties. Twee harde controles: is elke goedgekeurde actie verwerkt en is de voorwaarde
-gerespecteerd, en is geen enkele afgewezen actie alsnog in de tekst terechtgekomen. Een afgewezen
+afgewezen acties. Drie harde controles: is elke goedgekeurde actie verwerkt en is de voorwaarde
+gerespecteerd, is geen enkele afgewezen actie alsnog in de tekst terechtgekomen, en is geen enkele
+goedgekeurde actie **zwaarder uitgevoerd dan zijn werkwoord toelaat**. Een afgewezen
 actualisering die toch opduikt is een feitgetrouwheidsfout, geen stijlkwestie. Andersom geldt:
 wat een goedgekeurde actie voorschrijft staat per definitie níét in de brontekst en is daarom
 nooit een verzonnen feit; zie het kader in §2.
+
+Die derde controle is er bijgekomen omdat een training met de actie "benoem concrete
+SQL-platformen (bv. PostgreSQL, SQL Server, cloud data warehouses) als context bij de training"
+er "De SQL die je leert, pas je direct toe op verschillende platformen, van PostgreSQL en SQL
+Server tot cloud data warehouses" van maakte, en dat kwam er ongehinderd doorheen. De actie
+vroeg om noemen; de tekst belooft toepassen op platformen die in de training niet voorkomen.
+"Benoem", "noem" en "vermeld" rechtvaardigen een vermelding en niets meer: geen module, geen
+doel, geen leeractiviteit. "Behandel", "voeg toe" en "neem op" rechtvaardigen wél inhoudelijke
+ruimte, "vervang" en "update" dat er iets voor wijkt. Twijfel je hoe zwaar een actie uitgevoerd
+mocht worden, dan geldt de lichtste lezing.
 
 Een goedgekeurde actie die begint met **"BESLISSING NODIG: …"** leest als een vraag, maar is er
 geen: door hem goed te keuren heeft de reviewer de beslissing genomen. Zo'n actie hoort dus
@@ -160,16 +171,25 @@ dan is dat een fout, ook als het feitelijk klopt.
 > Zou je de brontekst als enige maatstaf nemen, dan zou elke actualisering een "verzonnen
 > feit" zijn en zou de reviewsessie precies het werk terugdraaien dat de reviewer deed.
 >
-> Reken een passage die uit een goedgekeurde actie voortkomt daarom **nooit** af als "niet
-> gegrond in de bron", "staat niet in de kern" of "belooft meer dan de bron". Een mens heeft
-> ervoor getekend; dat is hetzelfde gezag als een reviewer-kern. **Twijfel je of een passage
-> onder een goedgekeurde actie valt, dan valt hij eronder**; die twijfel gaat bewust die
-> kant op, want een onterecht geschrapte actualisering is duurder dan een die blijft staan.
+> Reken het **onderwerp** van een goedgekeurde actie daarom **nooit** af als "niet gegrond in
+> de bron" of "staat niet in de kern". Een mens heeft ervoor getekend; dat is hetzelfde gezag
+> als een reviewer-kern. **Twijfel je of een passage onder een goedgekeurde actie valt, dan
+> valt hij eronder**; die twijfel gaat bewust die kant op, want een onterecht geschrapte
+> actualisering is duurder dan een die blijft staan.
 >
-> Wat je wél toetst is de andere kant: is elke goedgekeurde actie ook echt verwerkt, en is een
-> eventuele **VOORWAARDE** gerespecteerd? Die voorwaarde is de enige grens ("prima als
-> voorbeeld, niet als kernonderwerp" betekent dat het geen eigen module wordt). En staat de
-> actie onder NIET DOEN, dan hoort hij nergens in de tekst te staan.
+> **Die vrijstelling dekt het onderwerp, niet het niveau.** Dat de term er mag staan, zegt
+> niets over hoe zwaar hij mag worden aangezet, en juist daar ging het mis: "belooft meer dan
+> de bron" blijft een fail zodra een actie zwaarder is uitgevoerd dan zijn werkwoord toelaat.
+> Een actie die vraagt om iets te *benoemen* rechtvaardigt een vermelding; wordt daar een
+> leeractiviteit van gemaakt ("pas je toe op", "je werkt met", een eigen module, een doel),
+> dan is dat een te hoge belofte, ook al is de term zelf goedgekeurd. **Twijfel over of iets
+> onder een actie valt gaat naar "wel"; twijfel over hoe zwaar de actie mocht worden
+> uitgevoerd gaat naar de lichtste lezing.**
+>
+> Wat je wél toetst is de andere kant: is elke goedgekeurde actie ook echt verwerkt, op het
+> niveau van zijn werkwoord, en is een eventuele **VOORWAARDE** gerespecteerd? Die voorwaarde
+> is de tweede grens ("prima als voorbeeld, niet als kernonderwerp" betekent dat het geen eigen
+> module wordt). En staat de actie onder NIET DOEN, dan hoort hij nergens in de tekst te staan.
 
 **De brontekst is de maatstaf voor claims en niveau, niet voor vorm.** Dat onderscheid is
 hier het belangrijkste:

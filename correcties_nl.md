@@ -555,3 +555,31 @@ beschrijving is het een belofte die we niet nakomen.
 > opbrengst. Twee zinnen die bijna gelijk klinken en tegengesteld zijn: "je werkt **je eigen**
 > praktijkcase uit" (jij levert de case, fout) tegenover "je werkt **een** praktijkcase uit tot
 > een eigen applicatie" (wij leveren de case, jij bouwt het resultaat, goed).
+
+---
+
+## 30. Een "benoem"-actie levert een vermelding, geen belofte (schrijfspec §12)
+
+Training 27 (SQL) kreeg één goedgekeurde actualisering mee: "refresh: benoem concrete
+SQL-platformen (bv. PostgreSQL, SQL Server, cloud data warehouses) als context bij de training",
+met de reviewer-voorwaarde "in inleiding is dat prima". Die voorwaarde is netjes gevolgd, de
+zin staat in de Inleiding. Het werkwoord is dat niet: de actie vroeg om **benoemen**, de tekst
+belooft **toepassen**. Wij gebruiken die platformen in de training helemaal niet.
+
+❌ De SQL die je leert, **pas je direct toe op** verschillende platformen, van PostgreSQL en SQL Server tot cloud data warehouses.
+✅ De SQL die je leert, **werkt op** de platformen die je in de praktijk tegenkomt, zoals PostgreSQL, SQL Server en cloud data warehouses.
+
+> De twee zinnen noemen precies dezelfde drie platformen; alleen de tweede belooft er niets
+> mee. Dat is het hele verschil tussen een vermelding en een leerdoel.
+>
+> Het werkwoord van de actie is de bovengrens, niet een startpunt. "Benoem", "noem" en
+> "vermeld" leveren een zin in de lopende tekst en verder niets: geen module, geen
+> bullet-onderwerp, geen doel. Wil de reviewer meer, dan staat er "behandel", "voeg toe" of
+> "neem op"; moet er iets voor wijken, dan staat er "vervang" of "update". Twijfel je tussen
+> twee lezingen, kies dan de lichtste.
+>
+> De judge keurde deze zin goed met nul problemen, en dat was geen slordigheid: zijn eigen spec
+> verbood hem om een passage die uit een goedgekeurde actie voortkomt af te rekenen als "te
+> hoge belofte". Die vrijstelling dekt sinds deze ronde het onderwerp en niet het niveau.
+> `check_actie_escalatie` flagt de constructie nu ook in code, maar alleen jij ziet de actie
+> en de zin naast elkaar.
