@@ -452,6 +452,66 @@ def render_markdown(document: dict, titel: str) -> str:
 # twee tekens. Eén regel, en `ë`/`é`/`ï` komen heel aan de andere kant.
 _DOCS_HTML_KOP = '<html><head><meta charset="utf-8"><title>{titel}</title></head><body>'
 
+# ---------------------------------------------------------------------------
+# Opmaak van het Google Doc
+# ---------------------------------------------------------------------------
+# Deze stijl staat ALLEEN in de doc-HTML en nooit in de CMS-content: het CMS levert zijn eigen
+# opmaak en zou van deze regels een tweede, botsende laag krijgen. Vandaar dat de attributen
+# hier op het laatste moment in de fragmenten worden gezet, en niet in de renderers erboven.
+#
+# Twee dingen die je alleen merkt door het te uploaden:
+#
+# - **ruimte tussen alinea's moet als `margin-bottom` op elke <p> staan.** Docs zet "ruimte na
+#   alinea" standaard op nul, dus zonder deze regel plakken alle alinea's van een kopje aan
+#   elkaar tot één blok, en dat was precies de klacht na de eerste echte batch;
+# - **tekengrootte en vet horen óók op een <span> binnen de kop.** Docs bewaart die twee als
+#   tekenopmaak op de tekst zelf en niet als eigenschap van de alinea; dat is ook hoe de
+#   HTML-export van Docs het schrijft. Zet je het alleen op de <h1>, dan kan de importer het
+#   laten vallen en krijg je toch weer de standaard-kop.
+ALINEA_RUIMTE = "10pt"
+BULLET_RUIMTE = "4pt"
+
+# kop -> (tekengrootte, gewicht, ruimte erboven). Kop 1 krijgt geen ruimte erboven: die staat
+# bovenaan het document of vlak onder een horizontale lijn.
+DOCS_KOPPEN = {
+    "h1": ("20pt", "normal", "0"),
+    "h2": ("16pt", "normal", "18pt"),
+    "h3": ("14pt", "bold", "14pt"),
+}
+
+_H3_RE = re.compile(r"<h3>(.*?)</h3>", re.S | re.I)
+
+
+def _ruimte(boven: str, onder: str) -> str:
+    """Marges als losse eigenschappen, niet als `margin`-shorthand.
+
+    Zo schrijft de HTML-export van Docs het zelf, en dat is de vorm waarvan we zeker weten dat
+    de import hem terugleest. Alleen `margin` en niet ook `padding`: honoreert de importer ze
+    allebei, dan staat er twee keer zoveel ruimte als bedoeld.
+    """
+    return f"margin-top:{boven};margin-bottom:{onder};"
+
+
+def _docs_kop(niveau: str, inhoud: str) -> str:
+    """Een kop met de opmaak op zowel de alinea als de tekst erin; zie de toelichting hierboven."""
+    grootte, gewicht, boven = DOCS_KOPPEN[niveau]
+    teken = f"font-size:{grootte};font-weight:{gewicht};"
+    return (f'<{niveau} style="{teken}{_ruimte(boven, "6pt")}">'
+            f'<span style="{teken}">{inhoud}</span></{niveau}>')
+
+
+def _docs_opmaak(fragment: str) -> str:
+    """Zet de doc-opmaak in een CMS-fragment.
+
+    Losse `str.replace` op de kale tags kan hier omdat de fragmenten uit onze eigen renderers
+    komen: die schrijven `<p>`, `<li>` en `<h3>` altijd zonder attributen, en alle tekst is
+    door `_esc` gegaan, dus een `<p>` uit de brontekst bestaat niet.
+    """
+    fragment = _H3_RE.sub(lambda m: _docs_kop("h3", m.group(1)), fragment)
+    return (fragment
+            .replace("<p>", f'<p style="{_ruimte("0", ALINEA_RUIMTE)}">')
+            .replace("<li>", f'<li style="{_ruimte("0", BULLET_RUIMTE)}">'))
+
 
 def render_docs_html(content: dict, titel: str) -> str:
     """De CMS-`content` als één HTML-pagina, voor conversie naar een Google Doc.
@@ -468,12 +528,12 @@ def render_docs_html(content: dict, titel: str) -> str:
 
     Lege kopjes krijgen wél hun kop: een reviewer moet kunnen zien dát er niets staat.
     """
-    delen = [f"<h1>{_esc(titel)}</h1>"]
+    delen = [_docs_kop("h1", _esc(titel))]
     for kopje in sjabloon.KOPJES:
         waarde = content.get(kopje.cms) or ""
         # `summary` en `summary_edudex` staan als platte tekst in het CMS (Kopje.html is False)
         fragment = str(waarde) if kopje.html else _paragrafen(waarde)
-        delen.append(f"<h2>{_esc(kopje.kop)}</h2>{fragment}")
+        delen.append(_docs_kop("h2", _esc(kopje.kop)) + _docs_opmaak(fragment))
     return _DOCS_HTML_KOP.format(titel=_esc(titel)) + "<hr>".join(delen) + "</body></html>"
 
 

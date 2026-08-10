@@ -1533,15 +1533,56 @@ def test_markdown_heeft_kop_1_2_en_3():
 # Document -> HTML voor Google Docs
 # ---------------------------------------------------------------------------
 
+def _koppen(doc: str, niveau: str) -> list[str]:
+    """De kopteksten van dit niveau, zonder de opmaak eromheen.
+
+    Toetsen op `<h2>Doelen</h2>` zou hier meten wat de opmaak doet in plaats van wat er staat;
+    de koppen dragen sinds de eerste echte batch een `style` en een `<span>`.
+    """
+    binnenkant = re.findall(rf"<{niveau}\b[^>]*>(.*?)</{niveau}>", doc, re.S)
+    return [re.sub(r"<[^>]+>", "", k) for k in binnenkant]
+
+
 def test_docs_html_heeft_een_h1_en_tien_h2_koppen():
     """De koppen zijn de winst: Drive maakt er de documentoverzicht-zijbalk van."""
     doc = uit.render_docs_html(uit.document_to_content(_document(), {}), "Cursus XML")
-    assert "<h1>Cursus XML</h1>" in doc
-    for kopje in sjabloon.KOPJES:
-        assert f"<h2>{kopje.kop}</h2>" in doc, kopje.kop
-    assert doc.count("<h2>") == len(sjabloon.KOPJES)
+    assert _koppen(doc, "h1") == ["Cursus XML"]
+    assert _koppen(doc, "h2") == [k.kop for k in sjabloon.KOPJES]
     # zelfde kop 3 als in de markdown, uit `render_inleiding`
-    assert f"<h3>{sjabloon.BEDRIJFSTRAINING_KOP}</h3>" in doc
+    assert _koppen(doc, "h3") == [sjabloon.BEDRIJFSTRAINING_KOP]
+
+
+def test_docs_koppen_hebben_de_afgesproken_grootte_en_gewicht():
+    """Kop 1 en 2 niet vet, kop 3 wel; 20/16/14pt. Zo staat het in het reviewdocument."""
+    doc = uit.render_docs_html(uit.document_to_content(_document(), {}), "Cursus XML")
+    for niveau, (grootte, gewicht, _) in uit.DOCS_KOPPEN.items():
+        stijl = f"font-size:{grootte};font-weight:{gewicht};"
+        assert f'<{niveau} style="{stijl}' in doc, (niveau, stijl)
+        # ook op een <span> binnen de kop: Docs bewaart grootte en vet als tekenopmaak, en
+        # laat het op de alinea alleen kan laten vallen
+        assert f'<span style="{stijl}">' in doc, niveau
+    assert uit.DOCS_KOPPEN["h1"][1] == "normal" and uit.DOCS_KOPPEN["h3"][1] == "bold"
+
+
+def test_docs_html_geeft_elke_alinea_ruimte_eronder():
+    """Zonder deze marge plakken alle alinea's van een kopje aan elkaar tot één blok."""
+    doc = uit.render_docs_html(uit.document_to_content(_document(), {}), "Cursus XML")
+    assert "<p>" not in doc, "een <p> zonder marge levert een doc zonder alinea's op"
+    assert f'<p style="margin-top:0;margin-bottom:{uit.ALINEA_RUIMTE};">' in doc
+    assert "<li>" not in doc and f"margin-bottom:{uit.BULLET_RUIMTE};" in doc
+    # geen `margin`-shorthand en geen padding: zie `_ruimte`
+    assert "margin:" not in doc and "padding" not in doc
+
+
+def test_docopmaak_lekt_niet_naar_de_cms_content():
+    """Het CMS levert zijn eigen opmaak; deze stijl hoort uitsluitend in het reviewdocument."""
+    content = uit.document_to_content(_document(), {})
+    for sleutel, waarde in content.items():
+        if isinstance(waarde, str):
+            assert "style=" not in waarde, f"{sleutel} draagt doc-opmaak het CMS in"
+            assert "<span" not in waarde, sleutel
+    # en de markdown evenmin
+    assert "style=" not in uit.render_markdown(_document(), "Cursus XML")
 
 
 def test_docs_html_zet_utf8_meta_in_de_kop():
@@ -1555,14 +1596,16 @@ def test_docs_html_zet_platte_kopjes_in_paragrafen():
     """`summary` en `summary_edudex` staan als platte tekst in het CMS (Kopje.html is False)."""
     content = _content(summary="Eerste zin.\n\nTweede zin.", summary_edudex="Kort.")
     doc = uit.render_docs_html(content, "Training Data")
-    assert "<p>Eerste zin.</p><p>Tweede zin.</p>" in doc
-    assert "<p>Kort.</p>" in doc
+    alineas = re.findall(r"<p\b[^>]*>(.*?)</p>", doc, re.S)
+    assert "Eerste zin." in alineas and "Tweede zin." in alineas, alineas
+    assert "Kort." in alineas
 
 
 def test_docs_html_laat_geneste_bullets_uit_modules_intact():
     """De sub-bullets zijn de reden om HTML te uploaden en geen platte tekst."""
     doc = uit.render_docs_html(_content(), "Training Data")
-    assert "<li>Module een<ul><li>Punt a</li>" in doc
+    kaal = re.sub(r'\s*style="[^"]*"', "", doc)
+    assert "<li>Module een<ul><li>Punt a</li>" in kaal
 
 
 def test_docs_html_rendert_ook_een_overgenomen_training():
@@ -1571,14 +1614,14 @@ def test_docs_html_rendert_ook_een_overgenomen_training():
     res, content = rw.neem_over(b)
     assert not res.document, "vertrekpunt van deze test: het overnemen-spoor heeft geen document"
     doc = uit.render_docs_html(content, res.titel)
-    for kopje in sjabloon.KOPJES:
-        assert f"<h2>{kopje.kop}</h2>" in doc, kopje.kop
+    assert _koppen(doc, "h2") == [k.kop for k in sjabloon.KOPJES]
 
 
 def test_docs_html_geeft_een_leeg_kopje_toch_zijn_kop():
     """Een reviewer moet kunnen zien dat er niets staat, niet dat het kopje ontbreekt."""
     doc = uit.render_docs_html(_content(follow_up=""), "Training Data")
-    assert "<h2>Vervolgstappen</h2><hr>" in doc
+    assert "Vervolgstappen" in _koppen(doc, "h2")
+    assert re.search(r"Vervolgstappen</span></h2><hr>", doc), "het lege kopje kreeg toch inhoud"
 
 
 # ---------------------------------------------------------------------------

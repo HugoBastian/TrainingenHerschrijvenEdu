@@ -24,7 +24,7 @@ een rij in `herschreven.xlsx`.
 ## Commando's
 
 ```bash
-python test_rewrite.py                      # 266 offline tests, geen API-key nodig
+python test_rewrite.py                      # 269 offline tests, geen API-key nodig
 python -c "import test_rewrite as t; t.test_em_dash_is_hard_in_elk_schrijversveld()"   # één test
 python bouw_goud_v2.py                      # terugval-few-shot; nodig na een verse checkout
 
@@ -253,6 +253,24 @@ Vier dingen die je niet uit de code afleidt:
 - **de google-imports staan in de functies**, zodat `test_rewrite.py` de module kan importeren
   zonder die packages. Alleen `upload_doc` heeft `googleapiclient` echt nodig; de tests raken die
   wel, want de fake-service geeft het `MediaIoBaseUpload`-object terug dat ze inspecteren.
+
+De opmaak van het doc (`DOCS_KOPPEN`, `ALINEA_RUIMTE` in `rewrite_output.py`) zit als inline
+stijl in de HTML en **nooit in de CMS-content**; die krijgt zijn opmaak van de site en zou er
+een tweede, botsende laag bij krijgen. `test_docopmaak_lekt_niet_naar_de_cms_content` bewaakt
+dat. Drie dingen die alleen uit een echte upload bleken:
+
+- **ruimte tussen alinea's moet als `margin-bottom` op elke `<p>`.** Docs zet "ruimte na alinea"
+  standaard op nul, dus zonder die regel plakken alle alinea's van een kopje aan elkaar. Dat was
+  de enige klacht na de eerste echte batch;
+- **tekengrootte en vet horen óók op een `<span>` binnen de kop.** Docs bewaart die twee als
+  tekenopmaak op de tekst en niet als eigenschap van de alinea, en zo schrijft de HTML-export
+  van Docs het zelf ook. Alleen op de `<h1>` kan de importer het laten vallen;
+- **marges als losse eigenschappen, en alleen `margin`.** Geen `margin`-shorthand (dat is niet
+  de vorm die Docs zelf schrijft) en geen `padding` ernaast: honoreert de importer ze allebei,
+  dan staat er twee keer zoveel ruimte als bedoeld.
+
+Verander je de opmaak, dan verschuift de sha256 van élk doc. De lus meldt dan per training dat
+de tekst is gewijzigd; `bij_bestaand="nieuwe_versie"` werkt de bestaande docs bij.
 
 De upload hangt aan het eind van `rewrite_file` in een `try/except`: de artefacten en het sheet
 staan dan al op schijf, dus een kapot token kost hoogstens de upload en nooit een batch die net

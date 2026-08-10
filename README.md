@@ -37,7 +37,7 @@ het model.
 | `drive_upload.py` | De herschreven trainingen als opgemaakte Google Docs naar een map in Google Drive. |
 | `rewrite_trainings.py` | Hybride schrijver + orchestratie + I/O. |
 | `herschrijven.ipynb` | Notebook om de pijplijn stap voor stap te draaien en te inspecteren. |
-| `test_rewrite.py` | 266 offline tests (geen API-key nodig). |
+| `test_rewrite.py` | 269 offline tests (geen API-key nodig). |
 
 ## Setup
 
@@ -251,6 +251,13 @@ Elk doc heet `{id} - {titel} (automatisch herschreven)`. Drive converteert de HT
 `render_docs_html` bij het uploaden naar een echt Google Doc, dus de koppen komen in de
 documentoverzicht-zijbalk en de modules houden hun sub-bullets. De links belanden in de kolom
 `drive_url` van het review-tabblad.
+
+De opmaak (`DOCS_KOPPEN` en `ALINEA_RUIMTE` in `rewrite_output.py`) staat als inline stijl in de
+doc-HTML en komt nooit in de CMS-content terecht — die krijgt zijn opmaak van de site. Kop 1 is
+20pt, kop 2 16pt, allebei zonder vet; kop 3 is 14pt en wel vet. Elke alinea krijgt ruimte
+eronder, want Docs zet "ruimte na alinea" standaard op nul en zonder die regel plakken alle
+alinea's van een kopje aan elkaar tot één blok. Grootte en vet staan óók op een `<span>` binnen
+de kop: Docs bewaart die als tekenopmaak op de tekst en niet als eigenschap van de alinea.
 
 Vier dingen die de vorm bepalen:
 
