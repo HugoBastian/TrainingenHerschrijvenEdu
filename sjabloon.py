@@ -253,33 +253,38 @@ AANPAK_ALINEA_1 = (
 # werkzaam op dit expertisegebied". Dat is dezelfde formulering die `correcties_nl.md` Sectie 10
 # al voorschreef voor gegenereerde tekst -- de boilerplate liep daar op achter.
 #
-# CURSIEF. Twee delen staan in het template schuingedrukt: "kennis" en de deelzin "toepassing
-# binnen jouw organisatie en werksituatie". Dat is de kern van de alinea -- de vertaalslag van
-# het een naar het ander -- en het hoort in élke uitvoer te staan, markdown zowel als HTML.
+# NADRUK. Twee delen krijgen nadruk: "kennis" en de deelzin "toepassing binnen jouw organisatie
+# en werksituatie". Dat is de kern van de alinea -- de vertaalslag van het een naar het ander --
+# en die nadruk hoort in élke uitvoer te staan, markdown zowel als HTML.
 #
-# Daarom staat de gemarkeerde vorm hier als bron en is de platte vorm eruit afgeleid: "kennis"
-# komt twee keer in deze alinea voor ("de meest actuele kennis"), dus een vervanging achteraf
-# zou de verkeerde kunnen raken. `*...*` is meteen de markdown-vorm; `uit.render_aanpak` maakt
-# er <em> van voor het CMS.
-AANPAK_ALINEA_2_MARKUP = (
+# Tot augustus 2026 stond dat cursief: `*kennis*` in de markdown, <em>kennis</em> in de
+# CMS-content. Onze site en de leerportalen geven die cursivering niet goed weer, dus staan er nu
+# enkele aanhalingstekens. Die zitten in de tekst zélf en niet in de opmaak, en overleven daarmee
+# elke weergave; de gemarkeerde bronvorm (`AANPAK_ALINEA_2_MARKUP`) en het afleiden van de platte
+# vorm zijn daarmee vervallen. Eén constante, die letterlijk zo naar buiten gaat.
+AANPAK_ALINEA_2 = (
     "Onze trainers zijn, naast trainer, dagelijks werkzaam op dit expertisegebied. "
     "Ze beschikken dus niet alleen over de meest actuele kennis, maar "
     "hebben ook essentiële praktijkervaring. Hierdoor zijn ze in staat om een waardevolle "
-    "vertaalslag te maken van *kennis* naar *toepassing binnen jouw organisatie en "
-    "werksituatie*."
+    "vertaalslag te maken van ‘kennis’ naar ‘toepassing binnen jouw organisatie en "
+    "werksituatie’."
 )
 
 
-# `*...*` zonder newline ertussen: cursief loopt nooit over een alineagrens.
-CURSIEF_RE = re.compile(r"\*([^*\n]+)\*")
+# De documenten die vóór die wissel zijn weggeschreven dragen de sterretjes nog in hun
+# `aanpak`-veld (32 op het moment van wisselen). Ze worden opnieuw gerenderd zodra iemand ze naar
+# goud promoveert of hun content herbouwt, en zonder deze omzetting toont zo'n herrender
+# letterlijke sterretjes in plaats van de cursivering die er ooit uit kwam.
+#
+# `*...*` zonder newline ertussen: de nadruk liep nooit over een alineagrens.
+_OUDE_CURSIEF_RE = re.compile(r"\*([^*\n]+)\*")
 
 
-def ontmarkeer(tekst: str) -> str:
-    """De gemarkeerde vorm -> platte tekst. Alleen de cursief-sterretjes gaan eraf."""
-    return CURSIEF_RE.sub(r"\1", tekst or "")
+def verquote_cursief(tekst: str) -> str:
+    """Oude cursiefmarkering `*x*` -> ‘x’. Alleen voor documenten van vóór augustus 2026."""
+    return _OUDE_CURSIEF_RE.sub(r"‘\1’", tekst or "")
 
 
-AANPAK_ALINEA_2 = ontmarkeer(AANPAK_ALINEA_2_MARKUP)
 AANPAK_FALLBACK = "je dit toepast in de praktijk"
 
 # De schrijver ziet in zijn tool alleen "lever de [....]-invulling" en niet de zin eromheen.

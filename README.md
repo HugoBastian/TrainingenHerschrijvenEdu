@@ -500,7 +500,7 @@ veld in de CMS-`content`:
 | Modules | `modules` | `<p>` + geneste `<ul>` |
 | Doelgroep | `target_audience` | `<p>` |
 | Voorkennis | `prior_knowledge` | `<p>` |
-| Aanpak | `setup` | `<p>`, met `<em>` waar het template cursiveert |
+| Aanpak | `setup` | `<p>` |
 | Doelen | `objectives` | `<p>` + `<ul>` |
 | Vervolgstappen | `follow_up` | `<p>` + `<ul>` + `<p>` |
 | Kortste omschrijving | `summary_edudex` | platte tekst |
@@ -508,14 +508,18 @@ veld in de CMS-`content`:
 
 `days` wordt ongewijzigd uit de bron overgenomen.
 
-**Eén kopje draagt opmaak binnen de tekst.** In de tweede Aanpak-alinea staan "kennis" en
-"toepassing binnen jouw organisatie en werksituatie" schuin; zo staat het in het template. Dat
-kan niet met een `str.replace`, want "kennis" komt twee keer in die alinea voor. De gemarkeerde
-vorm is daarom de bron (`sjabloon.AANPAK_ALINEA_2_MARKUP`, met `*...*`) en de platte vorm is
-eruit afgeleid met `sjabloon.ontmarkeer()`. `AANPAK_ALINEA_2` blijft daardoor byte-voor-byte
-gelijk voor alles wat op de platte tekst matcht (`VASTE_TEKSTEN`, `scan_vorm`). De markdown
-toont `*kennis*` ongewijzigd; `uit.render_aanpak()` escapet eerst en maakt er daarna `<em>` van,
-in die volgorde, zodat brontekst nooit een tag kan binnensmokkelen.
+**Eén kopje draagt nadruk binnen de tekst.** In de tweede Aanpak-alinea zijn "kennis" en
+"toepassing binnen jouw organisatie en werksituatie" benadrukt; zo staat het in het template.
+Tot augustus 2026 gebeurde dat cursief: `*kennis*` in de markdown, `<em>kennis</em>` in de
+CMS-content. Onze site en de leerportalen geven die cursivering niet goed weer, dus staan er nu
+enkele aanhalingstekens: ‘kennis’. Die zitten in de tekst zelf en niet in de opmaak, dus is er
+nog maar één constante (`sjabloon.AANPAK_ALINEA_2`, ook de vorm waarop `VASTE_TEKSTEN` matcht)
+en geen afgeleide platte vorm meer.
+
+De documenten die vóór die wissel zijn weggeschreven dragen de sterretjes nog in hun
+`aanpak`-veld. `uit.render_aanpak()` zet die alsnog om naar dezelfde aanhalingstekens
+(`sjabloon.verquote_cursief()`), zodat een herrender geen letterlijke sterretjes toont; het
+escapen gaat daaraan vooraf, zodat brontekst nooit een tag kan binnensmokkelen.
 
 ### Wat de judge ziet
 

@@ -1444,9 +1444,9 @@ def _document() -> dict:
                     "modules": [{"titel": "M1", "bullets": ["a", "b"]}]},
         "doelgroep": "Deze training is bedoeld voor iedereen.",
         "voorkennis": sjabloon.VOORKENNIS_FALLBACK,
-        # gemarkeerde vorm, precies zoals `assemble_document` hem samenstelt
+        # precies zoals `assemble_document` hem samenstelt
         "aanpak": sjabloon.AANPAK_ALINEA_1.format(invulling="je dit toepast")
-                  + "\n\n" + sjabloon.AANPAK_ALINEA_2_MARKUP,
+                  + "\n\n" + sjabloon.AANPAK_ALINEA_2,
         "doelen": {"intro": sjabloon.DOELEN_INTRO, "bullets": ["Doen van dingen"]},
         "vervolgstappen": {"alineas": [sjabloon.VERVOLG_ALINEA_1, sjabloon.VERVOLG_ALINEA_2],
                            "titels": ["Power BI"], "afsluiter": sjabloon.VERVOLG_AFSLUITER},
@@ -1972,8 +1972,8 @@ def test_schrijfspec_citeert_de_actuele_vaste_teksten():
     # we op hun deel vóór de {}.
     verplicht = [
         sjabloon.BEDRIJFSTRAINING_KOP,
-        # de gemarkeerde vorm: de spec hoort de cursivering te tonen die de code plaatst
-        sjabloon.AANPAK_ALINEA_2_MARKUP,
+        # inclusief de aanhalingstekens: de spec hoort de nadruk te tonen die de code plaatst
+        sjabloon.AANPAK_ALINEA_2,
         sjabloon.VERVOLG_ALINEA_1,
         sjabloon.VERVOLG_ALINEA_2,
         sjabloon.VERVOLG_LIJST_INTRO,
@@ -2534,7 +2534,7 @@ def test_scan_vorm_ziet_verouderde_vaste_tekst():
 
 
 # ---------------------------------------------------------------------------
-# Reviewronde 4: em-dash, reikwijdte, groep-intro's, cursief, goud promoveren
+# Reviewronde 4: em-dash, reikwijdte, groep-intro's, nadruk in de Aanpak, goud promoveren
 # ---------------------------------------------------------------------------
 
 def test_em_dash_is_hard_in_elk_schrijversveld():
@@ -2765,29 +2765,41 @@ def test_groep_met_een_titel_is_een_flag_geen_hardfail():
     assert not checks.hard_fails(issues), "de schrijver schrijft deze groepen niet"
 
 
-def test_aanpak_cursief_staat_in_beide_uitvoervormen():
-    """Het template zet twee delen schuin; markdown én CMS-HTML horen dat te tonen."""
-    assert sjabloon.AANPAK_ALINEA_2 == sjabloon.ontmarkeer(sjabloon.AANPAK_ALINEA_2_MARKUP)
-    assert "*kennis*" in sjabloon.AANPAK_ALINEA_2_MARKUP
-    assert "*toepassing binnen jouw organisatie en werksituatie*" in sjabloon.AANPAK_ALINEA_2_MARKUP
+def test_aanpak_nadruk_staat_in_beide_uitvoervormen():
+    """Het template benadrukt twee delen; markdown én CMS-HTML horen dat te tonen.
+
+    Sinds augustus 2026 met enkele aanhalingstekens in plaats van cursief: de site en de
+    leerportalen gaven <em> niet goed weer. De nadruk zit nu in de tekst zelf, dus geen enkele
+    weergave kan hem nog kwijtraken.
+    """
+    assert "‘kennis’" in sjabloon.AANPAK_ALINEA_2
+    assert "‘toepassing binnen jouw organisatie en werksituatie’" in sjabloon.AANPAK_ALINEA_2
+    assert "*" not in sjabloon.AANPAK_ALINEA_2
 
     doc = _document()
     html = uit.document_to_content(doc, {})["setup"]
-    assert html.count("<em>") == 2 and html.count("</em>") == 2
-    assert "<em>kennis</em>" in html
-    assert "<em>toepassing binnen jouw organisatie en werksituatie</em>" in html
-    # de eerste "kennis" ("de meest actuele kennis") blijft rechtop staan
+    assert "<em>" not in html
+    assert "‘kennis’" in html
+    assert "‘toepassing binnen jouw organisatie en werksituatie’" in html
+    # de eerste "kennis" ("de meest actuele kennis") blijft zonder aanhalingstekens
     assert "actuele kennis, maar" in html
 
     md = uit.render_markdown(doc, "Training Data").split("## Aanpak")[1]
-    assert md.count("*kennis*") == 1
+    assert md.count("‘kennis’") == 1
+
+
+def test_aanpak_van_voor_de_wissel_krijgt_alsnog_aanhalingstekens():
+    """De 32 documenten op schijf dragen `*...*`; een herrender mag geen sterretjes tonen."""
+    html = uit.render_aanpak("Een vertaalslag van *kennis* naar *toepassing*.")
+    assert "‘kennis’" in html and "‘toepassing’" in html
+    assert "*" not in html and "<em>" not in html
 
 
 def test_aanpak_html_ontstaat_niet_uit_brontekst():
     """Escapen gaat vóór het omzetten van de markering; anders smokkelt de bron tags binnen."""
     html = uit.render_aanpak("Een <script>-tag en een *cursief* stuk.")
     assert "&lt;script&gt;" in html
-    assert "<em>cursief</em>" in html
+    assert "‘cursief’" in html
 
 
 def _goud_kandidaat(tid: str = "goed") -> dict:

@@ -271,9 +271,9 @@ De code voegt onderstaande **twee vaste alinea's** in. Het enige wat jij levert 
 
 > De training is praktisch en interactief van opzet, met veel ruimte voor jouw vragen en werksituatie. Je gaat aan de slag met passende praktijkvoorbeelden. Door actief te oefenen, te analyseren en te evalueren, maak je je de materie stap voor stap eigen en ervaar je hoe **[…..]**.
 >
-> Onze trainers zijn, naast trainer, dagelijks werkzaam op dit expertisegebied. Ze beschikken dus niet alleen over de meest actuele kennis, maar hebben ook essentiële praktijkervaring. Hierdoor zijn ze in staat om een waardevolle vertaalslag te maken van *kennis* naar *toepassing binnen jouw organisatie en werksituatie*.
+> Onze trainers zijn, naast trainer, dagelijks werkzaam op dit expertisegebied. Ze beschikken dus niet alleen over de meest actuele kennis, maar hebben ook essentiële praktijkervaring. Hierdoor zijn ze in staat om een waardevolle vertaalslag te maken van ‘kennis’ naar ‘toepassing binnen jouw organisatie en werksituatie’.
 
-**De twee schuingedrukte delen staan zo in het template** en de code plaatst ze ook zo, in de markdown (`*kennis*`) en in de CMS-HTML (`<em>kennis</em>`). Jij hoeft er niets voor te doen; verwijder ze ook niet.
+**De twee delen tussen enkele aanhalingstekens staan zo in het template** en de code plaatst ze ook zo, in de markdown en in de CMS-HTML. Jij hoeft er niets voor te doen; verwijder ze ook niet.
 
 **Regel:** lever alleen de `[….]`-invulling (praktijkgericht, geen module-inhoud herhalen).
 

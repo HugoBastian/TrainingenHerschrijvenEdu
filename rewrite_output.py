@@ -12,7 +12,7 @@ De bron-`content` heeft elf sleutels, waarvan er tien exact op de tien kopjes va
     modules          <- Modules               (<p> + geneste <ul>)
     target_audience  <- Doelgroep             (<p>)
     prior_knowledge  <- Voorkennis            (<p>)
-    setup            <- Aanpak                (<p>, met <em> waar het template cursief zet)
+    setup            <- Aanpak                (<p>)
     objectives       <- Doelen                (<p> + <ul>)
     follow_up        <- Vervolgstappen        (<p> + <ul> + <p>)
     summary_edudex   <- Kortste omschrijving  (platte tekst)
@@ -92,22 +92,18 @@ def render_modules(opening: str, modules: list[dict]) -> str:
     return "".join(delen)
 
 
-_EM_VERVANGING = r"<em>\1</em>"
-
-
 def render_aanpak(tekst: Any) -> str:
-    """Kopje 6: alinea's als <p>, met `*cursief*` als <em>.
+    """Kopje 6: alinea's als <p>, met de oude cursiefmarkering omgezet naar aanhalingstekens.
 
-    De Aanpak is het enige kopje met opmaak binnen de tekst: het template zet "kennis" en
-    "toepassing binnen jouw organisatie en werksituatie" schuin (zie
-    `sjabloon.AANPAK_ALINEA_2_MARKUP`). De invulling van de schrijver komt uit een tool-veld
-    en bevat dus geen sterretjes; alleen de vaste alinea draagt de markering.
+    De nadruk op "kennis" en "toepassing binnen jouw organisatie en werksituatie" zit sinds
+    augustus 2026 in de tekst zelf (`sjabloon.AANPAK_ALINEA_2`), dus voor nieuwe documenten
+    doet dit kopje niets bijzonders meer. Documenten van vóór die wissel dragen nog `*...*`;
+    die krijgen hier dezelfde aanhalingstekens in plaats van letterlijke sterretjes.
 
-    Eerst escapen, dan de markering omzetten: `html.escape` raakt sterretjes niet, dus in die
-    volgorde kan een `<em>` nooit uit brontekst ontstaan.
+    Eerst escapen, dan omzetten: `html.escape` raakt sterretjes niet, dus in die volgorde kan
+    brontekst geen tag binnensmokkelen.
     """
-    return "".join("<p>" + sjabloon.CURSIEF_RE.sub(_EM_VERVANGING, _esc(b)) + "</p>"
-                   for b in _blokken(tekst))
+    return "".join(f"<p>{sjabloon.verquote_cursief(_esc(b))}</p>" for b in _blokken(tekst))
 
 
 def render_doelen(intro: str, bullets: list[str]) -> str:
@@ -339,7 +335,7 @@ def ververs_vaste_teksten(content: dict, titel: str,
             gewijzigd.append("LET OP: Aanpak-invulling niet teruggevonden, fallback gebruikt")
         _zet("setup", render_aanpak(
             sjabloon.AANPAK_ALINEA_1.format(invulling=sjabloon.schoon_invulling(invulling))
-            + "\n\n" + sjabloon.AANPAK_ALINEA_2_MARKUP), "Aanpak")
+            + "\n\n" + sjabloon.AANPAK_ALINEA_2), "Aanpak")
 
     # Vervolgstappen: de vaste alinea's ervoor en de vervallen afsluiter erachter. De
     # catalogustitels en hun groep-intro's blijven precies zoals ze staan.

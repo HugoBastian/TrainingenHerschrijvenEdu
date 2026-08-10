@@ -444,7 +444,7 @@ def bouw(t: dict) -> tuple[dict, list]:
         "doelgroep": t["doelgroep"],
         "voorkennis": t["voorkennis"],
         "aanpak": (sjabloon.AANPAK_ALINEA_1.format(invulling=t["aanpak_invulling"])
-                   + "\n\n" + sjabloon.AANPAK_ALINEA_2_MARKUP),
+                   + "\n\n" + sjabloon.AANPAK_ALINEA_2),
         "doelen": {"intro": sjabloon.DOELEN_INTRO, "bullets": t["doelen"]},
         "vervolgstappen": {
             "alineas": [sjabloon.VERVOLG_ALINEA_1, sjabloon.VERVOLG_ALINEA_2],

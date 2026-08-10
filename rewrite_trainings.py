@@ -1553,10 +1553,10 @@ def assemble_document(writer_out: dict, b: RewriteBriefing, titels: list[str],
         },
         "doelgroep": str(writer_out.get("doelgroep", "")).strip(),
         "voorkennis": voorkennis,
-        # Gemarkeerde vorm: `*...*` is de cursivering uit het template. `render_markdown`
-        # zet hem ongewijzigd neer, `render_aanpak` maakt er <em> van voor het CMS.
+        # De nadruk in alinea 2 zit in de tekst zelf (aanhalingstekens, geen cursivering), dus
+        # markdown en CMS-content dragen hier hetzelfde.
         "aanpak": (sjabloon.AANPAK_ALINEA_1.format(invulling=invulling)
-                   + "\n\n" + sjabloon.AANPAK_ALINEA_2_MARKUP),
+                   + "\n\n" + sjabloon.AANPAK_ALINEA_2),
         "doelen": {"intro": sjabloon.DOELEN_INTRO, "bullets": writer_out.get("doelen", [])},
         "vervolgstappen": {
             "alineas": [sjabloon.VERVOLG_ALINEA_1, sjabloon.VERVOLG_ALINEA_2],

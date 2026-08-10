@@ -46,9 +46,9 @@ Deze training is bedoeld voor …
 
 De training is praktisch en interactief van opzet, met veel ruimte voor jouw vragen en werksituatie. Je gaat aan de slag met passende praktijkvoorbeelden. Door actief te oefenen, te analyseren en te evalueren, maak je je de materie stap voor stap eigen en ervaar je hoe \[…..\]
 
-Onze trainers zijn, naast trainer, dagelijks werkzaam op dit expertisegebied. Ze beschikken dus niet alleen over de meest actuele kennis, maar hebben ook essentiële praktijkervaring. Hierdoor zijn ze in staat om een waardevolle vertaalslag te maken van *kennis* naar *toepassing binnen jouw organisatie en werksituatie*.
+Onze trainers zijn, naast trainer, dagelijks werkzaam op dit expertisegebied. Ze beschikken dus niet alleen over de meest actuele kennis, maar hebben ook essentiële praktijkervaring. Hierdoor zijn ze in staat om een waardevolle vertaalslag te maken van ‘kennis’ naar ‘toepassing binnen jouw organisatie en werksituatie’.
 
-De twee schuingedrukte delen horen in elke uitvoer schuin te staan: in de markdown als `*kennis*`, in de CMS-content als `<em>kennis</em>`. De code plaatst ze (`sjabloon.AANPAK_ALINEA_2_MARKUP`).
+De twee benadrukte delen stonden tot augustus 2026 cursief; onze site en de leerportalen geven dat niet goed weer, dus staan er nu enkele aanhalingstekens. Ze horen in elke uitvoer te staan, markdown zowel als CMS-content. De code plaatst ze (`sjabloon.AANPAK_ALINEA_2`).
 
 ---
 
