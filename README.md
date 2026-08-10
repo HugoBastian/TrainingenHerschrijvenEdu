@@ -37,7 +37,7 @@ het model.
 | `drive_upload.py` | De herschreven trainingen als opgemaakte Google Docs naar een map in Google Drive. |
 | `rewrite_trainings.py` | Hybride schrijver + orchestratie + I/O. |
 | `herschrijven.ipynb` | Notebook om de pijplijn stap voor stap te draaien en te inspecteren. |
-| `test_rewrite.py` | 269 offline tests (geen API-key nodig). |
+| `test_rewrite.py` | 279 offline tests (geen API-key nodig). |
 
 ## Setup
 
@@ -251,6 +251,14 @@ Elk doc heet `{id} - {titel} (automatisch herschreven)`. Drive converteert de HT
 `render_docs_html` bij het uploaden naar een echt Google Doc, dus de koppen komen in de
 documentoverzicht-zijbalk en de modules houden hun sub-bullets. De links belanden in de kolom
 `drive_url` van het review-tabblad.
+
+**Elk vers doc krijgt een opmerking met de flags**, zodat een reviewer weet waar hij op moet
+letten voor hij begint te lezen. Alleen de tier `hoog`, net als de kolom `flags_hoog` — alles
+tonen zou hier hetzelfde doen als de oude verzamelkolom deed. De opmerking hangt aan het
+document en niet aan de titel: opmerkingen komen bij Google uitsluitend uit de Drive-API, en
+die kan een anker alleen als ondocumenteerde kix-JSON met tekstposities meekrijgen, posities die
+wij niet kennen omdat de conversie aan de andere kant gebeurt. Zet `met_comment=False` om het
+over te slaan.
 
 De opmaak (`DOCS_KOPPEN` en `ALINEA_RUIMTE` in `rewrite_output.py`) staat als inline stijl in de
 doc-HTML en komt nooit in de CMS-content terecht — die krijgt zijn opmaak van de site. Kop 1 is

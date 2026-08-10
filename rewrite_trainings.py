@@ -3020,6 +3020,10 @@ def schrijf_training_artefacten(json_dir: str, tid: Any, res: RewriteResult,
     _schrijf_atomisch(json_pad, lambda f: json.dump({
         "training_id": tid, "titel": res.titel, "oude_titel": res.oude_titel,
         "status": res.status, "reden": res.reden, "thin": res.thin, "flags": res.flags,
+        # de flags ook uitgesplitst: zonder de tier is `flags` één lijst waarin de paar
+        # opmerkingen die om een oordeel vragen ondergaan in de lengte- en woordmeldingen.
+        # De Drive-comment toont alleen `hoog`, net als de kolom in het review-tabblad.
+        "flags_tier": res.flags_tier,
         "modus": res.modus, "modus_voorstel": res.modus_voorstel,
         "spec_versie": res.spec_versie, "goud_voorbeelden": res.goud_voorbeelden,
         "toegepaste_acties": res.toegepaste_acties,

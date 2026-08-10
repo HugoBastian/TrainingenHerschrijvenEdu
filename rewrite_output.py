@@ -470,6 +470,10 @@ _DOCS_HTML_KOP = '<html><head><meta charset="utf-8"><title>{titel}</title></head
 #   laten vallen en krijg je toch weer de standaard-kop.
 ALINEA_RUIMTE = "10pt"
 BULLET_RUIMTE = "4pt"
+# Ruimte om de scheidingslijn tussen twee secties. Die staat er om de kopjes uit elkaar te
+# houden, en dan moet hij zelf ook lucht hebben; de ruimte boven de <h2> die erop volgt komt
+# daar nog bij, zodat het niet uitmaakt welke van de twee de importer honoreert.
+LIJN_RUIMTE = "16pt"
 
 # kop -> (tekengrootte, gewicht, ruimte erboven). Kop 1 krijgt geen ruimte erboven: die staat
 # bovenaan het document of vlak onder een horizontale lijn.
@@ -534,7 +538,8 @@ def render_docs_html(content: dict, titel: str) -> str:
         # `summary` en `summary_edudex` staan als platte tekst in het CMS (Kopje.html is False)
         fragment = str(waarde) if kopje.html else _paragrafen(waarde)
         delen.append(_docs_kop("h2", _esc(kopje.kop)) + _docs_opmaak(fragment))
-    return _DOCS_HTML_KOP.format(titel=_esc(titel)) + "<hr>".join(delen) + "</body></html>"
+    lijn = f'<hr style="{_ruimte(LIJN_RUIMTE, LIJN_RUIMTE)}">'
+    return _DOCS_HTML_KOP.format(titel=_esc(titel)) + lijn.join(delen) + "</body></html>"
 
 
 def content_naar_platte_tekst(content: dict, naam: str = "") -> dict:

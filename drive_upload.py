@@ -29,6 +29,7 @@ import hashlib
 import json
 import os
 
+import rewrite_checks as checks
 import rewrite_output as uit
 
 # `drive.file` geeft toegang tot uitsluitend wat deze app zelf aanmaakt. Dat is genoeg en het
@@ -194,6 +195,60 @@ def upload_doc(service, html: str, naam: str, map_id: str) -> dict:
         media_body=media, fields="id,name,webViewLink").execute(num_retries=5)
 
 
+def comment_tekst(training: dict) -> str:
+    """De opmerking die bij een doc komt te staan: waar moet de reviewer op letten?
+
+    Alleen de flags uit de tier `hoog`, net als de kolom `flags_hoog` in het review-tabblad.
+    Alles erin zetten zou hier hetzelfde doen als de oude verzamelkolom deed: over de eerste 16
+    trainingen was 62% van de flags een lengtemelding binnen de vangrail of hetzelfde woord voor
+    de derde keer, en dan leest niemand het meer. Artefacten van vóór `flags_tier` hebben de
+    uitsplitsing niet; die vallen terug op alle flags -- liever te veel tonen dan iets
+    verstoppen, dezelfde afweging als in `_review_rij`.
+    """
+    tiers = training.get("flags_tier") or {}
+    flags = tiers.get(checks.TIER_HOOG, []) if tiers else list(training.get("flags") or [])
+
+    kop = "Automatisch herschreven."
+    status = str(training.get("status") or "")
+    if status and status != "approved":
+        reden = str(training.get("reden") or "").strip()
+        kop = f"Automatisch herschreven, status: {status}" + (f" ({reden})." if reden else ".")
+
+    if not flags:
+        return f"{kop} De code-check heeft geen opmerkingen die om een oordeel vragen."
+    regels = "\n".join(f"- {f}" for f in flags)
+    woord = "punt" if len(flags) == 1 else "punten"
+    return f"{kop}\n\n{len(flags)} {woord} om op te letten:\n{regels}"
+
+
+def heeft_comment(service, file_id: str) -> bool:
+    """Staat er al een opmerking op dit document?
+
+    Nodig op het `nieuwe_versie`-pad. "Het doc bestond al, dus de opmerking ook" klopt niet voor
+    de documenten die zijn geüpload voordat deze functie bestond: die zouden er dan nooit een
+    krijgen. Eén extra call, en alleen voor de docs die daadwerkelijk vervangen worden.
+    """
+    antwoord = service.comments().list(
+        fileId=file_id, fields="comments(id)", pageSize=1).execute(num_retries=5)
+    return bool(antwoord.get("comments"))
+
+
+def plaats_comment(service, file_id: str, tekst: str) -> dict:
+    """Eén opmerking op het document.
+
+    Zonder anker, en dat is geen keuze maar een grens van de API: opmerkingen komen bij Google
+    uitsluitend uit de Drive-API, en die kan een anker alleen als ondocumenteerde kix-JSON met
+    tekstposities meekrijgen -- posities die wij niet kennen, want de conversie van HTML naar
+    Doc gebeurt aan de andere kant. Een opmerking zonder anker hangt aan het document en staat
+    in het opmerkingenpaneel, wat is wat de reviewer nodig heeft: weten waar hij op moet letten
+    voor hij begint te lezen.
+
+    De opmerking komt op naam van het account dat is ingelogd.
+    """
+    return service.comments().create(
+        fileId=file_id, body={"content": tekst}, fields="id").execute(num_retries=5)
+
+
 def vervang_doc(service, file_id: str, html: str) -> dict:
     """Nieuwe inhoud in een bestaand doc. Alleen op expliciet verzoek; zie `BIJ_BESTAAND`."""
     from googleapiclient.http import MediaIoBaseUpload
@@ -273,7 +328,11 @@ def verzamel_uit_map(out_dir: str, alleen_ids=None) -> list[dict]:
         if not data.get("content"):
             continue
         trainingen.append({"training_id": tid, "titel": data.get("titel") or "",
-                           "status": data.get("status") or "", "content": data["content"]})
+                           "status": data.get("status") or "", "content": data["content"],
+                           # voor de opmerking bij het doc; zie `comment_tekst`
+                           "reden": data.get("reden") or "",
+                           "flags": data.get("flags") or [],
+                           "flags_tier": data.get("flags_tier") or {}})
 
     def _volgorde(training):
         tid = training["training_id"]
@@ -291,7 +350,7 @@ def verzamel_uit_map(out_dir: str, alleen_ids=None) -> list[dict]:
 
 def upload_naar_drive(out_dir: str, drive_map: str, *, service=None, root_id: str | None = None,
                       alleen_ids=None, bij_bestaand: str = "overslaan",
-                      verbose: bool = True) -> dict:
+                      met_comment: bool = True, verbose: bool = True) -> dict:
     """Alles in `<out_dir>/trainingen/` als Google Doc in de Drive-map `drive_map`.
 
     Sequentieel, en dat is geen voorbehoud: het service-object uit `build()` is niet
@@ -299,6 +358,9 @@ def upload_naar_drive(out_dir: str, drive_map: str, *, service=None, root_id: st
     niet -- het id gaat op de `mislukt`-lijst en de geslaagde staan in het manifest, zodat
     dezelfde aanroep opnieuw draaien alleen de rest oppakt. Dát is waarvoor deze functie los
     aanroepbaar is.
+
+    `met_comment` zet bij elk vers doc een opmerking met de flags die om een oordeel vragen;
+    zie `comment_tekst` en `plaats_comment`.
 
     Geeft {"map_id", "map_url", "urls", "nieuw", "overgeslagen", "mislukt"} terug.
     """
@@ -357,7 +419,8 @@ def upload_naar_drive(out_dir: str, drive_map: str, *, service=None, root_id: st
                 elif verbose:
                     print(f"  {tid}: staat er al")
             else:
-                if bekend and bij_bestaand == "nieuwe_versie":
+                vervangt = bool(bekend) and bij_bestaand == "nieuwe_versie"
+                if vervangt:
                     bestand = vervang_doc(service, bekend["file_id"], html)
                 else:
                     bestand = upload_doc(service, html, naam, map_["id"])
@@ -365,6 +428,17 @@ def upload_naar_drive(out_dir: str, drive_map: str, *, service=None, root_id: st
                 nieuw.append(tid)
                 manifest["docs"][str(tid)] = {"file_id": bestand["id"], "url": urls[tid],
                                               "naam": naam, "map": drive_map, "sha256": sha}
+                # Een vervangen doc houdt de opmerking die erop staat -- een tweede zou de
+                # reviewer twee keer hetzelfde laten lezen. Maar de docs van vóór deze functie
+                # hebben er nog geen, dus daar wordt eerst gekeken. Faalt dit, dan is dat geen
+                # mislukte upload: het document staat er en is bruikbaar.
+                if met_comment:
+                    try:
+                        if not (vervangt and heeft_comment(service, bestand["id"])):
+                            plaats_comment(service, bestand["id"], comment_tekst(training))
+                    except Exception as fout:   # noqa: BLE001
+                        print(f"  {tid}: opmerking plaatsen mislukt "
+                              f"({type(fout).__name__}: {fout}); het doc staat er wel")
                 if verbose:
                     # de titel en niet de docnaam: die eindigt op een vast achtervoegsel dat
                     # afkappen precies wegknipt wat een kolombreedte overhoudt

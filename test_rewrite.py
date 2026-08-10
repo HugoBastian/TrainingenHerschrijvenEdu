@@ -1621,7 +1621,7 @@ def test_docs_html_geeft_een_leeg_kopje_toch_zijn_kop():
     """Een reviewer moet kunnen zien dat er niets staat, niet dat het kopje ontbreekt."""
     doc = uit.render_docs_html(_content(follow_up=""), "Training Data")
     assert "Vervolgstappen" in _koppen(doc, "h2")
-    assert re.search(r"Vervolgstappen</span></h2><hr>", doc), "het lege kopje kreeg toch inhoud"
+    assert re.search(r"Vervolgstappen</span></h2><hr\b", doc), "het lege kopje kreeg toch inhoud"
 
 
 # ---------------------------------------------------------------------------
@@ -1653,6 +1653,20 @@ def test_zonder_document_geen_markdown_en_een_oude_md_gaat_weg():
         paden = rw.schrijf_training_artefacten(d, 5, res, {})
         assert paden["md"] is None
         assert os.listdir(d) == ["5.json"]
+
+
+def test_artefact_bewaart_de_flags_ook_uitgesplitst_per_tier():
+    """Zonder `flags_tier` op schijf kan de Drive-comment de ruis niet van het oordeel scheiden."""
+    res = rw.RewriteResult(5, "Training XML", rw.APPROVED, document=_document(),
+                           flags=["hoog: fout", "laag: lang"],
+                           flags_tier={checks.TIER_HOOG: ["hoog: fout"],
+                                       checks.TIER_LAAG: ["laag: lang"]})
+    with tempfile.TemporaryDirectory() as d:
+        paden = rw.schrijf_training_artefacten(d, 5, res, {"days": 2})
+        with open(paden["json"], encoding="utf-8") as f:
+            op_schijf = json.load(f)
+    assert op_schijf["flags_tier"][checks.TIER_HOOG] == ["hoog: fout"]
+    assert op_schijf["flags"] == ["hoog: fout", "laag: lang"]
 
 
 def test_overgenomen_training_landt_als_artefact_op_schijf():
@@ -3069,14 +3083,15 @@ class _DriveFout(Exception):
     """Staat voor een HttpError; die klasse importeren zou googleapiclient vereisen."""
 
 
-def _fake_drive(bestaand=(), faal_op=()):
+def _fake_drive(bestaand=(), faal_op=(), comments_stuk=False):
     """Een Drive-service zonder netwerk, in hetzelfde SimpleNamespace-idioom als de fake client.
 
     `bestaand` zijn de files die `files().list` teruggeeft (op naam gefilterd), `faal_op` de
     namen waarop `create` een fout gooit -- nodig om te laten zien dat één mislukte upload de
-    rest van de batch niet meeneemt.
+    rest van de batch niet meeneemt. `comments_stuk` laat het plaatsen van de opmerking falen,
+    wat een geslaagde upload niet mag omkatten naar een mislukte.
     """
-    gemaakt, vervangen = [], []
+    gemaakt, vervangen, comments = [], [], []
 
     def _list(**kw):
         naam = kw.get("q", "")
@@ -3097,8 +3112,20 @@ def _fake_drive(bestaand=(), faal_op=()):
         return SimpleNamespace(execute=lambda **_: {
             "id": kw["fileId"], "name": "", "webViewLink": f"https://docs.google.com/d/{kw['fileId']}"})
 
+    def _comment(**kw):
+        if comments_stuk:
+            raise _DriveFout("403 op de opmerking")
+        comments.append(kw)
+        return SimpleNamespace(execute=lambda **_: {"id": f"c{len(comments)}"})
+
+    def _comment_list(**kw):
+        staand = [c for c in comments if c["fileId"] == kw["fileId"]]
+        return SimpleNamespace(execute=lambda **_: {"comments": [{"id": "c"} for _ in staand]})
+
     files = SimpleNamespace(list=_list, create=_create, update=_update)
-    return SimpleNamespace(files=lambda: files, gemaakt=gemaakt, vervangen=vervangen)
+    return SimpleNamespace(files=lambda: files,
+                           comments=lambda: SimpleNamespace(create=_comment, list=_comment_list),
+                           gemaakt=gemaakt, vervangen=vervangen, comments_gezet=comments)
 
 
 def _artefact(d, tid, titel="Training Data", **overrides):
@@ -3363,6 +3390,94 @@ def test_een_kapotte_upload_sloopt_een_geslaagde_batch_niet():
             rw._upload_na_batch(d, "batch 1", _StukService(), False)
     assert "uploaden naar Drive mislukt" in uitvoer.getvalue()
     assert "rw.upload_naar_drive(" in uitvoer.getvalue(), uitvoer.getvalue()
+
+
+def test_comment_toont_alleen_de_flags_die_om_een_oordeel_vragen():
+    """Alles tonen zou hier hetzelfde doen als de oude verzamelkolom: dan leest niemand het."""
+    training = {"status": rw.APPROVED, "flags": ["laag: te lang", "hoog: verzonnen feit"],
+                "flags_tier": {checks.TIER_HOOG: ["hoog: verzonnen feit"],
+                               checks.TIER_LAAG: ["laag: te lang"]}}
+    tekst = drive.comment_tekst(training)
+    assert "hoog: verzonnen feit" in tekst
+    assert "laag: te lang" not in tekst
+    assert "1 punt om op te letten" in tekst, tekst
+
+
+def test_comment_valt_terug_op_alle_flags_zonder_tier():
+    """Artefacten van vóór `flags_tier`: liever te veel tonen dan iets verstoppen."""
+    tekst = drive.comment_tekst({"status": rw.APPROVED, "flags": ["a", "b"], "flags_tier": {}})
+    assert "- a" in tekst and "- b" in tekst
+    assert "2 punten om op te letten" in tekst
+
+
+def test_comment_noemt_een_status_die_niet_approved_is():
+    tekst = drive.comment_tekst({"status": rw.HUMAN_QUEUE, "reden": "judge wees af", "flags": []})
+    assert rw.HUMAN_QUEUE in tekst and "judge wees af" in tekst
+    assert "geen opmerkingen" in tekst.lower()
+
+
+def test_comment_zonder_flags_zegt_dat_ook():
+    tekst = drive.comment_tekst({"status": rw.APPROVED, "flags": [], "flags_tier": {}})
+    assert "geen opmerkingen" in tekst.lower()
+    assert "\n- " not in tekst
+
+
+def test_elk_nieuw_doc_krijgt_een_opmerking_met_de_flags():
+    service = _fake_drive()
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 2347, flags=["[FLAG] verzonnen feit"],
+                  flags_tier={checks.TIER_HOOG: ["[FLAG] verzonnen feit"]})
+        drive.upload_naar_drive(d, "batch 1", service=service, root_id="root", verbose=False)
+    assert len(service.comments_gezet) == 1, service.comments_gezet
+    gezet = service.comments_gezet[0]
+    assert gezet["fileId"] == "f2", gezet            # f1 is de batchmap
+    assert "[FLAG] verzonnen feit" in gezet["body"]["content"]
+
+
+def test_een_vervangen_doc_krijgt_geen_tweede_opmerking():
+    """De opmerking blijft op het bestand staan; een tweede laat de reviewer dubbel lezen."""
+    service = _fake_drive()
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 2347)
+        drive.upload_naar_drive(d, "batch 1", service=service, root_id="root", verbose=False)
+        drive.upload_naar_drive(d, "batch 1", service=service, root_id="root",
+                                bij_bestaand="nieuwe_versie", verbose=False)
+    assert len(service.comments_gezet) == 1, service.comments_gezet
+
+
+def test_een_doc_zonder_opmerking_krijgt_er_alsnog_een_bij_nieuwe_versie():
+    """De docs van vóór deze functie zouden er anders nooit een krijgen."""
+    service = _fake_drive()
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 2347)
+        drive.upload_naar_drive(d, "batch 1", service=service, root_id="root",
+                                met_comment=False, verbose=False)   # doc zonder opmerking
+        assert service.comments_gezet == []
+        drive.upload_naar_drive(d, "batch 1", service=service, root_id="root",
+                                bij_bestaand="nieuwe_versie", verbose=False)
+    assert len(service.comments_gezet) == 1, service.comments_gezet
+
+
+def test_een_mislukte_opmerking_maakt_de_upload_niet_ongeldig():
+    """Het document staat er en is bruikbaar; alleen de opmerking ontbreekt."""
+    service = _fake_drive(comments_stuk=True)
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 2347)
+        uitvoer = io.StringIO()
+        with contextlib.redirect_stdout(uitvoer):
+            res = drive.upload_naar_drive(d, "batch 1", service=service, root_id="root",
+                                          verbose=False)
+    assert res["nieuw"] == [2347] and res["mislukt"] == []
+    assert "opmerking plaatsen mislukt" in uitvoer.getvalue()
+
+
+def test_met_comment_uit_raakt_de_opmerkingen_niet():
+    service = _fake_drive()
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 2347)
+        drive.upload_naar_drive(d, "batch 1", service=service, root_id="root",
+                                met_comment=False, verbose=False)
+    assert service.comments_gezet == []
 
 
 def test_manifest_wordt_atomisch_geschreven():

@@ -24,7 +24,7 @@ een rij in `herschreven.xlsx`.
 ## Commando's
 
 ```bash
-python test_rewrite.py                      # 269 offline tests, geen API-key nodig
+python test_rewrite.py                      # 279 offline tests, geen API-key nodig
 python -c "import test_rewrite as t; t.test_em_dash_is_hard_in_elk_schrijversveld()"   # één test
 python bouw_goud_v2.py                      # terugval-few-shot; nodig na een verse checkout
 
@@ -271,6 +271,26 @@ dat. Drie dingen die alleen uit een echte upload bleken:
 
 Verander je de opmaak, dan verschuift de sha256 van élk doc. De lus meldt dan per training dat
 de tekst is gewijzigd; `bij_bestaand="nieuwe_versie"` werkt de bestaande docs bij.
+
+### De opmerking bij het doc
+
+Elk vers doc krijgt via `comments.create` een opmerking met de flags, zodat een reviewer weet
+waar hij op moet letten voor hij begint te lezen. Drie dingen:
+
+- **zonder anker, en dat is een grens van de API.** Opmerkingen komen bij Google uitsluitend uit
+  de Drive-API; de Docs-API kan ze niet maken. Een anker kan alleen als ondocumenteerde
+  kix-JSON met tekstposities, en die posities kennen wij niet -- de conversie van HTML naar Doc
+  gebeurt aan de andere kant. De opmerking hangt dus aan het document en niet aan de titel;
+- **alleen de tier `hoog`**, net als de kolom `flags_hoog`. Alles tonen doet hier hetzelfde als
+  de oude verzamelkolom deed. Daarom staat `flags_tier` sinds deze ronde óók in `<id>.json`:
+  zonder die uitsplitsing op schijf kan de comment de ruis niet van het oordeel scheiden.
+  Artefacten van vóór die wissel vallen terug op alle flags, en dat is geen fout maar dezelfde
+  afweging als in `_review_rij` -- voor die trainingen bestaat de tier nergens, ook niet in het
+  sheet;
+- **een mislukte opmerking is geen mislukte upload.** Het doc staat er en is bruikbaar, dus de
+  training gaat niet op de `mislukt`-lijst. Op het `nieuwe_versie`-pad wordt eerst gekeken of er
+  al een opmerking staat (`heeft_comment`): de docs van vóór deze functie hebben er nog geen en
+  zouden er anders nooit een krijgen.
 
 De upload hangt aan het eind van `rewrite_file` in een `try/except`: de artefacten en het sheet
 staan dan al op schijf, dus een kapot token kost hoogstens de upload en nooit een batch die net
