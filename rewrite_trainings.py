@@ -2641,7 +2641,9 @@ def promoveer_naar_goud(trainingen_dir: str = os.path.join(_HERE, "herschreven",
     afgewezen: list[tuple[Any, list[str]]] = []
     overgeslagen: list[tuple[Any, str]] = []
 
-    for pad in sorted(glob.glob(os.path.join(trainingen_dir, "*.json"))):
+    # recursief: sinds de batch-submappen staat de eigen output verspreid over
+    # `trainingen/<batch>/`, en de few-shot wordt gekozen uit álles wat we ooit schreven
+    for pad in sorted(glob.glob(os.path.join(trainingen_dir, "**", "*.json"), recursive=True)):
         with open(pad, encoding="utf-8") as f:
             resultaat = json.load(f)
         tid = resultaat.get("training_id", os.path.splitext(os.path.basename(pad))[0])
@@ -3000,6 +3002,48 @@ def _schrijf_atomisch(pad: str, schrijf) -> None:
         raise
 
 
+def artefact_dir(out_dir: str, batch: str | None = None) -> str:
+    """Waar de artefacten van deze batch komen te staan.
+
+    Zonder `batch` is dat de platte map `trainingen/`, en dat blijft zo: de trainingen van
+    voor de submappen staan daar, en die hoeven niet te verhuizen om vindbaar te blijven.
+    Met een batchnaam wordt het `trainingen/<batch>/`, zodat een Drive-upload precies één
+    batch kan meenemen in plaats van alles wat er ooit is geschreven.
+    """
+    basis = os.path.join(out_dir, "trainingen")
+    return os.path.join(basis, str(batch).strip()) if str(batch or "").strip() else basis
+
+
+def artefact_paden(out_dir: str, batch: str | None = None) -> list[str]:
+    """Alle `<id>.json` in deze batch, of -- zonder batch -- in de héle outputmap.
+
+    Let op het verschil met `artefact_dir`: dáár betekent "geen batch" de platte map, hier
+    betekent het "alles, submappen incluis". Dat is precies wat de twee aanroepers nodig
+    hebben: schrijven doe je op één plek, zoeken over het geheel (`promoveer_naar_goud` kiest
+    de few-shot uit alles wat we ooit hebben geschreven).
+    """
+    import glob
+    if str(batch or "").strip():
+        return sorted(glob.glob(os.path.join(artefact_dir(out_dir, batch), "*.json")))
+    basis = os.path.join(out_dir, "trainingen")
+    return sorted(glob.glob(os.path.join(basis, "**", "*.json"), recursive=True))
+
+
+def zoek_artefact(out_dir: str, training_id: Any) -> str | None:
+    """Het pad van `<id>.json`, waar het ook staat: plat of in een batch-submap.
+
+    Sinds de submappen weet een aanroeper niet meer in welke batch een training zit, en dat
+    zou hij ook niet moeten hoeven weten -- een training_id is uniek over alle batches heen.
+    Staat hetzelfde id in twee batches (opnieuw gedraaid onder een nieuwe naam), dan wint de
+    laatst gewijzigde: dat is de versie die ook in `herschreven.xlsx` staat.
+    """
+    kandidaten = [p for p in artefact_paden(out_dir)
+                  if os.path.splitext(os.path.basename(p))[0] == str(training_id)]
+    if not kandidaten:
+        return None
+    return max(kandidaten, key=os.path.getmtime)
+
+
 def schrijf_training_artefacten(json_dir: str, tid: Any, res: RewriteResult,
                                 content_uit: dict) -> dict[str, str | None]:
     """De twee artefacten per training: de lossless JSON en het leesbare markdown-document.
@@ -3044,9 +3088,9 @@ def schrijf_training_artefacten(json_dir: str, tid: Any, res: RewriteResult,
     return {"json": json_pad, "md": md_pad}
 
 
-def bewaar_training(out_dir: str, res: RewriteResult,
-                    content_bron: dict | None = None) -> dict[str, str | None]:
-    """Eén los resultaat wegschrijven naar `<out_dir>/trainingen/`.
+def bewaar_training(out_dir: str, res: RewriteResult, content_bron: dict | None = None,
+                    batch: str | None = None) -> dict[str, str | None]:
+    """Eén los resultaat wegschrijven naar `<out_dir>/trainingen/[<batch>/]`.
 
     Voor de notebook-cel die één training herschrijft: zonder dit blijft dat resultaat in
     het geheugen en staat de markdown die je onder de cel leest nergens op schijf.
@@ -3054,7 +3098,7 @@ def bewaar_training(out_dir: str, res: RewriteResult,
     `hergenereer_kopje_op_schijf` (sectie 8).
     """
     content_uit = uit.document_to_content(res.document, content_bron or {}) if res.document else {}
-    return schrijf_training_artefacten(os.path.join(out_dir, "trainingen"),
+    return schrijf_training_artefacten(artefact_dir(out_dir, batch),
                                        res.training_id, res, content_uit)
 
 
@@ -3133,7 +3177,8 @@ def upload_naar_drive(out_dir: str = "herschreven", drive_map: str = "", **kw) -
     return resultaat
 
 
-def _upload_na_batch(out_dir: str, drive_map: str | None, service, verbose: bool) -> None:
+def _upload_na_batch(out_dir: str, drive_map: str | None, service, verbose: bool,
+                     batch: str | None = None) -> None:
     """De upload aan het eind van een batch, met een vangnet eromheen.
 
     De artefacten staan op schijf en het sheet is geschreven voordat dit draait, dus een
@@ -3144,7 +3189,7 @@ def _upload_na_batch(out_dir: str, drive_map: str | None, service, verbose: bool
     if not drive_map:
         return
     try:
-        upload_naar_drive(out_dir, drive_map, service=service, verbose=verbose)
+        upload_naar_drive(out_dir, drive_map, service=service, batch=batch, verbose=verbose)
     except Exception as fout:   # noqa: BLE001 -- de batch is af; dit is bijwerk
         print(f"LET OP: uploaden naar Drive mislukt ({type(fout).__name__}: {fout}) -> "
               f"de artefacten staan op schijf; draai "
@@ -3161,10 +3206,14 @@ def hergenereer_kopje_op_schijf(scored_path: str, source_path: str, training_id:
     ("de modules overlappen, voeg 2 en 4 samen"). Werkt de per-training-artefacten
     (JSON + markdown) en de rij in `herschreven.xlsx` bij.
     """
-    json_dir = os.path.join(out_dir, "trainingen")
-    pad = os.path.join(json_dir, f"{training_id}.json")
-    if not os.path.exists(pad):
-        raise FileNotFoundError(f"{pad} bestaat niet; herschrijf deze training eerst.")
+    # Zoeken en niet aannemen: sinds de batch-submappen weet de aanroeper niet in welke map
+    # deze training staat, en het resultaat hoort terug op de plek waar het vandaan komt.
+    pad = zoek_artefact(out_dir, training_id)
+    if pad is None:
+        raise FileNotFoundError(
+            f"{training_id}.json staat niet in {os.path.join(out_dir, 'trainingen')} "
+            f"(ook niet in een batch-submap); herschrijf deze training eerst.")
+    json_dir = os.path.dirname(pad)
     with open(pad, encoding="utf-8") as f:
         resultaat = json.load(f)
 
@@ -3332,21 +3381,25 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
                  besluiten_path: str | None = None, start: int = 0,
                  limit: int | None = None, skip_herschreven: bool = True,
                  append: bool = True, skip_existing: bool = True, verbose: bool = True,
-                 alleen_ids=None, drive_map: str | None = None):
+                 alleen_ids=None, batch: str | None = None, drive_map: str | None = None):
     """Herschrijft de trainingen en schrijft de artefacten in `out_dir`.
 
-    - trainingen/<id>.json   lossless: document + CMS-content + oordeel
-    - trainingen/<id>.md     het leesbare document (kopstructuur van het template)
-    - herschreven.xlsx       tabblad `cms` (id/name/content) + tabblad `review`
+    - trainingen/[<batch>/]<id>.json   lossless: document + CMS-content + oordeel
+    - trainingen/[<batch>/]<id>.md     het leesbare document (kopstructuur van het template)
+    - herschreven.xlsx                 tabblad `cms` (id/name/content) + tabblad `review`
 
-    Met `drive_map` gaat alles wat er in `out_dir` ligt daarna als Google Doc naar een Drive-map
-    met die naam. Dat is bewust een synchronisatie van de héle map en niet van deze run: een
-    training die eerder wel is geschreven maar niet geüpload, valt buiten de wachtrij van de
-    volgende run en zou anders nooit meer langskomen.
+    `batch` zet de artefacten in een eigen submap. Dat is wat een Drive-map per batch mogelijk
+    maakt: zonder die scheiding is er op schijf niets wat batch 1 van batch 2 onderscheidt, en
+    dan belandt alles wat we ooit schreven in élke Drive-map opnieuw.
+
+    Met `drive_map` gaat die submap daarna als Google Docs naar een Drive-map met die naam. Dat
+    is bewust een synchronisatie van de map en niet van deze run: een training die eerder wel is
+    geschreven maar niet geüpload, valt buiten de wachtrij van de volgende run en zou anders
+    nooit meer langskomen.
     """
     import pandas as pd
     os.makedirs(out_dir, exist_ok=True)
-    json_dir = os.path.join(out_dir, "trainingen")
+    json_dir = artefact_dir(out_dir, batch)
     os.makedirs(json_dir, exist_ok=True)
     out_path = os.path.join(out_dir, "herschreven.xlsx")
 
@@ -3388,7 +3441,7 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
         for regel in _wachtrij_waarschuwingen(q, start, limit, alleen_ids):
             if not verbose:
                 print(regel)
-        _upload_na_batch(out_dir, drive_map, drive_service, verbose)
+        _upload_na_batch(out_dir, drive_map, drive_service, verbose, batch)
         return bestaand_review if bestaand_review is not None else pd.DataFrame()
 
     catalog = load_catalog()
@@ -3477,7 +3530,7 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
         print(f"\nGeschreven: {out_path} — cms {len(cms)} rijen, review {len(review)} rijen; "
               f"JSON + markdown in {json_dir}/")
 
-    _upload_na_batch(out_dir, drive_map, drive_service, verbose)
+    _upload_na_batch(out_dir, drive_map, drive_service, verbose, batch)
     return review
 
 
@@ -3508,9 +3561,12 @@ def main():
                         "reviewer; herschrijft niets")
     p.add_argument("--geen-llm", action="store_true",
                    help="alleen bij --scan-modus: alleen de deterministische ondergrens")
+    p.add_argument("--batch", metavar="NAAM",
+                   help="zet de artefacten in trainingen/NAAM/ in plaats van in trainingen/; "
+                        "een Drive-upload neemt dan alleen die submap mee")
     p.add_argument("--drive-map", metavar="NAAM",
                    help="upload de trainingen na afloop als Google Docs naar een Drive-map "
-                        "met deze naam")
+                        "met deze naam; zonder --batch is dat de submap met dezelfde naam")
     # eigen modus: uploaden zonder te herschrijven, om een gestrande upload op te pakken of
     # een batch van voor deze functie alsnog naar Drive te krijgen
     p.add_argument("--alleen-uploaden", action="store_true",
@@ -3520,7 +3576,7 @@ def main():
     if a.alleen_uploaden:
         if not a.drive_map:
             raise SystemExit("--alleen-uploaden vraagt om --drive-map.")
-        upload_naar_drive(a.out_dir, a.drive_map)
+        upload_naar_drive(a.out_dir, a.drive_map, batch=a.batch)
         return
     if a.toon_wachtrij:
         # kijken kost niets: geen key, geen besluiten-sheet, geen bronsheet nodig
@@ -3541,7 +3597,7 @@ def main():
         raise SystemExit("Zet ANTHROPIC_API_KEY (in een .env-bestand of je omgeving).")
     rewrite_file(a.scored, a.source, a.out_dir, besluiten_path=a.besluiten,
                  start=a.start, limit=a.limit, append=not a.no_append, alleen_ids=a.ids,
-                 drive_map=a.drive_map)
+                 batch=a.batch, drive_map=a.drive_map)
 
 
 if __name__ == "__main__":

@@ -37,7 +37,7 @@ het model.
 | `drive_upload.py` | De herschreven trainingen als opgemaakte Google Docs naar een map in Google Drive. |
 | `rewrite_trainings.py` | Hybride schrijver + orchestratie + I/O. |
 | `herschrijven.ipynb` | Notebook om de pijplijn stap voor stap te draaien en te inspecteren. |
-| `test_rewrite.py` | 279 offline tests (geen API-key nodig). |
+| `test_rewrite.py` | 287 offline tests (geen API-key nodig). |
 
 ## Setup
 
@@ -238,11 +238,12 @@ kopiëren naar een leeg document. Met `--drive-map` (of `DRIVE_MAP` in het noteb
 pijplijn dat zelf.
 
 ```bash
-# als onderdeel van de batch
+# als onderdeel van de batch: artefacten in trainingen/batch 2026-08-10/, docs in de Drive-map
+# met dezelfde naam
 python rewrite_trainings.py --scored ... --source ... --besluiten besluiten.xlsx \
-  --drive-map "batch 2026-08-10"
+  --batch "batch 2026-08-10" --drive-map "batch 2026-08-10"
 
-# of los, over een map die er al staat
+# of los, over een batch die er al staat
 python rewrite_trainings.py --alleen-uploaden --drive-map "batch 2026-08-10" \
   --out-dir herschreven --scored scoresheet.xlsx
 ```
@@ -269,10 +270,16 @@ de kop: Docs bewaart die als tekenopmaak op de tekst en niet als eigenschap van 
 
 Vier dingen die de vorm bepalen:
 
-- **het is een synchronisatie van `--out-dir`, geen verzendlijst van deze run.** De wachtrij
+- **het is een synchronisatie van de batchmap, geen verzendlijst van deze run.** De wachtrij
   slaat over wat al in `herschreven.xlsx` staat, dus een training die eerder wel werd geschreven
   maar niet geüpload zou anders nooit meer langskomen. Om dezelfde reden draait de upload door
   als de wachtrij leeg is;
+- **`--batch NAAM` zet de artefacten in `trainingen/NAAM/`**, en de upload neemt alleen die
+  submap mee. Zonder die scheiding is er op schijf niets wat batch 1 van batch 2 onderscheidt en
+  belandt élke training in élke Drive-map opnieuw. Laat je `--batch` weg bij het uploaden, dan
+  wordt de submap gekozen die net zo heet als de Drive-map; bestaat die niet, dan gaat de platte
+  map mee (daar staan de trainingen van voor de indeling, die niet hoeven te verhuizen).
+  `rw.zoek_artefact(out_dir, id)` vindt een training waar hij ook staat;
 - **wat er al staat blijft staan.** Een reviewer zet opmerkingen in een doc, en die raken hun
   ankers kwijt zodra de inhoud eronder wordt vervangen. Is de tekst sinds de upload veranderd,
   dan meldt de lus dat; met `bij_bestaand="nieuwe_versie"` werk je alsnog bij;

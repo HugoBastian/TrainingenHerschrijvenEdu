@@ -306,8 +306,24 @@ def schrijf_manifest(out_dir: str, manifest: dict) -> str:
 # De artefacten op schijf
 # ---------------------------------------------------------------------------
 
-def verzamel_uit_map(out_dir: str, alleen_ids=None) -> list[dict]:
-    """De trainingen in `<out_dir>/trainingen/` die een doc verdienen.
+def trainingen_map(out_dir: str, batch: str | None = None) -> str:
+    """De map met de artefacten van deze batch. Kopie van `rewrite_trainings.artefact_dir`.
+
+    Een kopie en geen import, om dezelfde reden als `MIN_TITELS_PER_GROEP` in
+    `rewrite_checks.py`: die module ligt stroomafwaarts van deze en importeren zou de richting
+    omdraaien. Verandert de indeling daar, dan hier mee.
+    """
+    basis = os.path.join(out_dir, "trainingen")
+    return os.path.join(basis, str(batch).strip()) if str(batch or "").strip() else basis
+
+
+def verzamel_uit_map(out_dir: str, alleen_ids=None, batch: str | None = None) -> list[dict]:
+    """De trainingen die een doc verdienen, uit `<out_dir>/trainingen/[<batch>/]`.
+
+    **Niet recursief, en dat is de hele bedoeling van de submappen.** Zonder `batch` levert dit
+    alleen de platte map op, waar de trainingen van voor de indeling staan. Zou het recursief
+    zijn, dan kreeg elke Drive-map opnieuw alles wat we ooit hebben geschreven -- precies wat
+    de submappen moeten voorkomen.
 
     Zonder `content` valt er niets te renderen: dat is een artefact met status `error` of een
     route die vóór het schrijven afbrak. Die overslaan is beter dan een leeg doc uploaden, want
@@ -319,7 +335,7 @@ def verzamel_uit_map(out_dir: str, alleen_ids=None) -> list[dict]:
     """
     gekozen = set(alleen_ids) if alleen_ids else None
     trainingen = []
-    for pad in sorted(glob.glob(os.path.join(out_dir, "trainingen", "*.json"))):
+    for pad in sorted(glob.glob(os.path.join(trainingen_map(out_dir, batch), "*.json"))):
         with open(pad, encoding="utf-8") as f:
             data = json.load(f)
         tid = data.get("training_id")
@@ -348,10 +364,26 @@ def verzamel_uit_map(out_dir: str, alleen_ids=None) -> list[dict]:
 # De lus
 # ---------------------------------------------------------------------------
 
+def kies_batch(out_dir: str, drive_map: str, batch: str | None = None) -> str | None:
+    """Welke submap gaat er mee als de aanroeper er geen noemt?
+
+    Die met dezelfde naam als de Drive-map, als hij bestaat. Zonder deze regel is de
+    veelgemaakte fout stil en duur: `upload_naar_drive(OUT_DIR, "ronde 3")` zonder `batch`
+    zou de platte map pakken en dus de oude trainingen in de map van ronde 3 zetten. De
+    normale gang van zaken is dat submap en Drive-map dezelfde naam dragen.
+    """
+    if str(batch or "").strip():
+        return batch
+    if os.path.isdir(trainingen_map(out_dir, drive_map)):
+        return drive_map
+    return None
+
+
 def upload_naar_drive(out_dir: str, drive_map: str, *, service=None, root_id: str | None = None,
-                      alleen_ids=None, bij_bestaand: str = "overslaan",
+                      alleen_ids=None, batch: str | None = None,
+                      bij_bestaand: str = "overslaan",
                       met_comment: bool = True, verbose: bool = True) -> dict:
-    """Alles in `<out_dir>/trainingen/` als Google Doc in de Drive-map `drive_map`.
+    """De trainingen van één batch als Google Doc in de Drive-map `drive_map`.
 
     Sequentieel, en dat is geen voorbehoud: het service-object uit `build()` is niet
     thread-safe en 200 docs kosten zo ongeveer drie minuten. Een mislukte upload stopt de rest
@@ -360,7 +392,8 @@ def upload_naar_drive(out_dir: str, drive_map: str, *, service=None, root_id: st
     aanroepbaar is.
 
     `met_comment` zet bij elk vers doc een opmerking met de flags die om een oordeel vragen;
-    zie `comment_tekst` en `plaats_comment`.
+    zie `comment_tekst` en `plaats_comment`. `batch` kiest de submap op schijf; laat je hem
+    weg, dan pakt `kies_batch` de submap met dezelfde naam als de Drive-map.
 
     Geeft {"map_id", "map_url", "urls", "nieuw", "overgeslagen", "mislukt"} terug.
     """
@@ -370,12 +403,16 @@ def upload_naar_drive(out_dir: str, drive_map: str, *, service=None, root_id: st
         raise ValueError("Geef een mapnaam op voor deze batch (drive_map).")
     drive_map = str(drive_map).strip()
 
-    trainingen = verzamel_uit_map(out_dir, alleen_ids)
+    batch = kies_batch(out_dir, drive_map, batch)
+    bron = trainingen_map(out_dir, batch)
+    trainingen = verzamel_uit_map(out_dir, alleen_ids, batch)
     if not trainingen:
         if verbose:
-            print(f"Geen trainingen met content in {os.path.join(out_dir, 'trainingen')}/")
+            print(f"Geen trainingen met content in {bron}/")
         return {"map_id": "", "map_url": "", "urls": {}, "nieuw": [],
                 "overgeslagen": [], "mislukt": []}
+    if verbose:
+        print(f"{len(trainingen)} trainingen uit {bron}/ -> Drive-map '{drive_map}'")
 
     service = service or bouw_service()
     manifest = lees_manifest(out_dir)

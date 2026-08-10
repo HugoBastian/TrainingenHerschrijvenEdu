@@ -1655,6 +1655,35 @@ def test_zonder_document_geen_markdown_en_een_oude_md_gaat_weg():
         assert os.listdir(d) == ["5.json"]
 
 
+def test_artefact_dir_schrijft_plat_zonder_batch_en_in_een_submap_met():
+    """Zonder batch blijft het de platte map: de trainingen van voor de indeling verhuizen niet."""
+    assert rw.artefact_dir("uit") == os.path.join("uit", "trainingen")
+    assert rw.artefact_dir("uit", "") == os.path.join("uit", "trainingen")
+    assert rw.artefact_dir("uit", "  ") == os.path.join("uit", "trainingen")
+    assert rw.artefact_dir("uit", "ronde 3") == os.path.join("uit", "trainingen", "ronde 3")
+
+
+def test_zoek_artefact_vindt_een_training_in_elke_submap():
+    """Een aanroeper weet niet in welke batch een training zit, en hoeft dat ook niet te weten."""
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 99)                      # plat
+        _artefact(d, 2808, batch="ronde 3")   # in een submap
+        assert rw.zoek_artefact(d, 99) == os.path.join(d, "trainingen", "99.json")
+        assert rw.zoek_artefact(d, 2808) == os.path.join(d, "trainingen", "ronde 3", "2808.json")
+        assert rw.zoek_artefact(d, 1234) is None
+
+
+def test_artefact_paden_zoekt_zonder_batch_juist_wel_recursief():
+    """`promoveer_naar_goud` kiest de few-shot uit alles wat we ooit hebben geschreven."""
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 99)
+        _artefact(d, 1, batch="ronde 1")
+        _artefact(d, 2, batch="ronde 2")
+        alles = [os.path.basename(p) for p in rw.artefact_paden(d)]
+        assert sorted(alles) == ["1.json", "2.json", "99.json"]
+        assert [os.path.basename(p) for p in rw.artefact_paden(d, "ronde 1")] == ["1.json"]
+
+
 def test_artefact_bewaart_de_flags_ook_uitgesplitst_per_tier():
     """Zonder `flags_tier` op schijf kan de Drive-comment de ruis niet van het oordeel scheiden."""
     res = rw.RewriteResult(5, "Training XML", rw.APPROVED, document=_document(),
@@ -2939,6 +2968,18 @@ def _goud_kandidaat(tid: str = "goed") -> dict:
             "content": uit.document_to_content(document, {"days": 2})}
 
 
+def test_promoveer_naar_goud_kijkt_ook_in_de_batch_submappen():
+    """De few-shot wordt gekozen uit álles wat we ooit schreven, niet uit de platte map alleen."""
+    with tempfile.TemporaryDirectory() as tmp:
+        bron, goud = os.path.join(tmp, "trainingen"), os.path.join(tmp, "goud")
+        os.makedirs(os.path.join(bron, "ronde 3"))
+        artefact = _goud_kandidaat("in_submap")
+        with open(os.path.join(bron, "ronde 3", "in_submap.json"), "w", encoding="utf-8") as f:
+            json.dump(artefact, f)
+        uitslag = rw.promoveer_naar_goud(bron, goud, dry_run=True, verbose=False)
+    assert [g["training_id"] for g in uitslag["gepromoveerd"]] == ["in_submap"]
+
+
 def test_promoveer_naar_goud_kiest_alleen_wat_alle_checks_haalt():
     """Een training met een harde fail komt de goudmap niet in -- ook niet als hij approved is."""
     goed = _goud_kandidaat()
@@ -3128,12 +3169,13 @@ def _fake_drive(bestaand=(), faal_op=(), comments_stuk=False):
                            gemaakt=gemaakt, vervangen=vervangen, comments_gezet=comments)
 
 
-def _artefact(d, tid, titel="Training Data", **overrides):
+def _artefact(d, tid, titel="Training Data", batch=None, **overrides):
     """Eén <id>.json op schijf, zoals `schrijf_training_artefacten` hem wegschrijft."""
-    os.makedirs(os.path.join(d, "trainingen"), exist_ok=True)
+    map_ = rw.artefact_dir(d, batch)
+    os.makedirs(map_, exist_ok=True)
     data = {"training_id": tid, "titel": titel, "status": rw.APPROVED,
             "content": _content(), **overrides}
-    with open(os.path.join(d, "trainingen", f"{tid}.json"), "w", encoding="utf-8") as f:
+    with open(os.path.join(map_, f"{tid}.json"), "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False)
     return data
 
@@ -3268,6 +3310,51 @@ def test_verzamel_uit_map_respecteert_alleen_ids():
         for tid in (1, 2, 3):
             _artefact(d, tid)
         assert [t["training_id"] for t in drive.verzamel_uit_map(d, [3, 1])] == [1, 3]
+
+
+def test_een_tweede_batch_neemt_de_eerste_niet_mee():
+    """Dit was de aanleiding voor de submappen: de map van batch 2 kreeg ook alles uit batch 1."""
+    service = _fake_drive()
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 1, batch="ronde 1")
+        _artefact(d, 2, batch="ronde 1")
+        eerst = drive.upload_naar_drive(d, "ronde 1", service=service, root_id="root",
+                                        verbose=False)
+        _artefact(d, 3, batch="ronde 2")
+        tweede = drive.upload_naar_drive(d, "ronde 2", service=service, root_id="root",
+                                         verbose=False)
+    assert eerst["nieuw"] == [1, 2]
+    assert tweede["nieuw"] == [3], "batch 2 sleepte de trainingen van batch 1 mee"
+
+
+def test_zonder_batch_pakt_de_upload_de_submap_met_dezelfde_naam():
+    """`upload_naar_drive(OUT_DIR, "ronde 3")` zonder batch mag niet stil de platte map pakken."""
+    service = _fake_drive()
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 99)                      # oude training, platte map
+        _artefact(d, 1, batch="ronde 3")
+        res = drive.upload_naar_drive(d, "ronde 3", service=service, root_id="root",
+                                      verbose=False)
+    assert res["nieuw"] == [1], "de platte map werd meegenomen in plaats van de submap"
+
+
+def test_zonder_submap_blijft_de_platte_map_de_bron():
+    """De trainingen van voor de indeling hoeven niet te verhuizen om geüpload te worden."""
+    service = _fake_drive()
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 99)
+        res = drive.upload_naar_drive(d, "losse map", service=service, root_id="root",
+                                      verbose=False)
+    assert res["nieuw"] == [99]
+
+
+def test_verzamel_uit_map_kijkt_niet_in_de_submappen():
+    """Recursief zoeken zou elke Drive-map opnieuw alles geven; dat is wat we oplossen."""
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 99)
+        _artefact(d, 1, batch="ronde 1")
+        assert [t["training_id"] for t in drive.verzamel_uit_map(d)] == [99]
+        assert [t["training_id"] for t in drive.verzamel_uit_map(d, batch="ronde 1")] == [1]
 
 
 def test_verzamel_uit_map_sorteert_numeriek():

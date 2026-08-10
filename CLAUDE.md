@@ -24,7 +24,7 @@ een rij in `herschreven.xlsx`.
 ## Commando's
 
 ```bash
-python test_rewrite.py                      # 279 offline tests, geen API-key nodig
+python test_rewrite.py                      # 287 offline tests, geen API-key nodig
 python -c "import test_rewrite as t; t.test_em_dash_is_hard_in_elk_schrijversveld()"   # één test
 python bouw_goud_v2.py                      # terugval-few-shot; nodig na een verse checkout
 
@@ -34,8 +34,10 @@ python rewrite_trainings.py --toon-wachtrij --scored SHEET.xlsx   # wie draait e
 python rewrite_trainings.py --scan-modus UIT.xlsx --scored SHEET.xlsx --source BRON.xlsx
 python rewrite_trainings.py --goud --source BRON.xlsx --out-dir herschreven
 
-# de output als Google Docs naar Drive; --alleen-uploaden herschrijft niets
-python rewrite_trainings.py --alleen-uploaden --drive-map "batch 3" --out-dir herschreven
+# artefacten in trainingen/batch 3/, en die submap als Google Docs naar een Drive-map
+python rewrite_trainings.py --scored SHEET.xlsx --source BRON.xlsx --besluiten besluiten.xlsx \
+  --batch "batch 3" --drive-map "batch 3"
+python rewrite_trainings.py --alleen-uploaden --drive-map "batch 3"   # herschrijft niets
 ```
 
 De testrunner is met de hand geschreven (onderaan `test_rewrite.py`); pytest werkt ook maar
@@ -231,11 +233,36 @@ schrijver in zijn context ziet, schrijft hij ook.
 
 ### De Drive-upload is een synchronisatie, geen verzendlijst
 
-`upload_naar_drive()` leest `herschreven/trainingen/*.json` en zet daar Google Docs van in een
-map per batch. De invoer is dus de **map**, niet "wat deze run schreef", en dat is geen detail:
-`bouw_wachtrij` slaat over wat al in `herschreven.xlsx` staat, dus een training die in run 1 wel
-werd geschreven maar niet geüpload, komt in run 2 niet meer langs en zou nooit op Drive belanden.
-Om dezelfde reden draait de upload ook door als de wachtrij leeg is.
+`upload_naar_drive()` leest de artefacten van één batch en zet daar Google Docs van in een map
+met dezelfde naam. De invoer is dus de **map**, niet "wat deze run schreef", en dat is geen
+detail: `bouw_wachtrij` slaat over wat al in `herschreven.xlsx` staat, dus een training die in
+run 1 wel werd geschreven maar niet geüpload, komt in run 2 niet meer langs en zou nooit op
+Drive belanden. Om dezelfde reden draait de upload ook door als de wachtrij leeg is.
+
+### Batches zijn submappen, en dat is wat de Drive-mappen scheidt
+
+`herschreven/trainingen/<batch>/<id>.json`. Zonder die scheiding is er op schijf niets wat
+batch 1 van batch 2 onderscheidt, en dan belandt élke training in élke Drive-map opnieuw --
+gemeten: bij drie trainingen in twee batches kreeg de tweede map er drie in plaats van één.
+
+Drie functies dragen die indeling, en ze betekenen bewust niet hetzelfde met "geen batch":
+
+- **`artefact_dir(out_dir, batch)`** -- waar je schrijft. Zonder batch de platte map, want de
+  trainingen van voor de indeling staan daar en hoeven niet te verhuizen;
+- **`artefact_paden(out_dir, batch)`** -- waar je zoekt. Zonder batch juist *alles*, submappen
+  incluis: `promoveer_naar_goud` kiest de few-shot uit alles wat we ooit hebben geschreven, en
+  globt daarom recursief;
+- **`drive_upload.verzamel_uit_map`** -- wat er geüpload wordt. Nooit recursief; zonder batch
+  alleen de platte map. Recursief zou precies het probleem terugbrengen.
+
+`zoek_artefact(out_dir, id)` vindt een training waar hij ook staat. Gebruik dat overal waar je
+een `<id>.json` opent: een aanroeper weet niet in welke batch een training zit en hoeft dat ook
+niet te weten. `hergenereer_kopje_op_schijf` schrijft daardoor terug naar de map waar de
+training vandaan komt, en de notebookcellen in sectie 7 en 8 werken ongeacht de batch.
+
+`kies_batch()` vult een ontbrekende batchnaam aan met de submap die net zo heet als de
+Drive-map. Zonder die regel is de dure fout stil: `upload_naar_drive(OUT_DIR, "ronde 3")` zonder
+`batch` zou de platte map pakken en de oude trainingen in de map van ronde 3 zetten.
 
 Vier dingen die je niet uit de code afleidt:
 
