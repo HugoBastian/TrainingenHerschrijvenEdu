@@ -37,7 +37,7 @@ het model.
 | `drive_upload.py` | De herschreven trainingen als opgemaakte Google Docs naar een map in Google Drive. |
 | `rewrite_trainings.py` | Hybride schrijver + orchestratie + I/O. |
 | `herschrijven.ipynb` | Notebook om de pijplijn stap voor stap te draaien en te inspecteren. |
-| `test_rewrite.py` | 301 offline tests (geen API-key nodig). |
+| `test_rewrite.py` | 307 offline tests (geen API-key nodig). |
 
 ## Setup
 
@@ -112,9 +112,19 @@ je in één handeling plakt. `ok`, `error` en het modus-blok staan er bewust ác
 
 ### 1. Besluiten normaliseren (eenmalig, met een menselijke controle)
 
-`actie_besluit` heeft een vaste **structuur** (`<nr> <vrije tekst>`, gescheiden door een komma
-waar een nummer op volgt) maar vrije **tekst**. Python splitst de structuur deterministisch;
-een klein model classificeert de aantekening als `doen` / `niet` / `mits`.
+`actie_besluit` heeft een vaste **structuur** (`<nr> <vrije tekst>`, bij voorkeur gescheiden door
+een komma waar een nummer op volgt) maar vrije **tekst**. Python splitst de structuur
+deterministisch; een klein model classificeert de aantekening als `doen` / `niet` / `mits`.
+
+De komma is geen eis. Laat een reviewer hem structureel weg (`1 prima 2 niet 3 geen versies
+benoemen`), dan valt `koppel()` terug op een tweede lezing: niet splitsen op "een cijfer" — dat
+zou `PHP 8` en `versie 3` kapotmaken — maar de nummers uit `actualiteit_actie` oplopend
+terugzoeken als losse getallen. Dat maakt de cel beslisbaar zolang die reeks uniek is; over de
+47 ingevulde cellen van batch 1 was dat 47 van de 47. Zijn er tóch twee lezingen, dan is dat een
+harde fout zoals elke scheve uitlijning en gaat de training naar de mens. De kommalezing gaat
+altijd voor, dus een cel die vandaag werkt wordt letterlijk hetzelfde geparseerd als voorheen;
+een half-gekommade cel valt vanzelf op de tweede lezing terug. `check_alignment` meldt hoeveel
+cellen zo gelezen zijn — geen fout, maar wel het signaal dat een reviewer van stijl is gewisseld.
 
 ```bash
 # structuurcontrole -- geen API-key nodig
@@ -935,7 +945,7 @@ roept hem aan met `waarschuw=False`: dat is de stap die die kolommen juist máá
 ```bash
 python bouw_goud_v2.py     # terugval-few-shot opbouwen; `herschreven/` is gitignored, dus dit
                            # hoort bij een verse checkout. Geen API-key nodig.
-python test_rewrite.py     # 301 offline checks, geen API-key nodig
+python test_rewrite.py     # 307 offline checks, geen API-key nodig
 ```
 
 Getest wordt de deterministische laag: de code-check, de structurele splitsing van

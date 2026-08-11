@@ -978,6 +978,65 @@ def test_cijfer_in_vrije_tekst_wordt_geen_actienummer():
 
 
 # ---------------------------------------------------------------------------
+# Besluiten: dezelfde cel zonder scheidingskomma's (één reviewer doet dat structureel)
+# ---------------------------------------------------------------------------
+
+def _acties(n):
+    return {i: f"refresh: actie {i}" for i in range(1, n + 1)}
+
+
+def test_echte_cellen_zonder_scheidingskommas_lijnen_ook_uit():
+    """Dezelfde fixtures, met alleen de scheidingskomma's weg -- de rest blijft staan."""
+    for ruw, verwacht in ECHTE_BESLUITEN:
+        kaal = re.sub(r",\s*(?=\d)", " ", ruw)
+        gekoppeld, lezing = bes.koppel_met_lezing(_acties(verwacht), kaal)
+        assert [nr for nr, _, _ in gekoppeld] == list(range(1, verwacht + 1)), kaal
+        assert lezing == bes.LEZING_NUMMERS, kaal
+    # en de vrije tekst blijft heel, inclusief de komma die er wél in hoort
+    gekoppeld = bes.koppel(_acties(2), "1 PHP versie niet benoemen, wel taalfeatures 2 prima")
+    assert gekoppeld[0][2] == "PHP versie niet benoemen, wel taalfeatures"
+    assert gekoppeld[1][2] == "prima"
+
+
+def test_kommalezing_gaat_voor():
+    """Een cel die vandaag werkt wordt niet ineens anders gelezen."""
+    ruw = "1 PHP versie niet benoemen, wel taalfeatures,2 prima"
+    gekoppeld, lezing = bes.koppel_met_lezing(_acties(2), ruw)
+    assert lezing == bes.LEZING_KOMMAS
+    assert gekoppeld[0][2] == "PHP versie niet benoemen, wel taalfeatures"
+
+
+def test_half_gekommade_cel_valt_terug_op_de_nummers():
+    gekoppeld = bes.koppel(_acties(3), "1 prima, 2 niet 3 wel")
+    assert [ann for _, _, ann in gekoppeld] == ["prima", "niet", "wel"]
+
+
+def test_cijfer_in_vrije_tekst_kaapt_geen_nummer_zonder_kommas():
+    """"versie 3" staat vóór actie 2, dus als scheiding voor 3 valt hij af."""
+    gekoppeld = bes.koppel(_acties(3), "1 noem versie 3 niet 2 prima 3 wel")
+    assert [ann for _, _, ann in gekoppeld] == ["noem versie 3 niet", "prima", "wel"]
+
+
+def test_meerduidige_cel_zonder_kommas_is_een_harde_fout():
+    """Twee lezingen van hetzelfde nummer -> naar de mens, niet gokken."""
+    try:
+        bes.koppel(_acties(3), "1 prima 2 noem versie 3 3 wel")
+    except bes.BesluitFout as e:
+        assert "komma" in str(e)
+        return
+    raise AssertionError("verwachtte BesluitFout bij een meerduidige cel")
+
+
+def test_ontbrekend_nummer_noemt_beide_lezingen():
+    try:
+        bes.koppel(_acties(3), "1 prima 2 niet")
+    except bes.BesluitFout as e:
+        assert "1 besluiten tegenover 3" in str(e) and "zonder komma's" in str(e)
+        return
+    raise AssertionError("verwachtte BesluitFout bij een ontbrekend nummer")
+
+
+# ---------------------------------------------------------------------------
 # Scoresheet-kolomnamen: handgemaakte lijsten houden vaak `id`/`name`
 # ---------------------------------------------------------------------------
 

@@ -5,7 +5,9 @@ De besluitenlaag: zet de handmatig ingevulde `actie_besluit`-kolom om in explici
 per-actie besluiten die de schrijver ondubbelzinnig meekrijgt.
 
 Uitgangspunt: **de structuur van `actie_besluit` ligt vast, de tekst niet.**
-Elk item is `<nr> <vrije tekst>`, gescheiden door een komma waar een nummer op volgt.
+Elk item is `<nr> <vrije tekst>`, bij voorkeur gescheiden door een komma waar een nummer
+op volgt -- maar de komma is geen eis: laat een reviewer hem weg, dan leest `koppel()` de
+cel alsnog, op de nummers uit `actualiteit_actie` (zie sectie 2b).
 Die structuur parsen we deterministisch. De annotatie zelf is gewoon Nederlands en
 laat zich niet in een woordenlijst vangen -- "geen specifieke frameworks benoemen" is
 een *voorwaarde*, "nee dat is advanced" een *afwijzing*. Dus dezelfde splitsing als
@@ -125,6 +127,106 @@ def align(acties: dict[int, str], items: list[tuple[int, str]]) -> list[tuple[in
     if onbekend:
         raise BesluitFout(f"besluit verwijst naar niet-bestaande actie(s): {onbekend}")
     return [(nr, acties[nr], ann) for nr, ann in sorted(items)]
+
+
+# ---------------------------------------------------------------------------
+# 2b. STAP A ZONDER KOMMA'S
+# ---------------------------------------------------------------------------
+
+# Eén reviewer laat de scheidingskomma structureel weg: "1 prima 2 niet 3 geen versies
+# benoemen". Splitsen op "een los cijfer" kan niet -- "PHP 8" en "versie 3" staan gewoon in
+# de vrije tekst, en dat is nu juist waarom SPLIT_RE een komma eist.
+#
+# Beslisbaar wordt het pas met een gegeven dat de kommalezing niet gebruikt: we weten welke
+# nummers we zoeken (uit `actualiteit_actie`) en de reviewer schrijft ze oplopend, beginnend
+# aan het begin van de cel. Zoek dus geen "cijfers" maar precies die nummers, in die volgorde.
+# Over de 47 ingevulde cellen van batch 1 komt elk verwacht nummer, met de scheidingskomma's
+# weggehaald, precies één keer los voor: 47 van de 47 eenduidig.
+#
+# Blijven er tóch twee lezingen over, dan is de cel echt meerduidig en is dat een harde fout,
+# net als een scheve uitlijning: die training gaat naar de mens. Gokken is precies wat deze
+# module repareert.
+LOS_GETAL_RE = re.compile(r"(?:^|(?<=[\s,;]))(\d+)[.)]?(?=$|[\s,;])")
+
+MAX_LEZINGEN = 2   # meer dan één is al fataal; verder zoeken kost alleen tijd
+
+# hoe `koppel` de cel uiteindelijk gelezen heeft
+LEZING_KOMMAS = "kommas"
+LEZING_NUMMERS = "nummers"
+
+
+def split_zonder_kommas(actie_besluit: Any, nrs: Iterable[int]) -> list[tuple[int, str]]:
+    """Dezelfde cel, maar zonder scheidingskomma's -> [(nr, annotatie), ...].
+
+    `nrs` zijn de verwachte actienummers; alleen díe worden als scheiding herkend.
+    """
+    tekst = "" if _leeg(actie_besluit) else str(actie_besluit).strip()
+    doelen = sorted(nrs)
+    if not tekst or not doelen:
+        return []
+
+    gezocht = set(doelen)
+    kandidaten: dict[int, list[tuple[int, int]]] = {}
+    for m in LOS_GETAL_RE.finditer(tekst):
+        waarde = int(m.group(1))
+        if waarde in gezocht:
+            kandidaten.setdefault(waarde, []).append((m.start(1), m.end()))
+
+    lezingen: list[list[tuple[int, int]]] = []
+
+    def zoek(i: int, ondergrens: int, gekozen: list[tuple[int, int]]) -> None:
+        if len(lezingen) >= MAX_LEZINGEN:
+            return
+        if i == len(doelen):
+            lezingen.append(list(gekozen))
+            return
+        for start, eind in kandidaten.get(doelen[i], ()):
+            if start < ondergrens or (i == 0 and start != 0):
+                continue   # de cel begint bij het eerste nummer, en de rest volgt oplopend
+            gekozen.append((start, eind))
+            zoek(i + 1, eind, gekozen)
+            gekozen.pop()
+
+    zoek(0, 0, [])
+    if not lezingen:
+        raise BesluitFout(
+            f"de nummers {doelen} staan er niet oplopend als losse getallen in")
+    if len(lezingen) > 1:
+        raise BesluitFout(
+            f"meerdere lezingen mogelijk voor de nummers {doelen}; zet komma's tussen de items")
+
+    posities = lezingen[0]
+    items: list[tuple[int, str]] = []
+    for i, nr in enumerate(doelen):
+        vanaf = posities[i][1]
+        tot = posities[i + 1][0] if i + 1 < len(posities) else len(tekst)
+        items.append((nr, tekst[vanaf:tot].strip().strip(",").strip()))
+    return items
+
+
+def koppel_met_lezing(acties: dict[int, str],
+                      actie_besluit: Any) -> tuple[list[tuple[int, str, str]], str]:
+    """Als `koppel`, maar vertelt er ook bij hoe de cel gelezen is."""
+    try:
+        return align(acties, split_besluit(actie_besluit)), LEZING_KOMMAS
+    except BesluitFout as komma_fout:
+        try:
+            return align(acties, split_zonder_kommas(actie_besluit, acties)), LEZING_NUMMERS
+        except BesluitFout as nummer_fout:
+            # Beide meldingen, want welke van de twee de reviewer moet lezen hangt af van
+            # de stijl die hij bedoelde -- en dat weten wij hier niet.
+            raise BesluitFout(f"{komma_fout}; ook zonder komma's gelezen: "
+                              f"{nummer_fout}") from nummer_fout
+
+
+def koppel(acties: dict[int, str], actie_besluit: Any) -> list[tuple[int, str, str]]:
+    """De cel -> [(nr, actietekst, annotatie), ...]. De enige ingang voor de pijplijn.
+
+    Eerst de kommalezing, en pas als die niet uitlijnt de komma-loze: elke cel die vandaag
+    werkt wordt daardoor letterlijk hetzelfde geparseerd als voorheen. Een half-gekommade cel
+    ("1 prima, 2 niet 3 wel") valt vanzelf op de tweede lezing terug.
+    """
+    return koppel_met_lezing(acties, actie_besluit)[0]
 
 
 # ---------------------------------------------------------------------------
@@ -386,6 +488,7 @@ def check_alignment(scored_path: str, verbose: bool = True) -> list[str]:
     df = _load_scored(scored_path)
     fouten: list[str] = []
     met_acties = 0
+    op_nummer = 0
     for _, rij in df.iterrows():
         acties = parse_acties(rij["actualiteit_actie"])
         if not acties:
@@ -393,13 +496,17 @@ def check_alignment(scored_path: str, verbose: bool = True) -> list[str]:
         met_acties += 1
         tid = rij["training_id"]
         try:
-            align(acties, split_besluit(rij["actie_besluit"]))
+            _, lezing = koppel_met_lezing(acties, rij["actie_besluit"])
+            op_nummer += lezing == LEZING_NUMMERS
         except BesluitFout as e:
             if _leeg(rij["actie_besluit"]):
                 continue   # geen besluit ingevuld -> niets goedgekeurd, geen structuurfout
             fouten.append(f"training_id {tid}: {e}")
     if verbose:
         print(f"{len(df)} rijen, {met_acties} met genummerde acties, {len(fouten)} uitlijnfouten")
+        if op_nummer:
+            # Geen fout, wel iets om te weten: een reviewer is van stijl gewisseld.
+            print(f"{op_nummer} cel(len) zonder scheidingskomma's gelezen")
         for f in fouten:
             print(f"  {f}")
     return fouten
@@ -428,7 +535,7 @@ def build_besluiten(scored_path: str, client=None, verbose: bool = True) -> list
             continue
 
         try:
-            gekoppeld = align(acties, split_besluit(rij["actie_besluit"]))
+            gekoppeld, lezing = koppel_met_lezing(acties, rij["actie_besluit"])
         except BesluitFout as e:
             raise BesluitFout(f"training_id {tid} ({titel}): {e}") from e
 
@@ -460,7 +567,8 @@ def build_besluiten(scored_path: str, client=None, verbose: bool = True) -> list
         if verbose:
             samenvatting = " ".join(f"{nr}:{labels.get(nr, ('?',))[0]}"
                                     for nr, _, _ in gekoppeld)
-            print(f"[{tid}] {titel[:40]:40} {samenvatting}")
+            hoe = "  (zonder komma's gelezen)" if lezing == LEZING_NUMMERS else ""
+            print(f"[{tid}] {titel[:40]:40} {samenvatting}{hoe}")
 
     if verbose:
         print(f"\n{len(records)} besluiten, waarvan {n_llm} geclassificeerd door het model")
