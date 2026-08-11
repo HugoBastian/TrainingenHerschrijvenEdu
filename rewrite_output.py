@@ -395,12 +395,21 @@ def document_to_content(document: dict, source_content: dict | None = None) -> d
 # Document -> leesbaar markdown (kopstructuur van het template)
 # ---------------------------------------------------------------------------
 
-def render_markdown(document: dict, titel: str) -> str:
+def render_markdown(document: dict, titel: str = "") -> str:
     """Volledig document met de kopniveaus uit het template.
 
     Titel als kop 1, elk kopje als kop 2, het bedrijfstrainingblok als kop 3.
     Dit is wat de judge beoordeelt en wat een reviewer leest.
+
+    De titel komt uit het DOCUMENT als die er staat; `titel` is de terugval voor documenten
+    die er geen dragen. Andersom ging het mis: `build_judge_user` gaf de mechanische titel mee
+    (`b.nieuwe_titel`), dus de judge zag nooit wat `bepaal_titel` uiteindelijk had gekozen.
+    Bij training 279 leverde de schrijver "Training HTML en CSS" -- de goedgekeurde rename --
+    en stond die ook in het document, terwijl de judge "Training HTML5 en CSS3" las en drie
+    rondes lang een correctie eiste die al gedaan was. Een revisielus die per constructie niet
+    te winnen is, en dus altijd in de menselijke wachtrij eindigt.
     """
+    titel = str(document.get("titel") or "").strip() or titel
     modules = document.get("modules") or {}
     doelen = document.get("doelen") or {}
     vervolg = document.get("vervolgstappen") or {}

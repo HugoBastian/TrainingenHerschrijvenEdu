@@ -196,7 +196,7 @@ def upload_doc(service, html: str, naam: str, map_id: str) -> dict:
 
 
 def comment_tekst(training: dict) -> str:
-    """De opmerking die bij een doc komt te staan: waar moet de reviewer op letten?
+    """De opmerking bij het doc: waar moet de reviewer op letten voor hij begint te lezen?
 
     Alleen de flags uit de tier `hoog`, net als de kolom `flags_hoog` in het review-tabblad.
     Alles erin zetten zou hier hetzelfde doen als de oude verzamelkolom deed: over de eerste 16
@@ -204,48 +204,72 @@ def comment_tekst(training: dict) -> str:
     de derde keer, en dan leest niemand het meer. Artefacten van vóór `flags_tier` hebben de
     uitsplitsing niet; die vallen terug op alle flags -- liever te veel tonen dan iets
     verstoppen, dezelfde afweging als in `_review_rij`.
+
+    De REDEN dat een training naar een mens gaat staat erbij en is het interessantste deel: de
+    flags zeggen wat de code zag, de reden zegt wat de judge zag. Zie `_reden_uit_revisies` in
+    rewrite_trainings.py, dat die reden vult als de judge tot het eind bij `needs-revision`
+    bleef -- daar stond eerst 37 tekens die niets zeiden.
     """
     tiers = training.get("flags_tier") or {}
     flags = tiers.get(checks.TIER_HOOG, []) if tiers else list(training.get("flags") or [])
 
     kop = "Automatisch herschreven."
     status = str(training.get("status") or "")
+    delen = []
     if status and status != "approved":
-        reden = str(training.get("reden") or "").strip()
-        kop = f"Automatisch herschreven, status: {status}" + (f" ({reden})." if reden else ".")
+        kop = f"Automatisch herschreven, status: {status}."
+        # De judge levert zijn toelichting met een LETTERLIJKE backslash-n in plaats van een
+        # regelovergang (4 keer in training 7 van batch 1); als losse tekens in de opmerking
+        # leest dat als ruis.
+        reden = str(training.get("reden") or "").replace("\\n", "\n").strip()
+        if reden:
+            delen.append(reden)
 
     if not flags:
-        return f"{kop} De code-check heeft geen opmerkingen die om een oordeel vragen."
-    regels = "\n".join(f"- {f}" for f in flags)
-    woord = "punt" if len(flags) == 1 else "punten"
-    return f"{kop}\n\n{len(flags)} {woord} om op te letten:\n{regels}"
+        delen.append("De code-check heeft geen opmerkingen die om een oordeel vragen.")
+    else:
+        woord = "punt" if len(flags) == 1 else "punten"
+        delen.append(f"{len(flags)} {woord} om op te letten:")
+        delen += [f"- {f}" for f in flags]
+    return "\n".join([kop] + delen)
 
 
-def heeft_comment(service, file_id: str) -> bool:
-    """Staat er al een opmerking op dit document?
+# Waaraan herkennen we een opmerking als de onze? Aan de openingsregel, en die is in de loop
+# van batch 1 een keer veranderd. Allebei staan ze hier, want `zet_comment` mag alleen
+# opruimen wat het zelf heeft geschreven; een opmerking van een reviewer blijft staan.
+ONZE_OPENERS = ("Automatisch herschreven", "LET OP BIJ HET REVIEWEN")
 
-    Nodig op het `nieuwe_versie`-pad. "Het doc bestond al, dus de opmerking ook" klopt niet voor
-    de documenten die zijn geüpload voordat deze functie bestond: die zouden er dan nooit een
-    krijgen. Eén extra call, en alleen voor de docs die daadwerkelijk vervangen worden.
-    """
+
+def onze_comment_ids(service, file_id: str) -> list[str]:
+    """De id's van de opmerkingen die wij op dit document hebben gezet."""
     antwoord = service.comments().list(
-        fileId=file_id, fields="comments(id)", pageSize=1).execute(num_retries=5)
-    return bool(antwoord.get("comments"))
+        fileId=file_id, fields="comments(id,content,author/me)").execute(num_retries=5)
+    return [c["id"] for c in antwoord.get("comments", [])
+            if c.get("author", {}).get("me")
+            and str(c.get("content", "")).lstrip().startswith(ONZE_OPENERS)]
 
 
-def plaats_comment(service, file_id: str, tekst: str) -> dict:
-    """Eén opmerking op het document.
+def zet_comment(service, file_id: str, tekst: str, vervang: bool = False) -> None:
+    """Precies één opmerking van ons op het document, met de flags en de reden.
 
-    Zonder anker, en dat is geen keuze maar een grens van de API: opmerkingen komen bij Google
-    uitsluitend uit de Drive-API, en die kan een anker alleen als ondocumenteerde kix-JSON met
-    tekstposities meekrijgen -- posities die wij niet kennen, want de conversie van HTML naar
-    Doc gebeurt aan de andere kant. Een opmerking zonder anker hangt aan het document en staat
-    in het opmerkingenpaneel, wat is wat de reviewer nodig heeft: weten waar hij op moet letten
-    voor hij begint te lezen.
+    Zonder anker, en dat is een grens van de API: opmerkingen komen bij Google uitsluitend uit
+    de Drive-API, en die kan een anker alleen als ongedocumenteerde kix-JSON met tekstposities
+    meekrijgen -- posities die wij niet kennen, want de conversie van HTML naar Doc gebeurt aan
+    de andere kant. Gevolg, en dat is gemeten en niet aangenomen: Docs kan zo'n opmerking
+    nergens in de tekst plaatsen en toont hem in de geschiedenis onder "oorspronkelijke content
+    verwijderd", niet in de kantlijn. Wil je hem in de kantlijn, dan is de Docs-API aanzetten en
+    ankeren de enige weg.
+
+    `vervang` ruimt onze eigen vorige opmerking op, en dat hoort bij het `nieuwe_versie`-pad:
+    die beschrijft de flags van de vórige versie, en na een `files.update` is hij helemaal
+    losgeslagen. Opmerkingen van reviewers blijven staan; zie `ONZE_OPENERS`.
 
     De opmerking komt op naam van het account dat is ingelogd.
     """
-    return service.comments().create(
+    if vervang:
+        for cid in onze_comment_ids(service, file_id):
+            service.comments().delete(fileId=file_id, commentId=cid).execute(num_retries=5)
+    service.comments().create(
         fileId=file_id, body={"content": tekst}, fields="id").execute(num_retries=5)
 
 
@@ -391,9 +415,9 @@ def upload_naar_drive(out_dir: str, drive_map: str, *, service=None, root_id: st
     dezelfde aanroep opnieuw draaien alleen de rest oppakt. Dát is waarvoor deze functie los
     aanroepbaar is.
 
-    `met_comment` zet bij elk vers doc een opmerking met de flags die om een oordeel vragen;
-    zie `comment_tekst` en `plaats_comment`. `batch` kiest de submap op schijf; laat je hem
-    weg, dan pakt `kies_batch` de submap met dezelfde naam als de Drive-map.
+    `met_comment` zet op elk doc een opmerking met de flags en de reden voor de human-queue;
+    zie `comment_tekst` en `zet_comment`. `batch` kiest de submap op schijf; laat je hem weg,
+    dan pakt `kies_batch` de submap met dezelfde naam als de Drive-map.
 
     Geeft {"map_id", "map_url", "urls", "nieuw", "overgeslagen", "mislukt"} terug.
     """
@@ -465,14 +489,13 @@ def upload_naar_drive(out_dir: str, drive_map: str, *, service=None, root_id: st
                 nieuw.append(tid)
                 manifest["docs"][str(tid)] = {"file_id": bestand["id"], "url": urls[tid],
                                               "naam": naam, "map": drive_map, "sha256": sha}
-                # Een vervangen doc houdt de opmerking die erop staat -- een tweede zou de
-                # reviewer twee keer hetzelfde laten lezen. Maar de docs van vóór deze functie
-                # hebben er nog geen, dus daar wordt eerst gekeken. Faalt dit, dan is dat geen
-                # mislukte upload: het document staat er en is bruikbaar.
+                # Ná het schrijven van de inhoud, nooit ervoor: een opmerking die er al stond
+                # voordat `files.update` de tekst verving is losgeslagen. Faalt dit, dan is dat
+                # geen mislukte upload: het document staat er en is bruikbaar.
                 if met_comment:
                     try:
-                        if not (vervangt and heeft_comment(service, bestand["id"])):
-                            plaats_comment(service, bestand["id"], comment_tekst(training))
+                        zet_comment(service, bestand["id"], comment_tekst(training),
+                                    vervang=vervangt)
                     except Exception as fout:   # noqa: BLE001
                         print(f"  {tid}: opmerking plaatsen mislukt "
                               f"({type(fout).__name__}: {fout}); het doc staat er wel")

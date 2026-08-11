@@ -19,6 +19,7 @@ import json
 import os
 import re
 import tempfile
+import time
 from types import SimpleNamespace
 
 import besluiten as bes
@@ -626,19 +627,46 @@ class _StubBlok:
 
 
 class _StubResp:
-    stop_reason = "tool_use"
+    def __init__(self, content, stop_reason="tool_use"):
+        self.content, self.stop_reason = content, stop_reason
 
-    def __init__(self, content):
-        self.content = content
+
+class _StubStroom:
+    """Wat `client.messages.stream(...)` teruggeeft: een contextmanager met één bericht.
+
+    `_call_tool` streamt, dus de stubs moeten die vorm hebben. Een stub die `create`
+    aanbiedt test een pad dat de pijplijn niet meer loopt -- en juist dat pad heeft een
+    plafond op max_tokens dat de streamende variant niet heeft.
+
+    Iterabel, net als het echte object: `_call_tool` loopt de events zelf langs om het
+    tijdsbudget tussendoor te kunnen bewaken. Een stub die dat niet kan, test een vorm die
+    de SDK niet heeft.
+    """
+
+    def __init__(self, resp, events=1):
+        self._resp, self._events = resp, events
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        return False
+
+    def __iter__(self):
+        return iter(range(self._events))
+
+    def get_final_message(self):
+        return self._resp
 
 
 class _StubMessages:
     def __init__(self, client, groepen):
         self._client, self._groepen = client, groepen
 
-    def create(self, **kw):
+    def stream(self, **kw):
         self._client.laatste = kw
-        return _StubResp([_StubBlok("submit_vervolgstappen", {"groepen": self._groepen})])
+        return _StubStroom(
+            _StubResp([_StubBlok("submit_vervolgstappen", {"groepen": self._groepen})]))
 
 
 class _StubClient:
@@ -647,6 +675,114 @@ class _StubClient:
     def __init__(self, groepen):
         self.laatste = None
         self.messages = _StubMessages(self, groepen)
+
+
+class _StubAfkapper:
+    """Kapt de eerste poging af op `max_tokens`; pas de tweede levert het tool-antwoord."""
+
+    def __init__(self):
+        self.budgetten = []
+
+    def stream(self, **kw):
+        self.budgetten.append(kw["max_tokens"])
+        if len(self.budgetten) == 1:
+            return _StubStroom(_StubResp([], stop_reason="max_tokens"))
+        return _StubStroom(_StubResp([_StubBlok("submit_x", {"klaar": True})]))
+
+    def create(self, **_):
+        raise AssertionError("_call_tool mag niet niet-streamend bellen")
+
+
+# De grens die de SDK zelf rekent: `3600 * max_tokens / 128000` seconden, afgekapt op tien
+# minuten. Vanaf 21334 gooit een niet-streamende `messages.create` een ValueError voordat er
+# iets over de lijn gaat -- geen API-fout dus, maar een weigering in de client.
+NIET_STREAMEND_PLAFOND = 128_000 * 600 // 3600
+
+
+def test_call_tool_verdubbelt_het_budget_en_doet_dat_streamend():
+    """De retry vraagt meer dan een niet-streamende call ooit mag vragen.
+
+    Dit pad was nergens gedekt en viel daarom pas op in productie: de judge maakte zijn
+    16000 op, `_call_tool` verdubbelde naar 32000, en de SDK weigerde die tweede call.
+    Dat kostte batch 1 in één keer alle 46 trainingen. Twee dingen liggen hier vast: dat
+    de verdubbeling gebeurt, en dat ze streamend gebeurt.
+    """
+    berichten = _StubAfkapper()
+    uitkomst = rw._call_tool(SimpleNamespace(messages=berichten), "sys", "user",
+                             [{"name": "submit_x"}], "submit_x",
+                             max_tokens=16000, thinking=None)
+    assert uitkomst == {"klaar": True}
+    assert berichten.budgetten == [16000, 32000]
+    assert berichten.budgetten[1] > NIET_STREAMEND_PLAFOND
+
+
+class _StubEindeloos:
+    """Een stream die blijft komen, en waarbij de klok tijdens het streamen doorloopt."""
+
+    def __init__(self, events, verstrijk_na):
+        self._events, self._verstrijk_na = events, verstrijk_na
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        return False
+
+    def __iter__(self):
+        for i in range(100):
+            self._events.append(i)
+            if len(self._events) == self._verstrijk_na:
+                rw._deadline = time.monotonic() - 1     # de tijd is om, midden in de stream
+            yield i
+
+    def get_final_message(self):
+        raise AssertionError("deze call had al afgebroken moeten zijn")
+
+
+def test_call_tool_breekt_een_lopende_call_af_zodra_het_budget_op_is():
+    """De grens moet TIJDENS een call gelden, niet pas ertussen.
+
+    Training 47 draaide 81 minuten. De SDK-timeout van 600 s leest als een grens per call maar
+    telt per stukje dat over de lijn komt, en een ReadTimeout midden in een stream gaat buiten
+    de retry-laag van de SDK om. Een controle tussen de calls door bindt dat dus niet: één
+    call kan in zijn eentje langer duren dan het hele budget.
+    """
+    events = []
+    berichten = SimpleNamespace(stream=lambda **kw: _StubEindeloos(events, verstrijk_na=3))
+    with rw.tijdsbudget(60):
+        try:
+            rw._call_tool(SimpleNamespace(messages=berichten), "sys", "user",
+                          [{"name": "submit_x"}], "submit_x", thinking=None)
+            raise AssertionError("had TijdOverschreden moeten gooien")
+        except rw.TijdOverschreden as e:
+            assert "tijdsbudget" in str(e), e
+    assert len(events) == 3, events      # afgebroken bij het event waarop de tijd om was
+
+
+def test_een_verstreken_budget_kost_geen_nieuwe_call():
+    """Tussen de calls door telt de grens ook, anders begint er nog een dure ronde."""
+    gebeld = []
+    berichten = SimpleNamespace(stream=lambda **kw: gebeld.append(kw))
+    with rw.tijdsbudget(-1):             # deadline in het verleden
+        try:
+            rw._call_tool(SimpleNamespace(messages=berichten), "sys", "user",
+                          [{"name": "submit_x"}], "submit_x", thinking=None)
+            raise AssertionError("had TijdOverschreden moeten gooien")
+        except rw.TijdOverschreden:
+            pass
+    assert gebeld == []
+
+
+def test_tijdsbudget_herstelt_de_vorige_stand_ook_na_een_fout():
+    """Een budget dat blijft hangen laat de volgende training op de vorige deadline lopen."""
+    assert rw._deadline is None
+    with contextlib.suppress(ValueError):
+        with rw.tijdsbudget(60):
+            assert rw._deadline is not None
+            raise ValueError("boem")
+    assert rw._deadline is None
+    with rw.tijdsbudget(None):           # geen budget -> geen bewaking, geen fout
+        rw._bewaak_tijd("wat dan ook")
 
 
 def test_kies_vervolgtrainingen_toont_het_vakgebied_maar_neemt_het_niet_over():
@@ -1411,6 +1547,33 @@ def test_judge_oordeel_met_verkeerd_gevormd_blok_loopt_niet_stuk():
     assert out.get("feitgetrouw", {}).get("thin", False) is False
 
 
+def test_rondes_leggen_per_poging_vast_wat_er_gebeurde():
+    """`judgment` bewaart alleen het LAATSTE oordeel, en daarop is `MAX_REVISIONS` niet bij te
+    stellen: drie keer dezelfde klacht betekent dat een ronde erbij helpt, elke ronde een
+    andere betekent dat de lus niet convergeert. Over batch 1 was dat verschil achteraf niet
+    meer te zien -- vijf trainingen liepen op de limiet en niemand kon zeggen waarom.
+    """
+    catalog = [{"product_id": 9, "titel": "Training Power BI", "summary": ""}]
+    klachten = iter(range(10))
+    echt = rw._call_tool, rw.bepaal_vervolgstappen, rw.judge_document
+    rw._call_tool = lambda *a, **k: _good_rewrite()
+    rw.bepaal_vervolgstappen = lambda *a, **k: (["Training Power BI"], [])
+    rw.judge_document = lambda *a, **k: {
+        "verdict": rw.NEEDS_REVISION, "revisie_notities": [f"klacht {next(klachten)}"]}
+    try:
+        res = rw.rewrite_one(None, _briefing(titel="Cursus Data-analyse"), catalog)
+    finally:
+        rw._call_tool, rw.bepaal_vervolgstappen, rw.judge_document = echt
+
+    assert res.status == rw.HUMAN_QUEUE
+    assert [r["ronde"] for r in res.rondes] == list(range(1, rw.MAX_REVISIONS + 2))
+    assert {r["uitkomst"] for r in res.rondes} == {rw.NEEDS_REVISION}
+    # elke ronde zijn eigen notities: precies het spoor dat "dezelfde klacht of een nieuwe?"
+    # beantwoordt
+    assert res.rondes[0]["notities"] == ["klacht 0"]
+    assert res.rondes[-1]["notities"] == [f"klacht {rw.MAX_REVISIONS}"]
+
+
 def test_build_briefing_leest_de_reviewerkolom():
     scored = {"training_id": 7, "kern": "scorer-kern", "kern_reviewer": "reviewer-kern",
               "verdict": "rijk", "vermoedelijk_persona": "B"}
@@ -1522,11 +1685,37 @@ def test_soortwoord_wordt_niet_verdubbeld():
 
 
 def test_markdown_heeft_kop_1_2_en_3():
-    md = uit.render_markdown(_document(), "Cursus XML")
-    assert md.startswith("# Cursus XML")
+    md = uit.render_markdown(_document())
+    assert md.startswith("# Training XML")
     for kopje in sjabloon.KOPJES:
         assert f"## {kopje.kop}" in md, kopje.kop
     assert f"### **{sjabloon.BEDRIJFSTRAINING_KOP}**" in md
+
+
+def test_de_titel_uit_het_document_wint_van_het_argument():
+    """De judge las de mechanische titel in plaats van de gekozen titel, en flagde die.
+
+    `build_judge_user` gaf `b.nieuwe_titel` mee, dus wat `bepaal_titel` had gekozen kwam nooit
+    bij de judge aan. Training 279 leverde de goedgekeurde rename ("Training HTML en CSS"),
+    had die in zijn document staan, en kreeg drie rondes lang de opdracht om een titel te
+    veranderen die al veranderd wás -- een revisielus die niet te winnen is en dus altijd in
+    de menselijke wachtrij eindigt.
+    """
+    doc = dict(_document(), titel="Training HTML en CSS")
+    assert uit.render_markdown(doc, "Training HTML5 en CSS3").startswith("# Training HTML en CSS")
+    # het argument blijft de terugval voor een document zonder eigen titel
+    assert uit.render_markdown({k: v for k, v in doc.items() if k != "titel"},
+                               "Training XML").startswith("# Training XML")
+
+
+def test_de_judge_beoordeelt_de_titel_die_bepaal_titel_koos():
+    """Zelfde regel, maar dan op de plek waar hij misging: het concept dat de judge leest."""
+    b = _briefing(titel="Cursus HTML5 en CSS3")
+    doc = dict(_document(), titel="Training HTML en CSS")
+    tekst = rw.build_judge_user(b, doc)
+    concept = tekst.split("CONCEPT.")[1]
+    assert "# Training HTML en CSS" in concept
+    assert "# Training HTML5 en CSS3" not in concept
 
 
 # ---------------------------------------------------------------------------
@@ -1959,7 +2148,8 @@ def test_schat_modus_mag_niet_onder_de_ondergrens_zakken():
         blok = SimpleNamespace(type="tool_use", name="submit_modus",
                                input={"modus": modus, "reden": "ziet er goed uit"})
         resp = SimpleNamespace(content=[blok], stop_reason="tool_use")
-        return SimpleNamespace(messages=SimpleNamespace(create=lambda **_: resp))
+        return SimpleNamespace(
+            messages=SimpleNamespace(stream=lambda **_: _StubStroom(resp)))
 
     leeg = _content(objectives="")          # ondergrens = format
     op = rw.schat_modus(_client("overnemen"), leeg, "Training Data")
@@ -3025,10 +3215,11 @@ def test_goud_selectie_valt_terug_op_het_handwerk_zonder_manifest():
 # De wachtrij: welke trainingen draaien er, en waarom valt de rest af
 # ---------------------------------------------------------------------------
 
-def _wachtrij_situatie(d, ids, klaar=(), herschreven=None):
+def _wachtrij_situatie(d, ids, klaar=(), herschreven=None, mislukt=()):
     """Schrijft een scoresheet met `ids` in die volgorde, plus een herschreven.xlsx met `klaar`.
 
     `herschreven` is de kolom die zonder `modus_voorstel` de modus bepaalt: 1 -> `overnemen`.
+    `mislukt` komt als `error`-rij in het review-blad: wél in het sheet, geen tekst erachter.
     """
     import pandas as pd
     scored_pad = os.path.join(d, "prio.xlsx")
@@ -3037,10 +3228,12 @@ def _wachtrij_situatie(d, ids, klaar=(), herschreven=None):
                herschreven=list(herschreven or [0] * n),
                actualiteit_actie=[""] * n, actie_besluit=[""] * n
                ).to_excel(scored_pad, index=False)
-    if klaar:
+    if klaar or mislukt:
         os.makedirs(os.path.join(d, "uit"), exist_ok=True)
+        rijen = ([{"training_id": t, "status": rw.APPROVED} for t in klaar]
+                 + [{"training_id": t, "status": "error"} for t in mislukt])
         with pd.ExcelWriter(os.path.join(d, "uit", "herschreven.xlsx")) as w:
-            pd.DataFrame({"training_id": list(klaar)}).to_excel(w, sheet_name="review", index=False)
+            pd.DataFrame(rijen).to_excel(w, sheet_name="review", index=False)
     return scored_pad, os.path.join(d, "uit")
 
 
@@ -3106,6 +3299,113 @@ def test_overnemen_rijen_staan_los_van_start_en_limit():
         assert q.loc[12, "geselecteerd"] and not q.loc[11, "geselecteerd"]
 
 
+def test_een_error_rij_blokkeert_de_volgende_run_niet():
+    """Anders is "één fout kost de batch" verruild voor "één fout kost stil die training".
+
+    De rij staat in `herschreven.xlsx`, maar er ligt geen tekst achter: hervatten hoort hem
+    dus opnieuw aan te dragen. Een geslaagde rij blijft wél overgeslagen.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        scored, uit_dir = _wachtrij_situatie(d, [10, 11, 12], klaar=[10], mislukt=[11])
+        q = rw.bouw_wachtrij(scored, uit_dir).set_index("training_id")
+        assert q.loc[10, "reden"] == "staat al in herschreven.xlsx"
+        assert q.loc[11, "geselecteerd"] and q.loc[12, "geselecteerd"]
+
+
+def test_review_blad_zonder_statuskolom_telt_nog_steeds_als_klaar():
+    """Sheets van vóór de error-route hebben geen `status`; die mogen niet ineens herdraaien."""
+    import pandas as pd
+    with tempfile.TemporaryDirectory() as d:
+        scored, uit_dir = _wachtrij_situatie(d, [10, 11])
+        os.makedirs(uit_dir, exist_ok=True)
+        with pd.ExcelWriter(os.path.join(uit_dir, "herschreven.xlsx")) as w:
+            pd.DataFrame({"training_id": [10]}).to_excel(w, sheet_name="review", index=False)
+        q = rw.bouw_wachtrij(scored, uit_dir).set_index("training_id")
+        assert q.loc[10, "reden"] == "staat al in herschreven.xlsx"
+        assert q.loc[11, "geselecteerd"]
+
+
+def test_een_stukgelopen_training_kost_niet_de_hele_batch():
+    """De duurste fout van batch 1: training 1 gooide, en alle 46 waren weg.
+
+    `herschreven.xlsx` wordt pas ná de lus geschreven, dus een uitzondering halverwege laat
+    niets achter -- ook niet voor de trainingen die het wél haalden. Eén fout hoort één
+    `error`-rij te kosten, met de uitzondering in de kolom `reden`.
+    """
+    import pandas as pd
+    with tempfile.TemporaryDirectory() as d:
+        scored, uit_dir = _wachtrij_situatie(d, [10, 11, 12])
+        bron = os.path.join(d, "bron.xlsx")
+        pd.DataFrame([{"id": t, "name": f"Training {t}",
+                       "content": json.dumps(_content(), ensure_ascii=False)}
+                      for t in (10, 11, 12)]).to_excel(bron, index=False)
+        besluiten = os.path.join(d, "besluiten.xlsx")   # geen acties, dus geen rijen
+        pd.DataFrame(columns=["training_id", "nr", "actie", "besluit"]).to_excel(
+            besluiten, index=False)
+
+        def _valt_om_bij_11(client, b, catalog, boom=None):
+            if b.training_id == 11:
+                raise ValueError("Streaming is required for operations")
+            return rw.RewriteResult(b.training_id, b.nieuwe_titel, rw.APPROVED, modus=b.modus)
+
+        echte_client, echte_rewrite = rw.make_client, rw.rewrite_one
+        rw.make_client, rw.rewrite_one = (lambda: None), _valt_om_bij_11
+        try:
+            review = rw.rewrite_file(scored, bron, uit_dir, besluiten_path=besluiten,
+                                     verbose=False)
+        finally:
+            rw.make_client, rw.rewrite_one = echte_client, echte_rewrite
+
+        rijen = review.set_index("training_id")
+        assert list(rijen["status"]) == [rw.APPROVED, "error", rw.APPROVED], list(rijen["status"])
+        assert "ValueError" in rijen.loc[11, "reden"]
+        # en het sheet staat op schijf, inclusief de twee die het wél haalden
+        opnieuw = pd.read_excel(os.path.join(uit_dir, "herschreven.xlsx"), sheet_name="review")
+        assert sorted(opnieuw["training_id"]) == [10, 11, 12]
+
+
+def test_een_verstreken_tijdsbudget_kost_die_ene_training_en_niet_de_batch():
+    """Waar het budget voor bestaat: de vastgelopen training eruit, de rest gewoon door.
+
+    `TijdOverschreden` moet daarvoor een gewone `Exception` zijn. Erft hij van BaseException,
+    dan vangt de lus hem niet en kost één trage training alsnog alle 46 -- ook de trainingen
+    die al klaar waren, want `herschreven.xlsx` wordt pas ná de lus geschreven. En omdat de
+    rij een `error` is, plant `bouw_wachtrij` hem bij de volgende run vanzelf opnieuw in.
+    """
+    import pandas as pd
+    with tempfile.TemporaryDirectory() as d:
+        scored, uit_dir = _wachtrij_situatie(d, [10, 11, 12])
+        bron = os.path.join(d, "bron.xlsx")
+        pd.DataFrame([{"id": t, "name": f"Training {t}",
+                       "content": json.dumps(_content(), ensure_ascii=False)}
+                      for t in (10, 11, 12)]).to_excel(bron, index=False)
+        besluiten = os.path.join(d, "besluiten.xlsx")
+        pd.DataFrame(columns=["training_id", "nr", "actie", "besluit"]).to_excel(
+            besluiten, index=False)
+
+        def _loopt_vast_bij_11(client, b, catalog, boom=None):
+            if b.training_id == 11:
+                raise rw.TijdOverschreden("tijdsbudget van 25 minuten verstreken")
+            return rw.RewriteResult(b.training_id, b.nieuwe_titel, rw.APPROVED, modus=b.modus)
+
+        echte_client, echte_rewrite = rw.make_client, rw.rewrite_one
+        rw.make_client, rw.rewrite_one = (lambda: None), _loopt_vast_bij_11
+        try:
+            review = rw.rewrite_file(scored, bron, uit_dir, besluiten_path=besluiten,
+                                     verbose=False)
+        finally:
+            rw.make_client, rw.rewrite_one = echte_client, echte_rewrite
+
+        rijen = review.set_index("training_id")
+        assert list(rijen["status"]) == [rw.APPROVED, "error", rw.APPROVED], list(rijen["status"])
+        assert "tijdsbudget" in rijen.loc[11, "reden"]
+        # de duur staat erbij, ook (juist) van de training die het niet haalde
+        assert set(review["seconden"] >= 0) == {True}
+        # en 11 draait de volgende run gewoon weer mee
+        q = rw.bouw_wachtrij(scored, uit_dir).set_index("training_id")
+        assert q.loc[11, "geselecteerd"] and not q.loc[10, "geselecteerd"]
+
+
 def test_start_voorbij_het_einde_waarschuwt_in_plaats_van_stil_niets_te_doen():
     """Een run die 0 trainingen draait zonder één regel uitvoer leest als een geslaagde run."""
     with tempfile.TemporaryDirectory() as d:
@@ -3124,15 +3424,23 @@ class _DriveFout(Exception):
     """Staat voor een HttpError; die klasse importeren zou googleapiclient vereisen."""
 
 
-def _fake_drive(bestaand=(), faal_op=(), comments_stuk=False):
+def _upload_html(kw) -> str:
+    """De HTML die als media aan `files.create`/`files.update` is meegegeven."""
+    return kw["media_body"].getbytes(0, kw["media_body"].size()).decode("utf-8")
+
+
+def _fake_drive(bestaand=(), faal_op=(), comments_stuk=False, vreemde_comments=()):
     """Een Drive-service zonder netwerk, in hetzelfde SimpleNamespace-idioom als de fake client.
 
     `bestaand` zijn de files die `files().list` teruggeeft (op naam gefilterd), `faal_op` de
     namen waarop `create` een fout gooit -- nodig om te laten zien dat één mislukte upload de
     rest van de batch niet meeneemt. `comments_stuk` laat het plaatsen van de opmerking falen,
-    wat een geslaagde upload niet mag omkatten naar een mislukte.
+    wat een geslaagde upload niet mag omkatten naar een mislukte. `vreemde_comments` zijn
+    opmerkingen van een reviewer die er al staan; die mag het opruimen nooit aanraken.
     """
-    gemaakt, vervangen, comments = [], [], []
+    gemaakt, vervangen = [], []
+    comments = [{"id": f"r{i}", "fileId": f, "content": t, "author": {"me": eigen}}
+                for i, (f, t, eigen) in enumerate(vreemde_comments)]
 
     def _list(**kw):
         naam = kw.get("q", "")
@@ -3153,20 +3461,29 @@ def _fake_drive(bestaand=(), faal_op=(), comments_stuk=False):
         return SimpleNamespace(execute=lambda **_: {
             "id": kw["fileId"], "name": "", "webViewLink": f"https://docs.google.com/d/{kw['fileId']}"})
 
-    def _comment(**kw):
+    def _comment_create(**kw):
         if comments_stuk:
             raise _DriveFout("403 op de opmerking")
-        comments.append(kw)
-        return SimpleNamespace(execute=lambda **_: {"id": f"c{len(comments)}"})
+        comments.append({"id": f"c{len(comments)}", "fileId": kw["fileId"],
+                         "content": kw["body"]["content"], "author": {"me": True}})
+        return SimpleNamespace(execute=lambda **_: {"id": comments[-1]["id"]})
 
     def _comment_list(**kw):
         staand = [c for c in comments if c["fileId"] == kw["fileId"]]
-        return SimpleNamespace(execute=lambda **_: {"comments": [{"id": "c"} for _ in staand]})
+        return SimpleNamespace(execute=lambda **_: {"comments": staand})
+
+    def _comment_delete(**kw):
+        weg = [c for c in comments if c["id"] == kw["commentId"]]
+        for c in weg:
+            comments.remove(c)
+        return SimpleNamespace(execute=lambda **_: None)
 
     files = SimpleNamespace(list=_list, create=_create, update=_update)
-    return SimpleNamespace(files=lambda: files,
-                           comments=lambda: SimpleNamespace(create=_comment, list=_comment_list),
-                           gemaakt=gemaakt, vervangen=vervangen, comments_gezet=comments)
+    return SimpleNamespace(
+        files=lambda: files,
+        comments=lambda: SimpleNamespace(create=_comment_create, list=_comment_list,
+                                         delete=_comment_delete),
+        gemaakt=gemaakt, vervangen=vervangen, comments_op_docs=comments)
 
 
 def _artefact(d, tid, titel="Training Data", batch=None, **overrides):
@@ -3479,6 +3796,24 @@ def test_een_kapotte_upload_sloopt_een_geslaagde_batch_niet():
     assert "rw.upload_naar_drive(" in uitvoer.getvalue(), uitvoer.getvalue()
 
 
+def test_reden_valt_terug_op_de_revisienotities_van_de_judge():
+    """De reden dat iets naar een mens gaat is het interessantste veld, en juist dat was leeg.
+
+    `human_reden` vult de judge alleen als hij zelf naar de mens routeert; blijft hij tot het
+    eind bij `needs-revision`, dan bleef er "judge: needs-revision na max revisies" over -- 37
+    tekens over de trainingen waar tweemaal herschrijven niet hielp. 5 van de 8 human-queue-rijen
+    in batch 1 zagen er zo uit, terwijl `revisie_notities` het concrete oordeel bevatte.
+    """
+    judgment = {"verdict": "needs-revision", "human_reden": "",
+                "revisie_notities": ["Modules: module 4 en 5 overlappen.",
+                                     "Inleiding: 'plaatsen' staat aan de onderkant."]}
+    reden = rw._reden_uit_revisies(judgment)
+    assert "module 4 en 5 overlappen" in reden
+    assert "- Inleiding:" in reden
+    # human_reden wint als de judge hem wél invult
+    assert rw._reden_uit_revisies({"revisie_notities": []}).startswith("judge: needs-revision")
+
+
 def test_comment_toont_alleen_de_flags_die_om_een_oordeel_vragen():
     """Alles tonen zou hier hetzelfde doen als de oude verzamelkolom: dan leest niemand het."""
     training = {"status": rw.APPROVED, "flags": ["laag: te lang", "hoog: verzonnen feit"],
@@ -3497,10 +3832,20 @@ def test_comment_valt_terug_op_alle_flags_zonder_tier():
     assert "2 punten om op te letten" in tekst
 
 
-def test_comment_noemt_een_status_die_niet_approved_is():
-    tekst = drive.comment_tekst({"status": rw.HUMAN_QUEUE, "reden": "judge wees af", "flags": []})
+def test_comment_draagt_de_reden_voor_de_human_queue():
+    """Het interessantste veld: de flags zeggen wat de code zag, de reden wat de judge zag."""
+    tekst = drive.comment_tekst({"status": rw.HUMAN_QUEUE, "reden": "judge wees af",
+                                 "flags": []})
     assert rw.HUMAN_QUEUE in tekst and "judge wees af" in tekst
     assert "geen opmerkingen" in tekst.lower()
+
+
+def test_comment_zet_de_letterlijke_backslash_n_van_de_judge_om():
+    """De judge levert zijn toelichting soms met de tékens backslash en n, 4x in training 7."""
+    tekst = drive.comment_tekst({"status": rw.HUMAN_QUEUE, "flags": [],
+                                 "reden": "Eerste deel.\\n\\nTweede deel."})
+    assert "\\n" not in tekst
+    assert "Eerste deel." in tekst and "Tweede deel." in tekst
 
 
 def test_comment_zonder_flags_zegt_dat_ook():
@@ -3515,34 +3860,53 @@ def test_elk_nieuw_doc_krijgt_een_opmerking_met_de_flags():
         _artefact(d, 2347, flags=["[FLAG] verzonnen feit"],
                   flags_tier={checks.TIER_HOOG: ["[FLAG] verzonnen feit"]})
         drive.upload_naar_drive(d, "batch 1", service=service, root_id="root", verbose=False)
-    assert len(service.comments_gezet) == 1, service.comments_gezet
-    gezet = service.comments_gezet[0]
+    assert len(service.comments_op_docs) == 1, service.comments_op_docs
+    gezet = service.comments_op_docs[0]
     assert gezet["fileId"] == "f2", gezet            # f1 is de batchmap
-    assert "[FLAG] verzonnen feit" in gezet["body"]["content"]
+    assert "[FLAG] verzonnen feit" in gezet["content"]
 
 
-def test_een_vervangen_doc_krijgt_geen_tweede_opmerking():
-    """De opmerking blijft op het bestand staan; een tweede laat de reviewer dubbel lezen."""
+def test_de_flags_staan_nooit_in_de_tekst_van_het_doc():
+    """Ze horen in de opmerking; in het document zouden ze in het CMS-artefact meeliften."""
     service = _fake_drive()
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 2347, flags=["[FLAG] verzonnen feit"],
+                  flags_tier={checks.TIER_HOOG: ["[FLAG] verzonnen feit"]})
+        drive.upload_naar_drive(d, "batch 1", service=service, root_id="root", verbose=False)
+    html = _upload_html(service.gemaakt[-1])
+    assert "[FLAG]" not in html and "Automatisch herschreven" not in html
+
+
+def test_een_vervangen_doc_krijgt_een_verse_opmerking_en_geen_tweede():
+    """Na `files.update` is de oude opmerking losgeslagen, en hij beschrijft de vorige versie.
+
+    Docs kan een ankerloze opmerking na een inhoudswissel nergens meer plaatsen en toont hem in
+    de geschiedenis onder "oorspronkelijke content verwijderd". Laten staan levert dus geen
+    opmerking op maar een spoor; er moet er precies één zijn, en dat is de nieuwe.
+    """
+    service = _fake_drive()
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 2347, flags=["oud punt"], flags_tier={checks.TIER_HOOG: ["oud punt"]})
+        drive.upload_naar_drive(d, "batch 1", service=service, root_id="root", verbose=False)
+        _artefact(d, 2347, flags=["nieuw punt"], flags_tier={checks.TIER_HOOG: ["nieuw punt"]})
+        drive.upload_naar_drive(d, "batch 1", service=service, root_id="root",
+                                bij_bestaand="nieuwe_versie", verbose=False)
+    assert len(service.comments_op_docs) == 1, service.comments_op_docs
+    assert "nieuw punt" in service.comments_op_docs[0]["content"]
+
+
+def test_het_opruimen_raakt_de_opmerkingen_van_een_reviewer_niet():
+    """Alleen wat wij zelf schreven mag weg; de reviewer is de reden dat het doc bestaat."""
+    service = _fake_drive(vreemde_comments=[("f2", "Deze module klopt niet", False),
+                                            ("f2", "Automatisch herschreven. oud", True)])
     with tempfile.TemporaryDirectory() as d:
         _artefact(d, 2347)
         drive.upload_naar_drive(d, "batch 1", service=service, root_id="root", verbose=False)
         drive.upload_naar_drive(d, "batch 1", service=service, root_id="root",
                                 bij_bestaand="nieuwe_versie", verbose=False)
-    assert len(service.comments_gezet) == 1, service.comments_gezet
-
-
-def test_een_doc_zonder_opmerking_krijgt_er_alsnog_een_bij_nieuwe_versie():
-    """De docs van vóór deze functie zouden er anders nooit een krijgen."""
-    service = _fake_drive()
-    with tempfile.TemporaryDirectory() as d:
-        _artefact(d, 2347)
-        drive.upload_naar_drive(d, "batch 1", service=service, root_id="root",
-                                met_comment=False, verbose=False)   # doc zonder opmerking
-        assert service.comments_gezet == []
-        drive.upload_naar_drive(d, "batch 1", service=service, root_id="root",
-                                bij_bestaand="nieuwe_versie", verbose=False)
-    assert len(service.comments_gezet) == 1, service.comments_gezet
+    inhoud = [c["content"] for c in service.comments_op_docs]
+    assert "Deze module klopt niet" in inhoud, inhoud
+    assert "Automatisch herschreven. oud" not in inhoud, inhoud
 
 
 def test_een_mislukte_opmerking_maakt_de_upload_niet_ongeldig():
@@ -3564,7 +3928,7 @@ def test_met_comment_uit_raakt_de_opmerkingen_niet():
         _artefact(d, 2347)
         drive.upload_naar_drive(d, "batch 1", service=service, root_id="root",
                                 met_comment=False, verbose=False)
-    assert service.comments_gezet == []
+    assert service.comments_op_docs == []
 
 
 def test_manifest_wordt_atomisch_geschreven():

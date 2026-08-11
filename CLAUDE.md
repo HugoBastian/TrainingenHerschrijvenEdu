@@ -24,7 +24,7 @@ een rij in `herschreven.xlsx`.
 ## Commando's
 
 ```bash
-python test_rewrite.py                      # 287 offline tests, geen API-key nodig
+python test_rewrite.py                      # 301 offline tests, geen API-key nodig
 python -c "import test_rewrite as t; t.test_em_dash_is_hard_in_elk_schrijversveld()"   # één test
 python bouw_goud_v2.py                      # terugval-few-shot; nodig na een verse checkout
 
@@ -69,9 +69,18 @@ een verwijzing naar het origineel; dat is goedkoper dan de richting omdraaien.
 
 Dit onderscheid stuurt de hele revisielus, dus kies bewust:
 
-- **HARD** = terug naar de schrijver (`rewrite_one`, max `MAX_REVISIONS` = 2 rondes). Alleen
+- **HARD** = terug naar de schrijver (`rewrite_one`, max `MAX_REVISIONS` = 3 rondes). Alleen
   voor wat de schrijver zelf kan repareren, en alleen op velden die hij zelf schrijft.
 - **FLAG** = naar de judge en de menselijke review, nooit terug naar de schrijver.
+
+`MAX_REVISIONS` telt **schrijverspogingen, geen judge-revisies**, en dat verschil is groter dan
+het lijkt: een onvolledige `submit_rewrite` en een HARD-check verbruiken er ook een, zónder dat
+de judge eraan te pas komt. Een training die één keer een harde check laat vallen houdt dus
+minder judge-rondes over dan het getal suggereert. Stond op 2; over batch 1 bleven 5 van de 46
+hangen op "needs-revision na max revisies", waarvan er vier nog maar één of twee concrete,
+lokale correcties open hadden staan. Of 3 klopt lees je af aan `rondes` in `<id>.json`:
+dezelfde klacht drie keer betekent dat een ronde erbij helpt, elke ronde een andere betekent
+dat de lus niet convergeert -- en dan is het antwoord niet meer rondes maar een andere prompt.
 
 De `ctx` van `check_rewrite` draagt sinds `check_actie_escalatie` ook briefinggegevens
 (`acties`, de goedgekeurde actualiseringen kaal). Bouw hem via `build_check_ctx()`: `rewrite_one`
@@ -115,10 +124,19 @@ een preview die de selectie zelf naboots, liegt zodra er een filter bijkomt.
 
 De volgorde is de rijvolgorde van het scoresheet; er wordt nergens gesorteerd. Maar
 `start`/`limit` snijden pas ná twee filters: modus `overnemen` (eigen lus, immuun voor
-`start`/`limit`) en alles wat al in `herschreven.xlsx` staat. Sheetrij 3 en wachtrijpositie 3
-zijn dus verschillende trainingen zodra er één rij is weggefilterd, en de wachtrij verschuift
-bij élke geslaagde run. Dat kostte een keer een verkeerde training; vandaar `alleen_ids=`,
-dat niet meeschuift, en `toon_wachtrij()` dat beide nummeringen naast elkaar zet.
+`start`/`limit`) en alles wat al in `herschreven.xlsx` staat -- op de `error`-rijen na, want
+daar ligt geen tekst achter en die horen bij een volgende run gewoon weer mee te draaien.
+Sheetrij 3 en wachtrijpositie 3 zijn dus verschillende trainingen zodra er één rij is
+weggefilterd, en de wachtrij verschuift bij élke geslaagde run. Dat kostte een keer een
+verkeerde training; vandaar `alleen_ids=`, dat niet meeschuift, en `toon_wachtrij()` dat
+beide nummeringen naast elkaar zet.
+
+Eén uitzondering per training is sinds batch 1 geen batchfout meer: `rewrite_one` en
+`neem_over` draaien in een `try`, en wat omvalt wordt een `error`-rij (`_mislukte_training`)
+met de traceback op stderr. Dat is niet de vriendelijkheid die het lijkt: `herschreven.xlsx`
+wordt pas ná de lus geschreven, dus een uitzondering bij training 1 kostte alle 46 en liet
+niets op schijf achter. `build_briefing` staat er bewust buiten -- deterministische assemblage
+die bij één training omvalt, valt bij alle 46 om.
 
 ### Het scoresheet is een gedeelde Google Sheet
 
@@ -158,6 +176,16 @@ belofte. Vind je een fout die de judge had moeten zien, kijk dan of de beoordeli
 niet juist verbiedt te kijken. Die vrijstelling dekt sinds deze ronde het **onderwerp** en niet
 het **niveau**; het werkwoord van de actie is de bovengrens (`ACTIE_WERKWOORD`, schrijfspec
 §12, `correcties_nl.md` §30, `check_actie_escalatie`).
+
+Dezelfde vraag heeft nog een tweede antwoord, en dat is scherper: **de judge kan iets afkeuren
+dat er helemaal niet staat.** `build_judge_user` gaf `render_markdown` de mechanische titel mee
+(`b.nieuwe_titel`), en die renderer gebruikte zijn argument in plaats van `document["titel"]` --
+dus wat `bepaal_titel` uiteindelijk koos kwam nooit bij de judge aan. Training 279 leverde de
+goedgekeurde rename ("Training HTML en CSS"), had die in zijn document staan, en kreeg drie
+rondes lang de opdracht een titel te veranderen die al veranderd wás: een revisielus die per
+constructie niet te winnen is en dus gegarandeerd in de menselijke wachtrij eindigt. De titel
+komt sindsdien uit het document zelf, met het argument als terugval. Reproduceert een klacht van
+de judge zich terwijl de tekst klopt, controleer dan eerst of hij wel leest wat er ligt.
 
 Daaruit volgen twee regels die tests bewaken:
 
@@ -299,25 +327,50 @@ dat. Drie dingen die alleen uit een echte upload bleken:
 Verander je de opmaak, dan verschuift de sha256 van élk doc. De lus meldt dan per training dat
 de tekst is gewijzigd; `bij_bestaand="nieuwe_versie"` werkt de bestaande docs bij.
 
-### De opmerking bij het doc
+### De opmerking bij het doc, en waar Google hem neerzet
 
-Elk vers doc krijgt via `comments.create` een opmerking met de flags, zodat een reviewer weet
-waar hij op moet letten voor hij begint te lezen. Drie dingen:
+Elk doc krijgt via `zet_comment` één opmerking met de flags én de reden voor de human-queue,
+zodat een reviewer weet waar hij op moet letten voor hij begint te lezen. `comment_tekst` maakt
+de tekst.
 
-- **zonder anker, en dat is een grens van de API.** Opmerkingen komen bij Google uitsluitend uit
-  de Drive-API; de Docs-API kan ze niet maken. Een anker kan alleen als ondocumenteerde
-  kix-JSON met tekstposities, en die posities kennen wij niet -- de conversie van HTML naar Doc
-  gebeurt aan de andere kant. De opmerking hangt dus aan het document en niet aan de titel;
+**Zonder anker, en dat kost zichtbaarheid.** Opmerkingen komen bij Google uitsluitend uit de
+Drive-API; een anker kan alleen als ongedocumenteerde kix-JSON met tekstposities, en die kennen
+wij niet omdat de conversie van HTML naar Doc aan de andere kant gebeurt. Gemeten gevolg bij
+batch 1: alle 43 opmerkingen bestonden (`comments.list` gaf ze terug, ongeresolved, niet
+verwijderd), maar Docs kan ze nergens in de tekst plaatsen en toont ze in de **geschiedenis**
+onder "oorspronkelijke content verwijderd" in plaats van in de kantlijn. Wie de kantlijn wil,
+moet de Docs-API aanzetten (staat uit in het Cloud-project) en het ankerformaat op de koop toe
+nemen. De tussenstap -- de flags als grijs blok bovenin het document -- is geprobeerd en weer
+teruggedraaid; die was zichtbaar maar zette reviewtekst in het artefact zelf.
+
+Vier dingen om te weten:
+
+- **de opmerking gaat er ná de inhoud op, nooit ervoor.** Een opmerking die er al stond voordat
+  `files.update` de tekst verving is helemaal losgeslagen;
+- **`vervang=True` op het `nieuwe_versie`-pad ruimt onze eigen vorige opmerking op**, want die
+  beschrijft de flags van de vórige versie. Alleen die van ons: `ONZE_OPENERS` herkent onze
+  openingsregel, en een opmerking van een reviewer blijft staan. Dat is de enige plek in de code
+  die iets van een gebruiker verwijdert, dus hou het filter smal;
 - **alleen de tier `hoog`**, net als de kolom `flags_hoog`. Alles tonen doet hier hetzelfde als
-  de oude verzamelkolom deed. Daarom staat `flags_tier` sinds deze ronde óók in `<id>.json`:
-  zonder die uitsplitsing op schijf kan de comment de ruis niet van het oordeel scheiden.
-  Artefacten van vóór die wissel vallen terug op alle flags, en dat is geen fout maar dezelfde
-  afweging als in `_review_rij` -- voor die trainingen bestaat de tier nergens, ook niet in het
-  sheet;
+  de oude verzamelkolom deed. Daarom staat `flags_tier` óók in `<id>.json`: zonder die
+  uitsplitsing op schijf kan de opmerking de ruis niet van het oordeel scheiden. Artefacten van
+  vóór die wissel vallen terug op alle flags, dezelfde afweging als in `_review_rij`;
 - **een mislukte opmerking is geen mislukte upload.** Het doc staat er en is bruikbaar, dus de
-  training gaat niet op de `mislukt`-lijst. Op het `nieuwe_versie`-pad wordt eerst gekeken of er
-  al een opmerking staat (`heeft_comment`): de docs van vóór deze functie hebben er nog geen en
-  zouden er anders nooit een krijgen.
+  training gaat niet op de `mislukt`-lijst.
+
+`bij_bestaand="overslaan"` blijft de default om een andere reden, die nog steeds geldt: een
+reviewer zet zélf opmerkingen in het doc, en `files.update` behoudt hun opmerkingen wel maar
+niet hun ankers.
+
+### De reden voor de human-queue is het interessantste veld
+
+De flags zeggen wat de code zag; de reden zegt wat de judge zag, en dat is waar een reviewer
+mee begint. `human_reden` vult de judge alleen als hij zélf naar de mens routeert. Blijft hij
+tot het eind bij `needs-revision`, dan is dat veld leeg en stond er "judge: needs-revision na
+max revisies" -- 37 tekens over precies de trainingen waar tweemaal herschrijven niet hielp
+(5 van de 8 human-queue-rijen in batch 1). `_reden_uit_revisies` valt daarom terug op
+`judgment.revisie_notities`, die concreet en per kopje zijn. Het oordeel stond al die tijd in
+`<id>.json`; alleen `reden` pikte het niet op.
 
 De upload hangt aan het eind van `rewrite_file` in een `try/except`: de artefacten en het sheet
 staan dan al op schijf, dus een kapot token kost hoogstens de upload en nooit een batch die net
@@ -331,6 +384,43 @@ precies die reden omgekeerd.
 (welke few-shot meeging). Zonder die drie is `approved` een status zonder betekenis zodra spec
 of few-shot verschuift. Verander je een promptbestand, dan verschuift `spec_versie` vanzelf;
 dat is de bedoeling.
+
+Daarnaast `rondes` en `seconden`, en die twee bestaan om aan de knoppen hierboven te kunnen
+draaien. `judgment` is alleen het **laatste** oordeel; `rondes` is het verloop ernaartoe (per
+poging `onvolledig` / `code-check` / het judge-verdict, met de notities die teruggingen naar de
+schrijver). Zonder dat spoor was over batch 1 niet meer na te gaan waarom vijf trainingen op de
+revisielimiet strandden. `seconden` staat ook in het review-tabblad, naast `n_rondes`, en is het
+getal waarop `TIJDSBUDGET` hoort te worden bijgesteld -- dat staat nu op een schatting.
+
+### De tijdgrenzen: één stiltelimiet en één plafond
+
+De SDK-defaults (600 s, 2 retries) lezen als een grens per call maar zijn dat niet. Bij
+`messages.stream` telt de timeout **per stukje dat over de lijn komt**, en een `ReadTimeout`
+midden in een stream gaat buiten de retry-laag van de SDK om (die dekt alleen het openen van de
+request). Eén training doet tot 24 modelcalls, dus zonder eigen grens is er geen bovengrens:
+training 47 draaide 81 minuten voordat hij alsnog op een ReadTimeout sneuvelde.
+
+- **`LEES_TIMEOUT` (180 s) is een stiltelimiet, geen duur.** Drie minuten zonder één byte is een
+  dode verbinding; de thinking-blokken streamen mee, ook als hun tekst leeg is. Zit op de client
+  via `make_client()`, dat de kale client van het scoreproject in `with_options` wikkelt -- de
+  importrichting blijft eenrichtingsverkeer, en een timeout die bij ons hoort heeft daar niets
+  te zoeken. De naam blijft `make_client`, zodat notebook en CLI vanzelf de ingestelde client
+  krijgen;
+- **`TIJDSBUDGET` (25 min) is het enige echte plafond.** `_call_tool` loopt de stream-events
+  daarom zélf langs in plaats van `get_final_message()` aan te roepen: zo breekt een call af
+  binnen één event na de deadline in plaats van pas als het model klaar is. Een controle tussen
+  de calls door zou niets binden -- één call kan langer duren dan het hele budget.
+
+De deadline staat als modulevariabele achter `tijdsbudget()` en niet als parameter. `_call_tool`
+wordt langs vijf paden bereikt (schrijver, judge, vervolgstappen, modus, actualisering) en
+vanuit twee lussen; een parameter zou bij elk van hen vergeten kunnen worden. Zelfde afweging
+als bij `build_check_ctx`. Alleen de batchpaden zetten een budget (`rewrite_one`, `neem_over`);
+bij een losse hergeneratie zit er een mens aan de knoppen en bewaakt `_bewaak_tijd` niets.
+
+`TijdOverschreden` erft van `RuntimeError` en dat is functioneel: de lussen in `rewrite_file`
+vangen hem als elke andere fout, maken er een `error`-rij van en gaan door naar de volgende
+training. Eén vastgelopen training kost daarmee die training en nooit de batch -- en omdat
+`bouw_wachtrij` error-rijen niet overslaat, draait hij de volgende run gewoon weer mee.
 
 ## Werkwijze die zich hier heeft bewezen
 

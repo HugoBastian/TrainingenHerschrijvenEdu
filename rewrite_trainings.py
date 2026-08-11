@@ -43,6 +43,9 @@ import json
 import os
 import re
 import sys
+import time
+import traceback
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -61,7 +64,7 @@ if _SCORE_DIR and _SCORE_DIR not in sys.path:
     sys.path.insert(0, _SCORE_DIR)
 try:
     from score_trainings import (
-        parse_content, build_source_text, extract_days, make_client,
+        parse_content, build_source_text, extract_days, make_client as _kale_client,
         orden_kolommen, read_input as read_source_input,
     )
 except ModuleNotFoundError as e:  # pragma: no cover
@@ -84,10 +87,47 @@ MODEL = "claude-opus-4-8"          # generatie profiteert van Opus; makkelijk te
 KLEIN_MODEL = "claude-haiku-4-5"   # keuze uit een shortlist; geen generatie
 MAX_TOKENS = 16000
 THINKING = {"type": "adaptive"}    # adaptieve thinking voor schrijf-/oordeelskwaliteit
-MAX_REVISIONS = 2                  # code-check + judge revisies vóór mens-wachtrij
+
+# LET OP: dit telt SCHRIJVERSpogingen, niet judge-revisies. Een onvolledige `submit_rewrite`
+# en een HARD-check verbruiken er ook een, zónder dat de judge eraan te pas komt -- een
+# training die één keer een harde check laat vallen houdt er dus minder judge-rondes over dan
+# dit getal suggereert. Stond op 2; over batch 1 bleven 5 van de 46 hangen op "needs-revision
+# na max revisies" (87, 129, 279, 283, 300), en bij vier daarvan stond er nog één of twee
+# concrete, lokale correcties open (één woord, één zin, twee modules samenvoegen). De vijfde
+# (279) was geen revisieprobleem maar de titelbug in `render_markdown`. Of 3 het juiste getal
+# is leest de volgende batch af aan `rondes` in `<id>.json`: dezelfde klacht drie keer betekent
+# dat een ronde erbij helpt, elke ronde een andere betekent dat hij niet convergeert.
+MAX_REVISIONS = 3
 N_SHORTLIST = 30                   # kandidaten die Python uit de catalogus voorselecteert
 N_VERVOLG = 6                      # vervolgtrainingen die uiteindelijk in de tekst komen
 N_VERVOLG_MIN = 3                  # daaronder is een lijst met twee groep-intro's niet zinnig
+
+# Grenzen aan de tijd, en het onderscheid tussen deze twee is het hele punt.
+#
+# De SDK-defaults (600 s, 2 retries) lezen als een limiet per call maar zijn dat niet: bij
+# `messages.stream` geldt de timeout per stukje dat over de lijn komt, en een ReadTimeout
+# MIDDEN in een stream gaat buiten de retry-laag van de SDK om (die dekt alleen het openen van
+# de request). Eén training doet tot 24 modelcalls -- MAX_REVISIONS+1 rondes maal schrijver
+# plus judge, elk intern tot 3 keer -- dus zonder eigen grens is er geen bovengrens. Training
+# 47 draaide 81 minuten voordat hij alsnog op een ReadTimeout sneuvelde.
+#
+# - `LEES_TIMEOUT` is een STILTE-limiet, geen duur. Drie minuten zonder één byte is een dode
+#   verbinding en geen langzaam model: de thinking-blokken streamen mee, ook als hun tekst
+#   leeg is. Ga niet lager zonder te meten.
+# - `TIJDSBUDGET` is de vangrail en het enige echte plafond: gemeten over de hele training en
+#   bewaakt bij élk stream-event, dus een call die eroverheen loopt breekt af binnen één event
+#   in plaats van pas als het model klaar is. Verstrijkt hij, dan sneuvelt DEZE training
+#   (`error`-rij, en `bouw_wachtrij` plant error-rijen bij de volgende run gewoon opnieuw in)
+#   en loopt de batch door.
+#
+# 25 minuten is ~8x een typische training en een schatting, want tot deze ronde legden we de
+# duur nergens vast. De kolom `seconden` in het review-tabblad is er om dat getal te vervangen
+# door een meting.
+LEES_TIMEOUT = 180.0               # seconden stilte binnen één stream
+VERBIND_TIMEOUT = 10.0             # seconden voor de handshake
+MAX_RETRIES = 4                    # 2 was de default, en training 5 sneuvelde erna op
+                                   # `overloaded_error`; deze retries backoffen en falen snel
+TIJDSBUDGET = 25 * 60              # seconden per training
 
 # Taxonomie-bonus bij de shortlist. Keyword-overlap en boomburen falen op verschillende
 # manieren -- LDAP vindt via keywords "Active Directory" (raak) maar via de boom 5G en
@@ -1470,6 +1510,74 @@ def build_judge_user(b: RewriteBriefing, document: dict) -> str:
 # 7. API-CALL (tool-output, retry met budgetverdubbeling; zelfde geest als de scorer)
 # ---------------------------------------------------------------------------
 
+def make_client():
+    """De client van het scoreproject, met de tijdgrenzen van dít project erop.
+
+    `score_trainings.make_client` maakt een kale `anthropic.Anthropic()` en krijgt daarmee de
+    SDK-defaults. Die passen daar: de scorer doet één call per training. Wij doen er tot 24,
+    dus hier komen `LEES_TIMEOUT` en `MAX_RETRIES` erop.
+
+    Via `with_options` en niet door de scorer te wijzigen: de importrichting is
+    eenrichtingsverkeer, en een timeout die bij ons hoort heeft daar niets te zoeken. De naam
+    blijft `make_client`, zodat het notebook en de drie aanroepers hieronder vanzelf de
+    ingestelde client krijgen in plaats van de kale.
+    """
+    import httpx
+    return _kale_client().with_options(
+        timeout=httpx.Timeout(LEES_TIMEOUT, connect=VERBIND_TIMEOUT),
+        max_retries=MAX_RETRIES,
+    )
+
+
+class TijdOverschreden(RuntimeError):
+    """Het tijdsbudget van deze training is op.
+
+    Een gewone `Exception`, en dat is het hele punt: de lussen in `rewrite_file` vangen hem
+    net als elke andere fout op, maken er via `_mislukte_training` een `error`-rij van en gaan
+    door naar de volgende training. Eén training die vastloopt kost daarmee die training en
+    nooit de batch -- en omdat `bouw_wachtrij` error-rijen niet overslaat, draait hij de
+    volgende run gewoon weer mee.
+    """
+
+
+_deadline: float | None = None    # None = geen budget; zie `tijdsbudget`
+_budget: float | None = None      # alleen voor de foutmelding
+
+
+@contextmanager
+def tijdsbudget(seconden: float | None = TIJDSBUDGET):
+    """Zet de deadline voor alles wat hierbinnen een modelcall doet.
+
+    Bewust een modulevariabele en geen parameter. `_call_tool` wordt langs vijf paden bereikt
+    (schrijver, judge, vervolgstappen, modus, actualisering) en vanuit twee lussen; een
+    parameter zou bij elk van die aanroepers apart moeten worden doorgegeven en dus bij elk van
+    hen vergeten kunnen worden. Dat is dezelfde val als bij `build_check_ctx`, waar twee
+    aanroepers hun eigen dict bouwden en de een een check draaide die de ander niet had.
+
+    Alleen de batchpaden zetten een budget (`rewrite_one`, `neem_over`). Bij een losse
+    hergeneratie zit er een mens aan de knoppen die zelf kan afbreken; daar staat `_deadline`
+    op None en doet `_bewaak_tijd` niets. Nesten mag: de binnenste deadline geldt, en bij het
+    verlaten staat de buitenste weer.
+    """
+    global _deadline, _budget
+    vorige_deadline, vorige_budget = _deadline, _budget
+    _budget = None if seconden is None else float(seconden)
+    _deadline = None if _budget is None else time.monotonic() + _budget
+    try:
+        yield
+    finally:
+        _deadline, _budget = vorige_deadline, vorige_budget
+
+
+def _bewaak_tijd(wat: str = "") -> None:
+    """Gooit `TijdOverschreden` zodra de deadline voorbij is. Zonder budget: niets."""
+    if _deadline is None or time.monotonic() <= _deadline:
+        return
+    minuten = (_budget or 0) / 60
+    raise TijdOverschreden(f"tijdsbudget van {minuten:.0f} minuten verstreken"
+                           + (f" {wat}" if wat else ""))
+
+
 def _extract_tool_input(response, tool_name: str) -> dict | None:
     for block in response.content:
         if getattr(block, "type", None) == "tool_use" and block.name == tool_name:
@@ -1484,15 +1592,35 @@ def _call_tool(client, system, user_text: str, tools: list[dict], tool_name: str
 
     `model`/`thinking` staan los zodat de goedkope keuzes (vervolgtrainingen) op een
     klein model zonder thinking kunnen draaien, met dezelfde retry-logica.
+
+    Dit is ook de plek waar `TIJDSBUDGET` wordt bewaakt -- alle vijf de modelpaden van dit
+    project komen hier langs, dus één bewaking hier dekt ze allemaal.
+
+    De call STREAMT, en dat is geen snelheidskeuze maar de voorwaarde waaronder de
+    verdubbeling hieronder mag bestaan. Een niet-streamende call rekent bij de SDK
+    `3600 * max_tokens / 128000` seconden en weigert alles boven de tien minuten: vanaf
+    max_tokens 21334 gooit `client.messages.create` een ValueError voordat er iets over
+    de lijn gaat. Onze tweede poging vraagt 32000, dus de eerste keer dat de judge zijn
+    budget opmaakte sneuvelde niet die call maar de retry -- en met die retry de hele
+    batch van 46. Ga je terug naar `create`, dan komt dat plafond terug.
     """
     messages = [{"role": "user", "content": user_text}]
     budget = max_tokens
     extra = {"thinking": thinking} if thinking else {}
     for _ in range(3):
-        resp = client.messages.create(
+        _bewaak_tijd(f"vóór een call naar {tool_name}")
+        with client.messages.stream(
             model=model, max_tokens=budget, system=system,
             messages=messages, tools=tools, **extra,
-        )
+        ) as stroom:
+            # Zelf itereren in plaats van meteen `get_final_message()` aanroepen: die doet
+            # intern precies dit, maar dan zonder dat wij ertussen kunnen kijken. Zo breekt een
+            # call die over de deadline heen loopt af binnen één event in plaats van pas als
+            # het model klaar is, en dát maakt van `TIJDSBUDGET` een plafond in plaats van een
+            # controle tussen de calls door. De `with` sluit de verbinding bij het gooien.
+            for _gebeurtenis in stroom:
+                _bewaak_tijd(f"tijdens een call naar {tool_name}")
+            resp = stroom.get_final_message()
         tool_input = _extract_tool_input(resp, tool_name)
         if tool_input is not None:
             return tool_input
@@ -1640,6 +1768,15 @@ class RewriteResult:
     modus_voorstel: str = ""
     spec_versie: str = ""
     goud_voorbeelden: list[str] = field(default_factory=list)
+    # Wat er per schrijverspoging gebeurde: `onvolledig` / `code-check` / het judge-verdict,
+    # met de notities die terug naar de schrijver gingen. Zonder dit bewaart `<id>.json`
+    # alleen het LAATSTE oordeel, en dan is achteraf niet te zien of de judge drie keer
+    # dezelfde klacht had (dan helpt een ronde erbij) of elke ronde een nieuwe (dan is het
+    # whack-a-mole en helpt hij niet). Dat is precies de vraag waar `MAX_REVISIONS` op staat.
+    rondes: list[dict] = field(default_factory=list)
+    # Wandkloktijd van deze training. Meetkolom, geen reviewwerk: `TIJDSBUDGET` staat op een
+    # schatting zolang niemand weet hoe lang een training normaal duurt.
+    seconden: float = 0.0
 
 
 def bepaal_vervolgstappen(client, b: RewriteBriefing, catalog: list[dict],
@@ -1663,8 +1800,74 @@ def bepaal_vervolgstappen(client, b: RewriteBriefing, catalog: list[dict],
     return [e["titel"] for e in shortlist[:N_VERVOLG]], []
 
 
+def _reden_uit_revisies(judgment: dict) -> str:
+    """De reden voor de human-queue als de judge tot het eind `needs-revision` bleef zeggen.
+
+    `human_reden` is dan leeg: dat veld vult de judge alleen als hij zélf naar de mens
+    routeert. Zonder deze terugval leest de reviewer "judge: needs-revision na max revisies"
+    [37 tekens] over precies de trainingen waar tweemaal herschrijven niet hielp, terwijl het
+    echte oordeel in `revisie_notities` staat en concreet is ("module 4 en 5 overlappen ...").
+    Gemeten over batch 1: 5 van de 8 human-queue-rijen hadden alleen die 37 tekens.
+
+    Regelovergangen en geen scheidingsteken: `_review_blok` in rewrite_output.py maakt van
+    elke regel een alinea in het doc.
+    """
+    notities = [str(n).strip() for n in judgment.get("revisie_notities") or [] if str(n).strip()]
+    if not notities:
+        return "judge: needs-revision na max revisies"
+    return ("Judge bleef na de maximale revisies bij needs-revision:\n"
+            + "\n".join(f"- {n}" for n in notities))
+
+
+def _mislukte_training(b: RewriteBriefing, fout: BaseException,
+                       verbose: bool = True) -> RewriteResult:
+    """Een uitzondering tijdens één training -> een `error`-rij, zodat de batch doorloopt.
+
+    Zonder deze route kost een fout in training 1 alle 46: `herschreven.xlsx` wordt pas ná
+    de lus geschreven, dus er staat daarna geen enkele rij op schijf. Gemeten bij batch 1,
+    waar de SDK op de retry van de judge een ValueError gooide.
+
+    De status `error` bestond al voor mislukte scoring en gedraagt zich hier hetzelfde: geen
+    document, dus geen cms-rij en geen markdown, wél een JSON en een rij in het review-blad.
+    `modus` en `spec_versie` komen uit de briefing, net als op de route_out-route in
+    `rewrite_one`; anders leest de reviewer `volledig` bij een training die op `stijl` stond.
+
+    `except Exception` en niet `BaseException` bij de aanroepers: Ctrl-C hoort de batch wél
+    te stoppen, en niet 46 keer een error-rij te schrijven.
+
+    De traceback gaat naar stderr en niet naar het sheet: de kolom `reden` moet één regel
+    blijven, maar een gesmoorde uitzondering zonder spoor is niet te repareren.
+    """
+    if verbose:
+        print(f"  FOUT bij training {b.training_id} ({b.titel[:40]}):", file=sys.stderr)
+        traceback.print_exception(type(fout), fout, fout.__traceback__, file=sys.stderr)
+    reden = " ".join(f"{type(fout).__name__}: {fout}".split())
+    return RewriteResult(b.training_id, b.nieuwe_titel, "error",
+                         reden=reden[:200], thin=b.thin, oude_titel=b.titel,
+                         modus=b.modus, modus_voorstel=b.modus_voorstel,
+                         spec_versie=spec_versie())
+
+
 def rewrite_one(client, b: RewriteBriefing, catalog: list[dict],
                 boom: dict | None = None) -> RewriteResult:
+    """Schrijver -> code-check -> judge -> revisie of route, binnen één tijdsbudget.
+
+    Het budget staat hier en niet in `rewrite_file`, zodat élke ingang begrensd is: de batch,
+    de CLI en de losse notebook-cel van sectie 5. Loopt hij over, dan gooit `_call_tool` een
+    `TijdOverschreden` en is dat voor de aanroeper een gewone fout -- één `error`-rij, en de
+    volgende training gaat gewoon door.
+    """
+    start = time.monotonic()
+    with tijdsbudget():
+        res = _schrijf_en_beoordeel(client, b, catalog, boom)
+    # De batch meet zelf opnieuw (daar telt ook een mislukte training mee, en die levert geen
+    # resultaat op om het getal in te zetten); dit is voor de losse aanroepen.
+    res.seconden = round(time.monotonic() - start, 1)
+    return res
+
+
+def _schrijf_en_beoordeel(client, b: RewriteBriefing, catalog: list[dict],
+                          boom: dict | None = None) -> RewriteResult:
     # harde routes eruit (onbruikbaar, of een beslissing waar de reviewer nog niet aan toe is)
     route = b.route_out
     if route:
@@ -1684,11 +1887,15 @@ def rewrite_one(client, b: RewriteBriefing, catalog: list[dict],
     notes: list[str] = []
     document: dict = {}
     last_judgment: dict = {}
+    # Eén regel per schrijverspoging, ook de rondes die de judge nooit haalden. Zie
+    # `RewriteResult.rondes`: dit is het spoor waarop `MAX_REVISIONS` wordt bijgesteld.
+    rondes: list[dict] = []
     for attempt in range(MAX_REVISIONS + 1):
         user_text = base_user if not notes else base_user + "\n\n---\nHERSTEL:\n" + "\n".join(notes)
         writer_out = _call_tool(client, writer_system, user_text, [SUBMIT_REWRITE], "submit_rewrite")
         if not rewrite_input_complete(writer_out):
             notes = ["De submit_rewrite-output was onvolledig; lever alle verplichte kopjes."]
+            rondes.append({"ronde": attempt + 1, "uitkomst": "onvolledig", "notities": []})
             continue
 
         titel = bepaal_titel(writer_out, b)
@@ -1697,6 +1904,8 @@ def rewrite_one(client, b: RewriteBriefing, catalog: list[dict],
         hard = checks.hard_fails(issues)
         if hard:
             notes = ["Los deze code-check fouten op:"] + [str(i) for i in hard]
+            rondes.append({"ronde": attempt + 1, "uitkomst": "code-check",
+                           "notities": [str(i) for i in hard]})
             continue
 
         document = assemble_document(writer_out, b, titels, groepen)
@@ -1706,9 +1915,11 @@ def rewrite_one(client, b: RewriteBriefing, catalog: list[dict],
         judgment = judge_document(client, b, document)
         last_judgment = judgment
         verdict = judgment.get("verdict", HUMAN_QUEUE)
+        rondes.append({"ronde": attempt + 1, "uitkomst": verdict,
+                       "notities": [str(n) for n in judgment.get("revisie_notities") or []]})
         gedeeld = dict(document=document, flags=flags, flags_tier=flags_tier, judgment=judgment,
                        toegepaste_acties=toegepast, oude_titel=b.titel, writer_out=writer_out,
-                       modus=b.modus, modus_voorstel=b.modus_voorstel,
+                       modus=b.modus, modus_voorstel=b.modus_voorstel, rondes=list(rondes),
                        spec_versie=spec_versie(), goud_voorbeelden=actieve_goud_voorbeelden())
         if verdict == APPROVED:
             return RewriteResult(b.training_id, titel, APPROVED, reden="",
@@ -1718,14 +1929,14 @@ def rewrite_one(client, b: RewriteBriefing, catalog: list[dict],
             notes = ["Judge-revisie:"] + list(judgment.get("revisie_notities", []))
             continue
         # human-queue of revisies op -> mens
-        reden = judgment.get("human_reden") or "judge: needs-revision na max revisies"
+        reden = judgment.get("human_reden") or _reden_uit_revisies(judgment)
         return RewriteResult(b.training_id, titel, HUMAN_QUEUE, reden=reden,
                              thin=b.thin, **gedeeld)
 
     return RewriteResult(b.training_id, b.nieuwe_titel, HUMAN_QUEUE,
                          reden="geen valide concept na max pogingen",
                          document=document, judgment=last_judgment, thin=b.thin,
-                         toegepaste_acties=toegepast, oude_titel=b.titel,
+                         toegepaste_acties=toegepast, oude_titel=b.titel, rondes=rondes,
                          modus=b.modus, modus_voorstel=b.modus_voorstel,
                          spec_versie=spec_versie(), goud_voorbeelden=actieve_goud_voorbeelden())
 
@@ -2754,6 +2965,11 @@ def _review_rij(res: RewriteResult, content: dict, content_bron: dict | None = N
         "judge_confidence": (res.judgment or {}).get("judge_confidence", ""),
         "toegepaste_acties": " | ".join(res.toegepaste_acties),
         "approve_edit": "",   # reviewer vult in: approve / edit / reject
+        # Meetkolommen, geen reviewwerk. `seconden` is het getal waarop `TIJDSBUDGET` wordt
+        # gekalibreerd -- dat staat op een schatting zolang de duur nergens is vastgelegd --
+        # en `n_rondes` laat zien hoeveel schrijverspogingen een training kostte.
+        "n_rondes": len(res.rondes),
+        "seconden": res.seconden,
     }
     plat = uit.content_naar_platte_tekst(content, res.titel) if content else {}
     for kopje in sjabloon.KOPJES:
@@ -2941,7 +3157,10 @@ def neem_over(b: RewriteBriefing, client=None) -> tuple[RewriteResult, dict]:
     reden = "voldoet al aan het actuele format"
     toegepast: list[str] = []
     if b.goedgekeurd:
-        content, aangepast = actualiseer_content(client, b, content, titel)
+        # Het enige stuk van dit pad dat het netwerk raakt, dus het enige dat een budget nodig
+        # heeft. Zonder goedgekeurde actualiseringen kost `neem_over` geen enkele call.
+        with tijdsbudget():
+            content, aangepast = actualiseer_content(client, b, content, titel)
         toegepast = [f"{x.nr}. {x.actie}" + (f" [{x.voorwaarde}]" if x.voorwaarde else "")
                      for x in b.goedgekeurd]
         if aangepast:
@@ -3066,7 +3285,8 @@ def schrijf_training_artefacten(json_dir: str, tid: Any, res: RewriteResult,
         "status": res.status, "reden": res.reden, "thin": res.thin, "flags": res.flags,
         # de flags ook uitgesplitst: zonder de tier is `flags` één lijst waarin de paar
         # opmerkingen die om een oordeel vragen ondergaan in de lengte- en woordmeldingen.
-        # De Drive-comment toont alleen `hoog`, net als de kolom in het review-tabblad.
+        # De notitie boven aan het Drive-doc toont alleen `hoog`, net als de kolom in
+        # het review-tabblad.
         "flags_tier": res.flags_tier,
         "modus": res.modus, "modus_voorstel": res.modus_voorstel,
         "spec_versie": res.spec_versie, "goud_voorbeelden": res.goud_voorbeelden,
@@ -3076,6 +3296,10 @@ def schrijf_training_artefacten(json_dir: str, tid: Any, res: RewriteResult,
         "writer_out": res.writer_out,
         "document": res.document, "content": content_uit,
         "judgment": res.judgment,
+        # `judgment` is alleen het LAATSTE oordeel; `rondes` is het verloop ernaartoe, en dat
+        # is wat de vraag "helpt een revisie erbij?" beantwoordt. `seconden` hoort in datzelfde
+        # rijtje: het is de meting waarop `TIJDSBUDGET` wordt bijgesteld.
+        "rondes": res.rondes, "seconden": res.seconden,
     }, f, ensure_ascii=False, indent=2, default=_json_default))
 
     md_pad = os.path.join(json_dir, f"{tid}.md")
@@ -3267,13 +3491,20 @@ def bouw_wachtrij(scored, out_dir: str, *, skip_herschreven: bool = True,
             return normaliseer_modus(srow.get("modus_reviewer"))
         return build_briefing({k: srow[k] for k in scored.columns}, {}, "").modus
 
-    # hervatten: rijen die al in de output staan tellen niet mee in de wachtrij
+    # hervatten: rijen die al in de output staan tellen niet mee in de wachtrij.
+    # Behalve de `error`-rijen: die staan er wél, maar er ligt geen tekst achter. Sinds een
+    # uitzondering per training wordt opgevangen (`_mislukte_training`) zou een mislukte
+    # training zichzelf anders uit de volgende run schrijven, en dan is de reparatie van
+    # "één fout kost de hele batch" verruild voor "één fout kost stil die ene training".
     klaar: set = set()
     out_path = os.path.join(out_dir, "herschreven.xlsx")
     if append and skip_existing and os.path.exists(out_path):
         bestaand_review = pd.read_excel(out_path, sheet_name=None).get("review")
         if bestaand_review is not None:
-            klaar = set(bestaand_review["training_id"])
+            gelukt = bestaand_review
+            if "status" in gelukt.columns:
+                gelukt = gelukt[gelukt["status"] != "error"]
+            klaar = set(gelukt["training_id"])
 
     ids = None if alleen_ids is None else {int(t) for t in alleen_ids}
 
@@ -3469,7 +3700,18 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
         naam = str(scored_dict.get("titel") or src_row[cols["name"]] or "")
         content_bron = parse_content(src_row[cols["content"]])
         b = build_briefing(scored_dict, content_bron, naam, per_training.get(tid, []))
-        res, content_uit = neem_over(b, client)
+        start = time.monotonic()
+        try:
+            res, content_uit = neem_over(b, client)
+        except Exception as e:
+            # Ook dit spoor doet API-calls zodra er een goedgekeurde actualisering ligt,
+            # dus het kan op dezelfde manier omvallen als lus 2 hieronder.
+            res, content_uit = _mislukte_training(b, e, verbose), {}
+            res.seconden = round(time.monotonic() - start, 1)
+            schrijf_training_artefacten(json_dir, tid, res, content_uit)
+            review_records.append(_review_rij(res, content_uit, content_bron))
+            continue
+        res.seconden = round(time.monotonic() - start, 1)
         # Ook dit spoor legt zijn artefact vast. Tot deze ronde deed het dat niet, en dan
         # bestaat een overgenomen training nergens op schijf: niet te inspecteren in sectie 7
         # en niet te uploaden naar Drive, terwijl een reviewer hem net zo goed moet lezen.
@@ -3495,8 +3737,18 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
                 print(f"  (geen bron gevonden voor id {tid}; alleen scorer-feiten)")
             if not naam and src_row is not None:
                 naam = str(src_row[cols["name"]])
+            # `build_briefing` staat bewust BUITEN de vangst: dat is deterministische
+            # assemblage, dus valt hij om dan valt hij bij elke training om en is stoppen
+            # het juiste antwoord. Binnen de vangst staat alleen wat het netwerk raakt.
             b = build_briefing(scored_dict, content_bron, naam, per_training.get(tid, []))
-            res = rewrite_one(client, b, catalog, boom)
+            # Buiten de vangst gemeten, want juist de training die omvalt -- op het tijdsbudget
+            # of op wat dan ook -- is degene waarvan je de duur wilt terugzien.
+            start = time.monotonic()
+            try:
+                res = rewrite_one(client, b, catalog, boom)
+            except Exception as e:
+                res = _mislukte_training(b, e, verbose)
+            res.seconden = round(time.monotonic() - start, 1)
 
         content_uit = uit.document_to_content(res.document, content_bron) if res.document else {}
 

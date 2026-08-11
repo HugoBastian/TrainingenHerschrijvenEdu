@@ -37,7 +37,7 @@ het model.
 | `drive_upload.py` | De herschreven trainingen als opgemaakte Google Docs naar een map in Google Drive. |
 | `rewrite_trainings.py` | Hybride schrijver + orchestratie + I/O. |
 | `herschrijven.ipynb` | Notebook om de pijplijn stap voor stap te draaien en te inspecteren. |
-| `test_rewrite.py` | 287 offline tests (geen API-key nodig). |
+| `test_rewrite.py` | 301 offline tests (geen API-key nodig). |
 
 ## Setup
 
@@ -253,13 +253,24 @@ Elk doc heet `{id} - {titel} (automatisch herschreven)`. Drive converteert de HT
 documentoverzicht-zijbalk en de modules houden hun sub-bullets. De links belanden in de kolom
 `drive_url` van het review-tabblad.
 
-**Elk vers doc krijgt een opmerking met de flags**, zodat een reviewer weet waar hij op moet
-letten voor hij begint te lezen. Alleen de tier `hoog`, net als de kolom `flags_hoog` — alles
-tonen zou hier hetzelfde doen als de oude verzamelkolom deed. De opmerking hangt aan het
-document en niet aan de titel: opmerkingen komen bij Google uitsluitend uit de Drive-API, en
-die kan een anker alleen als ondocumenteerde kix-JSON met tekstposities meekrijgen, posities die
-wij niet kennen omdat de conversie aan de andere kant gebeurt. Zet `met_comment=False` om het
-over te slaan.
+**Elk doc krijgt een opmerking met de flags en de reden voor de human-queue**, zodat een
+reviewer weet waar hij op moet letten voor hij begint te lezen. Alleen de tier `hoog`, net als
+de kolom `flags_hoog` — alles tonen zou hier hetzelfde doen als de oude verzamelkolom deed. Zet
+`met_comment=False` om het over te slaan.
+
+Waar die opmerking landt is een gemeten verrassing waard om te onthouden. Hij heeft geen anker:
+opmerkingen komen bij Google uitsluitend uit de Drive-API, en die kan een anker alleen als
+ongedocumenteerde kix-JSON met tekstposities meekrijgen, posities die wij niet kennen omdat de
+conversie aan de andere kant gebeurt. Docs kan zo'n opmerking dus nergens in de tekst plaatsen
+en zet hem in de **geschiedenis** onder "oorspronkelijke content verwijderd" — niet in de
+kantlijn, waar je hem zoekt. Bij batch 1 kostte dat een ronde: de opmerkingen waren er alle 43
+en niemand vond ze. Wil je de kantlijn, dan moet de Docs-API aan en moet er een kix-anker
+gebouwd worden. De tussenoplossing — de flags als grijs blok bovenin het document — werkte wel
+maar zette reviewtekst in het artefact zelf, en is daarom teruggedraaid.
+
+Op het `nieuwe_versie`-pad wordt onze eigen vorige opmerking eerst verwijderd: die beschrijft de
+flags van de vorige versie en is na de inhoudswissel helemaal losgeslagen. Opmerkingen van
+reviewers blijven staan; `ONZE_OPENERS` bepaalt wat de code als eigen werk herkent.
 
 De opmaak (`DOCS_KOPPEN` en `ALINEA_RUIMTE` in `rewrite_output.py`) staat als inline stijl in de
 doc-HTML en komt nooit in de CMS-content terecht — die krijgt zijn opmaak van de site. Kop 1 is
@@ -924,7 +935,7 @@ roept hem aan met `waarschuw=False`: dat is de stap die die kolommen juist máá
 ```bash
 python bouw_goud_v2.py     # terugval-few-shot opbouwen; `herschreven/` is gitignored, dus dit
                            # hoort bij een verse checkout. Geen API-key nodig.
-python test_rewrite.py     # 236 offline checks, geen API-key nodig
+python test_rewrite.py     # 301 offline checks, geen API-key nodig
 ```
 
 Getest wordt de deterministische laag: de code-check, de structurele splitsing van
