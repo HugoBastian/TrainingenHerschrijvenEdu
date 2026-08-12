@@ -69,7 +69,9 @@ class BesluitFout(ValueError):
 # taalfeatures toevoegen"). Splits daarom alleen op een komma die door een
 # actienummer wordt gevolgd.
 SPLIT_RE = re.compile(r",\s*(?=\d+\s*(?:,|$|\s))")
-ITEM_RE = re.compile(r"^(\d+)\s*(.*)$", re.S)
+# Achter het nummer mag leestekenafval staan: "1." en "1)" al langer, "1:" sinds batch 2
+# (training 392 opende met "1: wel containers, geen serverless").
+ITEM_RE = re.compile(r"^(\d+)[.):]?\s*(.*)$", re.S)
 
 # `actualiteit_actie` wordt door de scorer als f"{i}. {a}" weggeschreven.
 ACTIE_RE = re.compile(r"^\s*(\d+)[.)]\s*(.+?)\s*$", re.M)
@@ -146,13 +148,53 @@ def align(acties: dict[int, str], items: list[tuple[int, str]]) -> list[tuple[in
 # Blijven er tóch twee lezingen over, dan is de cel echt meerduidig en is dat een harde fout,
 # net als een scheve uitlijning: die training gaat naar de mens. Gokken is precies wat deze
 # module repareert.
-LOS_GETAL_RE = re.compile(r"(?:^|(?<=[\s,;]))(\d+)[.)]?(?=$|[\s,;])")
+#
+# Batch 2 bevestigt dat: van de 48 ingevulde cellen leest er één op komma's, lezen er 42 op
+# nummer, en vallen er vijf om. Eén daarvan was van ons ("1:" liep stuk op het leesteken,
+# nu toegestaan); de andere vier zijn nummerfouten van de reviewer, en die horen ook om te
+# vallen -- drie keer stond het laatste item op het vorige nummer ("1 2 3 3" bij vier acties)
+# en één keer bleef de laatste actie onbeantwoord. Beide zijn positioneel wel te "repareren",
+# en juist dat is de gok die hier niet thuishoort: het gaat om wel of niet uitvoeren.
+LOS_GETAL_RE = re.compile(r"(?:^|(?<=[\s,;]))(\d+)[.):]?(?=$|[\s,;])")
 
 MAX_LEZINGEN = 2   # meer dan één is al fataal; verder zoeken kost alleen tijd
 
 # hoe `koppel` de cel uiteindelijk gelezen heeft
 LEZING_KOMMAS = "kommas"
 LEZING_NUMMERS = "nummers"
+
+
+def _opsomming(nrs: list[int]) -> str:
+    if len(nrs) == 1:
+        return str(nrs[0])
+    return ", ".join(str(n) for n in nrs[:-1]) + f" en {nrs[-1]}"
+
+
+def _zin(nrs: list[int], enkelvoud: str, meervoud: str) -> str:
+    return (f"nummer {nrs[0]} {enkelvoud}" if len(nrs) == 1
+            else f"de nummers {_opsomming(nrs)} {meervoud}")
+
+
+def _waarom_geen_lezing(doelen: list[int],
+                        kandidaten: dict[int, list[tuple[int, int]]]) -> str:
+    """Zegt wát er aan de nummering mankeert, niet dát er iets aan mankeert.
+
+    De reviewer moet zijn eigen cel kunnen repareren zonder de code te lezen. "de nummers
+    [1, 2, 3, 4] staan er niet oplopend als losse getallen in" laat hem zoeken; over batch 2
+    was het echte euvel drie keer "4 ontbreekt en 3 staat dubbel" -- één teken in het sheet.
+    """
+    redenen = []
+    ontbreekt = [nr for nr in doelen if not kandidaten.get(nr)]
+    dubbel = [nr for nr in doelen if len(kandidaten.get(nr, ())) > 1]
+    if ontbreekt:
+        redenen.append(_zin(ontbreekt, "ontbreekt", "ontbreken"))
+    if dubbel:
+        redenen.append(_zin(dubbel, "staat er dubbel in", "staan er dubbel in"))
+    if not ontbreekt and not dubbel and all(s != 0 for s, _ in kandidaten.get(doelen[0], ())):
+        redenen.append(f"de cel begint niet met nummer {doelen[0]}")
+    if not redenen:   # alles staat er precies één keer, maar niet in deze volgorde
+        return f"de nummers {doelen} staan er niet oplopend als losse getallen in"
+    return " en ".join(redenen)
 
 
 def split_zonder_kommas(actie_besluit: Any, nrs: Iterable[int]) -> list[tuple[int, str]]:
@@ -189,8 +231,7 @@ def split_zonder_kommas(actie_besluit: Any, nrs: Iterable[int]) -> list[tuple[in
 
     zoek(0, 0, [])
     if not lezingen:
-        raise BesluitFout(
-            f"de nummers {doelen} staan er niet oplopend als losse getallen in")
+        raise BesluitFout(_waarom_geen_lezing(doelen, kandidaten))
     if len(lezingen) > 1:
         raise BesluitFout(
             f"meerdere lezingen mogelijk voor de nummers {doelen}; zet komma's tussen de items")
@@ -200,7 +241,7 @@ def split_zonder_kommas(actie_besluit: Any, nrs: Iterable[int]) -> list[tuple[in
     for i, nr in enumerate(doelen):
         vanaf = posities[i][1]
         tot = posities[i + 1][0] if i + 1 < len(posities) else len(tekst)
-        items.append((nr, tekst[vanaf:tot].strip().strip(",").strip()))
+        items.append((nr, tekst[vanaf:tot].strip().strip(",;:").strip()))
     return items
 
 

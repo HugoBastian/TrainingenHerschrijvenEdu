@@ -1036,6 +1036,46 @@ def test_ontbrekend_nummer_noemt_beide_lezingen():
     raise AssertionError("verwachtte BesluitFout bij een ontbrekend nummer")
 
 
+def test_leesteken_achter_het_nummer_breekt_de_lezing_niet():
+    """Training 392 opende met "1:"; alleen "1." en "1)" werden herkend."""
+    gekoppeld = bes.koppel(_acties(3), "1: wel containers, geen serverless 2 ja 3 nee")
+    assert [ann for _, _, ann in gekoppeld] == ["wel containers, geen serverless", "ja", "nee"]
+    # en met komma's ertussen, want dan splitst ITEM_RE het leesteken eraf
+    assert bes.split_besluit("1: prima,2 nee") == [(1, "prima"), (2, "nee")]
+
+
+def test_dubbel_nummer_noemt_het_nummer_dat_ontbreekt():
+    """"1 2 3 3" bij vier acties: het laatste item staat op het vorige nummer.
+
+    Positioneel is dat te "repareren" en dat doen we bewust niet -- het gaat om wel of
+    niet uitvoeren. Wel moet de melding de reviewer naar het juiste teken wijzen.
+    """
+    try:
+        bes.koppel(_acties(4), "1 prima 2 prima 3 nee 3 ja")
+    except bes.BesluitFout as e:
+        assert "nummer 4 ontbreekt" in str(e) and "3 staat er dubbel in" in str(e)
+        return
+    raise AssertionError("verwachtte BesluitFout bij een dubbel nummer")
+
+
+def test_onbeantwoorde_laatste_actie_noemt_dat_nummer():
+    try:
+        bes.koppel(_acties(5), "1 prima 2 prima 3 prima 4 prima")
+    except bes.BesluitFout as e:
+        assert "nummer 5 ontbreekt" in str(e)
+        return
+    raise AssertionError("verwachtte BesluitFout bij een onbeantwoorde actie")
+
+
+def test_cel_die_niet_bij_het_eerste_nummer_begint_zegt_dat():
+    try:
+        bes.koppel(_acties(2), "graag 1 prima 2 nee")
+    except bes.BesluitFout as e:
+        assert "begint niet met nummer 1" in str(e)
+        return
+    raise AssertionError("verwachtte BesluitFout bij een cel die niet met een nummer begint")
+
+
 # ---------------------------------------------------------------------------
 # Scoresheet-kolomnamen: handgemaakte lijsten houden vaak `id`/`name`
 # ---------------------------------------------------------------------------
