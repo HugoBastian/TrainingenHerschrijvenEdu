@@ -51,10 +51,10 @@ KOPJES: tuple[Kopje, ...] = (
     Kopje("Doelen",              "doelen",              "objectives"),
     Kopje("Vervolgstappen",      "vervolgstappen",      "follow_up"),
     Kopje("Kortste omschrijving", "kortste_omschrijving", "summary_edudex", html=False),
-    # Kop heet sinds Templatev2 "Deelnamecertificaat". `veld` en `cms` blijven bewust
-    # `certificatie` / `certification`: dat is het CMS-contract en de sleutel in alle
-    # bestaande JSON op schijf.
-    Kopje("Deelnamecertificaat", "certificatie",        "certification", generatief=False),
+    # De kop heette een tijd lang "Deelnamecertificaat"; dat was een fout in het template en
+    # is teruggedraaid naar "Certificatie". `cms` blijft `certification`: dat is het
+    # CMS-contract en de sleutel in alle bestaande JSON op schijf.
+    Kopje("Certificatie",        "certificatie",        "certification", generatief=False),
 )
 
 KOP_PER_VELD = {k.veld: k.kop for k in KOPJES}
@@ -346,7 +346,7 @@ MIN_TITELS_PER_GROEP = 2
 # afsluiter over en de constante houdt de keuze zichtbaar.
 VERVOLG_AFSLUITER = ""
 
-# Kopje 10 -- Deelnamecertificaat: volledig vast.
+# Kopje 10 -- Certificatie: volledig vast.
 CERTIFICATIE = "Na afronding van deze training ontvang je een certificaat van deelname."
 
 

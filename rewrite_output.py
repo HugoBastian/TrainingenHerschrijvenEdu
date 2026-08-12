@@ -301,8 +301,8 @@ def ververs_vaste_teksten(content: dict, titel: str,
                 nieuw[sleutel] = compact
                 gewijzigd.append(f"witregels ({sleutel})")
 
-    # Deelnamecertificaat: volledig vast, geen variabelen.
-    _zet("certification", f"<p>{_esc(sjabloon.CERTIFICATIE)}</p>", "Deelnamecertificaat")
+    # Certificatie: volledig vast, geen variabelen.
+    _zet("certification", f"<p>{_esc(sjabloon.CERTIFICATIE)}</p>", "Certificatie")
 
     # Inleiding: alles vanaf de <h3> is het bedrijfstrainingblok en wordt vervangen. De
     # geschreven inleiding erboven blijft ongemoeid.

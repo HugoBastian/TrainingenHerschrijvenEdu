@@ -2644,9 +2644,9 @@ def test_afsluiter_vervalt_zonder_lege_alinea():
     assert not html_out.rstrip().endswith("<p></p>")
 
 
-def test_deelnamecertificaat_kop_met_ongewijzigd_cms_veld():
+def test_certificatie_kop_met_ongewijzigd_cms_veld():
     kopje = sjabloon.KOPJES[-1]
-    assert kopje.kop == "Deelnamecertificaat"
+    assert kopje.kop == "Certificatie"
     # het CMS-contract mag NIET meeveranderen met de kopnaam
     assert kopje.veld == "certificatie" and kopje.cms == "certification"
 
@@ -2721,7 +2721,7 @@ _OUDE_CONTENT = {
 def test_ververs_vaste_teksten_vervangt_alle_vijf():
     nieuw, gewijzigd = uit.ververs_vaste_teksten(_OUDE_CONTENT, "Training XML")
     assert [g for g in gewijzigd if not g.startswith("witregels")] == [
-        "Deelnamecertificaat", "bedrijfstrainingblok", "Modules-openingszin", "Aanpak",
+        "Certificatie", "bedrijfstrainingblok", "Modules-openingszin", "Aanpak",
         "Vervolgstappen-boilerplate"], gewijzigd
     for veld in ("intro", "modules", "setup", "follow_up", "certification"):
         plat = uit._tekst_uit(nieuw[veld])

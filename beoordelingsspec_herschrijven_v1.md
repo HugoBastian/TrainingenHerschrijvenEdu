@@ -36,7 +36,7 @@ oordeelt tegen de schrijfspec; hij bedenkt geen nieuwe regels.
 > **Vaste sjabloonteksten beoordeel je niet.** [hard] Het concept bevat secties die de code
 > heeft ingevoegd en die de schrijver niet kan veranderen: de Modules-openingszin, de twee
 > Aanpak-alinea's, het bedrijfstrainingblok onder Inleiding, de Voorkennis-fallbackzin, de
-> Doelen-introzin, het Vervolgstappen-boilerplate en de Deelnamecertificaat-zin. Ze staan
+> Doelen-introzin, het Vervolgstappen-boilerplate en de Certificatie-zin. Ze staan
 > letterlijk zoals de schrijfstijl-eigenaar ze heeft aangeleverd.
 >
 > Een paar ervan overtreden regels die voor de schrijver wél gelden: de tweede Aanpak-alinea

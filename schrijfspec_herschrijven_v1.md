@@ -396,7 +396,7 @@ Levert de retrieval twee groepen (verdiepen en verbreden), dan komt er per groep
 3. **Modules** (3) → daarna **Doelen** (7), afgeleid van modules + Overzicht.
 4. **Doelgroep** (4) en **Voorkennis** (5): afleiden uit onderwerp/niveau (§1a)/programma.
 5. **Inleiding** (2): verdiept op (1).
-6. Vaste secties (Aanpak, Vervolgstappen, bedrijfstrainingblok, Deelnamecertificaat) door de code.
+6. Vaste secties (Aanpak, Vervolgstappen, bedrijfstrainingblok, Certificatie) door de code.
 
 ---
 
@@ -424,7 +424,7 @@ Levert de retrieval twee groepen (verdiepen en verbreden), dan komt er per groep
 Deterministisch ingevoegd, zodat jij je op de generatieve tekst richt:
 - De Modules-openingszin in de gekozen variant (§4), de twee Aanpak-alinea's (§5), de
   Voorkennis-fallbackzin (§7), het bedrijfstrainingblok onder Inleiding, het
-  Vervolgstappen-boilerplate met de catalogus-titels (§9), en de Deelnamecertificaat-tekst.
+  Vervolgstappen-boilerplate met de catalogus-titels (§9), en de Certificatie-tekst.
   Alle vaste teksten staan in `sjabloon.py`, afgeleid van
   `Template trainingen nieuwe opbouw.md`.
 - De keuze tussen de twee Modules-varianten (`stabiel` / `actueel`).

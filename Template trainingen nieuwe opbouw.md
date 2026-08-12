@@ -81,6 +81,6 @@ Levert de retrieval twee groepen op (verdiepen en verbreden), dan krijgt elke gr
 …  
 ---
 
-## Deelnamecertificaat
+## Certificatie
 
 Na afronding van deze training ontvang je een certificaat van deelname.

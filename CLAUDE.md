@@ -269,10 +269,36 @@ haalden vielen alsnog af op de vorm van hun modulebullets: 2347 mengde infinitie
 naamwoordgroepen ("Wat Big Data is …") en had een passieve bullet, 2529 deed hetzelfde in module
 1. Geen enkele check ziet dat, en juist die inconsistentie neemt de schrijver over.
 
-Spreid daarna over **dagen** en **vakgebied**. Let op: de modulesband is voor 1, 2 en 3 dagen
-identiek (4-6) en verschuift pas bij 4 dagen naar 5-8, dus duurvariatie binnen 1-3 dagen koopt
-minder dan je denkt. Sinds augustus 2026 bestaat er nog geen herschreven training van 4+ dagen;
-die band heeft dus geen voorbeeld. Komt er een, dan is dat de eerste kandidaat.
+Spreid daarna over **dagen** en **vakgebied**, en let daarbij op het **richtgetal** en niet op
+de band. De band is grover dan de instructie: 4-6 modules voor 1 t/m 3 dagen, 5-8 vanaf 4. Maar
+de tool-description van `submit_rewrite` noemt per duur één getal -- 4 bij 1 dag, 5 bij 2-3, 6
+bij 4 dagen of meer -- juist omdat een model dat een bereik krijgt de bovenkant kiest. Een
+voorbeeld dat binnen de band valt maar naast het richtgetal, doet dus het tegenovergestelde
+voor van wat de tool vraagt. De vorige few-shot had 2669 (OpenCV, 1 dag) op 5 modules staan
+terwijl er 4 gevraagd worden; binnen de band, tegen de instructie in.
+
+Selecteer daarom op richtgetal, en dek er zoveel mogelijk van de drie. De ronde van augustus
+2026 verving 2407/2501/2669/2884 -- vier keer IT, drie keer 5 modules, geen enkele boven de
+3 dagen -- door 161 (1 dag, 4 modules), 385 (2 dagen, 5), 125 (3 dagen, 5) en 446 (6 dagen, 6):
+alle drie de richtgetallen, en marketing/soft skills/creatief naast IT. 446 is meteen het eerste
+4+-daagse voorbeeld dat we ooit hebben gehad, en dus het eerste dat de band 5-8 demonstreert.
+
+Twee dingen die die ronde opleverden en die je bij de volgende weer nodig hebt:
+
+- **duurvariatie binnen 1-3 dagen koopt in de prefix niets.** De enige duurafhankelijke maat die
+  de prefix laat zien is het aantal modules, en dat richtgetal is 5 voor zowel 2 als 3 dagen.
+  De Inleiding-band schuift wél mee met de duur (170-200 / 180-210 / 190-230), maar de prefix
+  toont de Inleiding niet. Een tweede voorbeeld van 2-3 dagen demonstreert dus letterlijk
+  hetzelfde als het eerste;
+- **kies aan de onderkant van de bulletband.** Over de hele batch kiest de schrijver de
+  bovenkant (Overzicht 76/76/76/78 bij een band tot 80, sub-bullets 4-5 bij een band tot 6).
+  Een voorbeeld met een compact modulepatroon is daar tegenwicht tegen; 385 staat op 3,3,3,4,3
+  en dat is het smalste van het hele corpus.
+
+Om die kandidaten te vinden: meet met `catalog=load_catalog()`, hou alles over dat `approved` is
+en geen harde check laat vallen, en gooi daarna weg wat een flag heeft in `overzicht`, `modules`
+of `doelen`. Over 96 kandidaten hield dat er 48 over -- ruim genoeg om daarna op richtgetal,
+vakgebied en bulletpatroon te kiezen en de laatste tien met de hand te lezen.
 
 **Draai een nieuwe check ook over de zittende few-shot.** Bij deze ronde bleek 3127 de fout te
 demonstreren die de check net had moeten vangen, en dat legde drie gaten bloot (`\w` matcht geen
