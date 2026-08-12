@@ -292,6 +292,24 @@ def test_doelen_kleine_letter():
     assert "geen_te_infinitief" not in codes
 
 
+def test_doel_dat_met_een_cijfer_begint_is_geen_hoofdletterfout():
+    """`isupper()` is ook False voor een cijfer, en dan is de check niet te repareren.
+
+    Training 482 (Vectorworks 2D/3D) verbruikte er zijn vier rondes aan: elke ronde HARD op een
+    ander doel (3, 2, 3, 4), want de bron noemt "2D tekenen" en "3D volumes maken" als de
+    onderwerpen zelf. De training eindigde zonder enige tekst op schijf. Een gewone kleine
+    letter blijft wel fout; dat is de test hierboven.
+    """
+    rw = _good_rewrite()
+    rw["doelen"][0] = "3D-volumes op te bouwen met extrusies en wentelingen"
+    rw["doelen"][1] = "iOS-apps te bouwen die op een tablet werken"    # hoofdletter verderop
+    assert "hoofdletter" not in _codes(check_rewrite(rw, _CTX), HARD)
+    # maar een merknaam die helemaal klein is, is niet van een gewoon woord te onderscheiden;
+    # daarvoor zegt de schrijfspec: zet hem niet vooraan
+    rw["doelen"][2] = "npm-pakketten te beheren en versies vast te zetten"
+    assert "hoofdletter" in _codes(check_rewrite(rw, _CTX), HARD)
+
+
 def test_doelen_zonder_te_infinitief():
     """De kale infinitief ('Dashboards bouwen') loopt niet door op de vaste introzin."""
     rw = _good_rewrite()
@@ -1671,6 +1689,150 @@ def test_rondes_leggen_per_poging_vast_wat_er_gebeurde():
     # beantwoordt
     assert res.rondes[0]["notities"] == ["klacht 0"]
     assert res.rondes[-1]["notities"] == [f"klacht {rw.MAX_REVISIONS}"]
+
+
+def _lus(schrijver, oordelen, titel="Cursus Data-analyse"):
+    """Draait `rewrite_one` met een gestubde schrijver en judge; geen netwerk, geen key.
+
+    `schrijver` krijgt het rondenummer (vanaf 1) en levert de `submit_rewrite`-output;
+    `oordelen` is een lijst met één judge-antwoord per beoordeelde ronde, de laatste herhaalt.
+    """
+    catalog = [{"product_id": 9, "titel": "Training Power BI", "summary": ""}]
+    teksten: list[str] = []
+
+    def call_tool(_client, _system, user_text, *_a, **_k):
+        teksten.append(user_text)
+        return schrijver(len(teksten))
+
+    beoordeeld = iter(range(1000))
+    echt = rw._call_tool, rw.bepaal_vervolgstappen, rw.judge_document
+    rw._call_tool = call_tool
+    rw.bepaal_vervolgstappen = lambda *a, **k: (["Training Power BI"], [])
+    rw.judge_document = lambda *a, **k: oordelen[min(next(beoordeeld), len(oordelen) - 1)]
+    try:
+        return rw.rewrite_one(None, _briefing(titel=titel), catalog), teksten
+    finally:
+        rw._call_tool, rw.bepaal_vervolgstappen, rw.judge_document = echt
+
+
+def _met_professionals() -> dict:
+    out = _good_rewrite()
+    out["doelgroep"] = ("Deze training is bedoeld voor professionals die met data betere "
+                        "keuzes willen maken.")
+    return out
+
+
+def test_een_harde_correctie_blijft_gelden_in_de_volgende_rondes():
+    """Een revisie is hier een HERGENERATIE en geen reparatie.
+
+    `_call_tool` begint elke poging met een schone `messages`, dus de schrijver ziet zijn vorige
+    concept niet en leidt elke eerdere correctie opnieuw af. `notes` werd bovendien elke ronde
+    VERVANGEN. Training 422 loste "professional(s)" in ronde 1 op in de Modules en zette het in
+    ronde 4 terug in de Inleiding; dat was de laatste ronde, dus het kostte het hele concept na
+    1280 seconden.
+    """
+    res, teksten = _lus(lambda n: _met_professionals() if n == 1 else _good_rewrite(),
+                        [{"verdict": rw.NEEDS_REVISION, "revisie_notities": ["scherper"]},
+                         {"verdict": rw.APPROVED}])
+    assert res.status == rw.APPROVED and len(teksten) == 3
+
+    # ronde 2 kent de regel via HERSTEL; dan hoeft hij er niet twee keer in te staan
+    assert "professional(s)" in teksten[1] and "EERDER AL GECORRIGEERD" not in teksten[1]
+    # ronde 3 herstelt iets heel anders (de judge), en houdt de regel van ronde 1 vast
+    assert "EERDER AL GECORRIGEERD" in teksten[2] and "professional(s)" in teksten[2]
+    assert teksten[2].index("EERDER AL GECORRIGEERD") < teksten[2].index("HERSTEL")
+
+
+def test_een_code_check_in_de_laatste_ronde_kost_niet_het_concept_ervoor():
+    """Trap 1 van `_pogingen_op`: de judge zag ronde 3, de code-check sloeg ronde 4 af.
+
+    Zonder deze route gooit de lus alles weg wat de rondes ervoor opleverden en leest de
+    reviewer "geen valide concept na max pogingen" [35 tekens]. Dat overkwam 422, terwijl het
+    oordeel van de judge concreet was en in `<id>.json` gewoon klaarlag.
+    """
+    res, teksten = _lus(
+        lambda n: _met_professionals() if n > rw.MAX_REVISIONS else _good_rewrite(),
+        [{"verdict": rw.NEEDS_REVISION, "revisie_notities": ["module 4 en 5 overlappen"]}])
+
+    assert res.status == rw.HUMAN_QUEUE and len(teksten) == rw.MAX_REVISIONS + 1
+    assert res.document and res.writer_out          # allebei nodig voor `hergenereer_kopje`
+    assert "module 4 en 5 overlappen" in res.reden  # het oordeel, niet de vaste zin
+    assert "code-check niet" in res.reden           # en waarom dit niet de laatste versie is
+    assert res.rondes[-1]["uitkomst"] == "code-check"
+    assert [r["uitkomst"] for r in res.rondes[:-1]] == [rw.NEEDS_REVISION] * rw.MAX_REVISIONS
+
+
+def test_zonder_enig_oordeel_gaat_de_laatste_schrijverspoging_alsnog_naar_de_mens():
+    """Trap 2: elke ronde viel op een code-check, dus de judge heeft nooit iets gezien.
+
+    Training 482 (Vectorworks 2D/3D) deed dat vier keer op dezelfde onrepareerbare check en
+    hield niets over: `writer_out` {}, `document` {}, geen markdown, geen doc op Drive. Een
+    concept met een bekende fout is voor een reviewer beter dan een lege map, dus het wordt
+    alsnog samengesteld en de harde fouten gaan als flag mee.
+    """
+    res, teksten = _lus(lambda _n: _met_professionals(), [{"verdict": rw.APPROVED}])
+
+    assert res.status == rw.HUMAN_QUEUE and len(teksten) == rw.MAX_REVISIONS + 1
+    assert res.document and res.writer_out
+    assert "professional(s)" in res.reden
+    # HARD hoort in de kolom die om een oordeel vraagt, ongeacht wat TIER_PER_CODE van de code
+    # vindt: die tabel sorteert flags.
+    assert any("[HARD]" in regel for regel in res.flags_tier[checks.TIER_HOOG])
+
+
+def test_vier_onvolledige_pogingen_zeggen_dat_er_geen_tekst_is():
+    """Trap 3, en de enige manier om er te komen: nooit een volledige `submit_rewrite`.
+
+    Hier valt geen kopje te repareren, en de reden hoort dat te zeggen in plaats van de oude
+    verzamelzin die net zo goed over een afgekeurde tekst had kunnen gaan.
+    """
+    res, teksten = _lus(lambda _n: {"overzicht": "alleen dit"}, [{"verdict": rw.APPROVED}])
+
+    assert res.status == rw.HUMAN_QUEUE and len(teksten) == rw.MAX_REVISIONS + 1
+    assert not res.document and not res.writer_out
+    assert "onvolledige submit_rewrite" in res.reden
+    assert {r["uitkomst"] for r in res.rondes} == {"onvolledig"}
+
+
+def test_een_dode_lijn_midden_in_een_stream_krijgt_een_herkansing():
+    """`MAX_RETRIES` dekt dit niet: die zit op de SDK en dekt alleen het openen van de request.
+
+    Training 369 sneuvelde na 381 s op een kale `httpx.ReadTimeout` -- normale duur (p50 301 s)
+    en nog 1119 s budget over, maar er stond niets tegenover en de hele training was weg.
+    """
+    import httpx
+    pogingen = []
+
+    def stream(**kw):
+        pogingen.append(kw["max_tokens"])
+        if len(pogingen) == 1:
+            raise httpx.ReadTimeout("The read operation timed out")
+        return _StubStroom(_StubResp([_StubBlok("submit_x", {"klaar": True})]))
+
+    uitkomst = rw._call_tool(SimpleNamespace(messages=SimpleNamespace(stream=stream)),
+                             "sys", "user", [{"name": "submit_x"}], "submit_x", thinking=None)
+    assert uitkomst == {"klaar": True}
+    # zelfde budget: dit is een herkansing en geen afkapping, dus niets verdubbelt
+    assert pogingen == [rw.MAX_TOKENS] * 2
+
+
+def test_een_lijn_die_blijft_wegvallen_kost_alleen_deze_training():
+    """Op is op: de fout gaat door naar `_mislukte_training`, wordt een `error`-rij, en
+    `bouw_wachtrij` plant die de volgende run gewoon opnieuw in."""
+    import httpx
+    pogingen = []
+
+    def stream(**_kw):
+        pogingen.append(1)
+        raise httpx.ReadTimeout("The read operation timed out")
+
+    try:
+        rw._call_tool(SimpleNamespace(messages=SimpleNamespace(stream=stream)),
+                      "sys", "user", [{"name": "submit_x"}], "submit_x", thinking=None)
+        raise AssertionError("had de ReadTimeout moeten doorlaten")
+    except httpx.ReadTimeout:
+        pass
+    assert len(pogingen) == rw.NETWERK_HERKANSINGEN + 1
 
 
 def test_build_briefing_leest_de_reviewerkolom():

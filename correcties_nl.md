@@ -583,3 +583,33 @@ belooft **toepassen**. Wij gebruiken die platformen in de training helemaal niet
 > hoge belofte". Die vrijstelling dekt sinds deze ronde het onderwerp en niet het niveau.
 > `check_actie_escalatie` flagt de constructie nu ook in code, maar alleen jij ziet de actie
 > en de zin naast elkaar.
+
+---
+
+## 31. De schrijfwijze van een term wint van de hoofdletterregel (schrijfspec §8)
+
+Training 482 (Vectorworks 2D/3D) verbruikte al zijn vier schrijversrondes op één HARD-check:
+"doel N begint niet met een hoofdletter", elke ronde op een ander doel. De bron van die
+training noemt als onderwerpen "2D tekenen", "3D ontwerp", "3D volumes maken" en
+"3D bewerkingen"; het juiste doel begint daar met een cijfer, en een cijfer krijgt geen
+hoofdletter. De check keurde dus iets af dat niet te repareren viel, en de training eindigde
+zonder enige tekst op schijf.
+
+❌ Driedimensionale volumes op te bouwen en te bewerken met extrusies, wentelingen en nurbs
+✅ 3D-volumes op te bouwen en te bewerken met extrusies, wentelingen en nurbs
+
+> De check laat sindsdien twee vormen door, en allebei zijn ze te herkennen zonder
+> woordenlijst: een eerste teken dat geen letter is ("2D-tekeningen te maken"), en een woord
+> met verderop wél een hoofdletter ("iOS-apps te bouwen", "macOS te beheren"). Daar houd je de
+> schrijfwijze gewoon aan.
+>
+> De omgekeerde uitweg is net zo fout: zet er geen woord voor dat er niet hoort ("Tekeningen in
+> 2D te maken" waar de bron gewoon "2D tekenen" zegt) om alsnog aan een hoofdletter te komen.
+> Een gewone kleine letter blijft wél fout: "de principes van X te doorgronden" hoort met een
+> hoofdletter.
+>
+> Blijft over: een merknaam die helemaal klein is ("npm", "curl", "ffmpeg"). Die is voor de code
+> niet van een gewoon woord te onderscheiden, dus zet hem niet vooraan maar bouw de bullet om.
+>
+> ❌ npm-pakketten te beheren en versies vast te zetten
+> ✅ Pakketten met npm te beheren en versies vast te zetten

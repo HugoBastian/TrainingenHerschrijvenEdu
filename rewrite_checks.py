@@ -969,6 +969,31 @@ def check_aanpak_invulling(rw: dict, ctx: dict | None = None) -> list[Issue]:
     return []
 
 
+def _kleine_letter_voorop(woord: str) -> bool:
+    """Begint dit woord fout met een kleine letter, of hoort de schrijfwijze zo?
+
+    `woord[0].isupper()` alleen is te streng, en dan is de HARD-check die eraan hangt niet te
+    repareren. Training 482 (Vectorworks 2D/3D) verbruikte er zijn vier schrijversrondes aan --
+    elke ronde HARD op een ander doel (3, 2, 3, 4) -- en hield niets over: de bron noemt "2D
+    tekenen", "3D ontwerp" en "3D volumes maken" als de onderwerpen zelf, en een cijfer krijgt
+    geen hoofdletter.
+
+    Twee vormen mogen dus voorop, en allebei zijn ze te herkennen zonder woordenlijst:
+
+    - het eerste teken is geen letter: "2D-tekeningen te maken", "3D-volumes op te bouwen";
+    - er staat verderop in hetzelfde woord wél een hoofdletter, en dan is de kleine letter
+      voorop een keuze en geen slordigheid: "iOS-apps", "macOS", "eBPF", "jQuery".
+
+    Wat een merknaam is dat HELEMAAL klein is (npm, curl, ffmpeg) valt hier wel onder, en dat
+    is bewust: van "npm" en "de" is zonder woordenlijst geen verschil te zien, en die tweede
+    is de fout die deze check moet vangen. De schrijfspec zegt daarom bij dat ene geval: zet de
+    term niet vooraan.
+    """
+    if not woord[0].isalpha():
+        return False
+    return not woord[0].isupper() and not any(t.isupper() for t in woord[1:])
+
+
 def check_doelen(rw: dict, ctx: dict | None = None) -> list[Issue]:
     bullets = _doelen(rw)
     issues = []
@@ -976,7 +1001,7 @@ def check_doelen(rw: dict, ctx: dict | None = None) -> list[Issue]:
         issues.append(Issue("doelen", HARD, "aantal", f"{len(bullets)} doelen; moet 4-5 zijn."))
     for idx, b in enumerate(bullets, start=1):
         first = b.strip().split()[0] if b.strip().split() else ""
-        if first and not first[0].isupper():
+        if first and _kleine_letter_voorop(first):
             issues.append(Issue("doelen", HARD, "hoofdletter",
                                 f"doel {idx} begint niet met een hoofdletter."))
         if not _TE_INFINITIEF_RE.search(b):

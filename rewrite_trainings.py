@@ -128,6 +128,13 @@ VERBIND_TIMEOUT = 10.0             # seconden voor de handshake
 MAX_RETRIES = 4                    # 2 was de default, en training 5 sneuvelde erna op
                                    # `overloaded_error`; deze retries backoffen en falen snel
 TIJDSBUDGET = 25 * 60              # seconden per training
+# En dit is de herkansing die `MAX_RETRIES` NIET geeft: die zit op de SDK en dekt alleen het
+# openen van de request, terwijl een dode lijn zich juist middenin een stream aandient. Training
+# 369 (Data Warehouse Concept) sneuvelde na 381 s op een kale `httpx.ReadTimeout` -- normale
+# duur (p50 is 301 s, p90 547 s) en nog 1119 s budget over, maar `_call_tool` had er niets
+# tegenover te zetten en de hele training was weg. Eén herkansing kost hoogstens één call
+# opnieuw; `_bewaak_tijd` staat ervoor, dus `TIJDSBUDGET` blijft het plafond.
+NETWERK_HERKANSINGEN = 1           # extra pogingen bij een lijn die MIDDEN in een stream wegvalt
 
 # Taxonomie-bonus bij de shortlist. Keyword-overlap en boomburen falen op verschillende
 # manieren -- LDAP vindt via keywords "Active Directory" (raak) maar via de boom 5G en
@@ -944,7 +951,10 @@ SUBMIT_REWRITE = {
                                "vaste introzin 'Na deze training ben je in staat om:', dus "
                                "'Dashboards te bouwen die de juiste vraag beantwoorden', niet "
                                "'Dashboards bouwen'. Herhaal 'in staat' niet; dat staat al in de "
-                               "introzin. Hoofdletter aan het begin, zonder de introzin. Een "
+                               "introzin. Hoofdletter aan het begin, zonder de introzin; begint een "
+                               "doel met een term die zijn eigen schrijfwijze heeft ('2D-tekeningen "
+                               "te maken', 'iOS-apps te bouwen'), houd die dan aan en verdraai de "
+                               "term niet om aan de hoofdletter te komen. Een "
                                "vergrotende trap ('scherper', 'gerichter') mag de belofte op maat "
                                "houden, maar vervangt geen sterk werkwoord: 'de opbouw van X "
                                "scherper te doorgronden', niet 'gerichter mee te praten over X'."},
@@ -1585,6 +1595,58 @@ def _extract_tool_input(response, tool_name: str) -> dict | None:
     return None
 
 
+def _netwerkfouten() -> tuple[type[BaseException], ...]:
+    """De uitzonderingen die op een dode lijn wijzen en niet op een fout antwoord.
+
+    `httpx` staat hier naast `anthropic.APIConnectionError` en dat is precies het punt: de SDK
+    wikkelt (en retryt) alleen het openen van de request, dus een `ReadTimeout` MIDDEN in een
+    stream komt kaal naar boven. Training 369 had letterlijk `ReadTimeout: The read operation
+    timed out` in zijn `reden`-kolom staan, en niet een `APITimeoutError`.
+
+    De imports staan in de functie, net als bij de google-imports in `drive_upload.py`: dan
+    kan `test_rewrite.py` deze module blijven importeren zonder dat `httpx` de tests raakt.
+    """
+    import anthropic
+    import httpx
+    # TimeoutException dekt Read/Write/Connect/Pool; NetworkError de reset en de kapotte pipe;
+    # RemoteProtocolError de server die er middenin uitstapt.
+    return (httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError,
+            anthropic.APIConnectionError)
+
+
+def _stream_bericht(client, *, model: str, max_tokens: int, system, messages: list[dict],
+                    tools: list[dict], extra: dict, wat: str):
+    """Eén streamende modelcall, met `NETWERK_HERKANSINGEN` erbij als de lijn wegvalt.
+
+    Zelf itereren in plaats van meteen `get_final_message()` aanroepen: die doet intern precies
+    dit, maar dan zonder dat wij ertussen kunnen kijken. Zo breekt een call die over de deadline
+    heen loopt af binnen één event in plaats van pas als het model klaar is, en dát maakt van
+    `TIJDSBUDGET` een plafond in plaats van een controle tussen de calls door. De `with` sluit
+    de verbinding bij het gooien.
+
+    De herkansing weegt licht omdat er niets aan onze kant is gebeurd: er is geen document, geen
+    bestand en geen halve staat, alleen tokens die we kwijt zijn. `_bewaak_tijd` staat vóór elke
+    poging, dus dicht bij de deadline herkanst hij niet meer maar gooit hij `TijdOverschreden`
+    -- die erft van RuntimeError en valt dus buiten `_netwerkfouten()`.
+    """
+    for poging in range(NETWERK_HERKANSINGEN + 1):
+        _bewaak_tijd(f"vóór een call naar {wat}")
+        try:
+            with client.messages.stream(
+                model=model, max_tokens=max_tokens, system=system,
+                messages=messages, tools=tools, **extra,
+            ) as stroom:
+                for _gebeurtenis in stroom:
+                    _bewaak_tijd(f"tijdens een call naar {wat}")
+                return stroom.get_final_message()
+        except _netwerkfouten() as fout:
+            # Op is op: de aanroeper maakt er via `_mislukte_training` een `error`-rij van, en
+            # `bouw_wachtrij` plant die de volgende run gewoon opnieuw in.
+            if poging == NETWERK_HERKANSINGEN:
+                raise
+            print(f"  ({type(fout).__name__} tijdens {wat}; nog een poging)", file=sys.stderr)
+
+
 def _call_tool(client, system, user_text: str, tools: list[dict], tool_name: str,
                max_tokens: int = MAX_TOKENS, model: str = MODEL,
                thinking: dict | None = THINKING) -> dict | None:
@@ -1593,8 +1655,10 @@ def _call_tool(client, system, user_text: str, tools: list[dict], tool_name: str
     `model`/`thinking` staan los zodat de goedkope keuzes (vervolgtrainingen) op een
     klein model zonder thinking kunnen draaien, met dezelfde retry-logica.
 
-    Dit is ook de plek waar `TIJDSBUDGET` wordt bewaakt -- alle vijf de modelpaden van dit
-    project komen hier langs, dus één bewaking hier dekt ze allemaal.
+    Dit is ook de plek waar `TIJDSBUDGET` wordt bewaakt (in `_stream_bericht`) -- alle vijf de
+    modelpaden van dit project komen hier langs, dus één bewaking daar dekt ze allemaal. Die
+    functie doet ook de herkansing bij een dode lijn; hier gaat het alleen over antwoorden die
+    er wél zijn maar niet deugen.
 
     De call STREAMT, en dat is geen snelheidskeuze maar de voorwaarde waaronder de
     verdubbeling hieronder mag bestaan. Een niet-streamende call rekent bij de SDK
@@ -1608,19 +1672,8 @@ def _call_tool(client, system, user_text: str, tools: list[dict], tool_name: str
     budget = max_tokens
     extra = {"thinking": thinking} if thinking else {}
     for _ in range(3):
-        _bewaak_tijd(f"vóór een call naar {tool_name}")
-        with client.messages.stream(
-            model=model, max_tokens=budget, system=system,
-            messages=messages, tools=tools, **extra,
-        ) as stroom:
-            # Zelf itereren in plaats van meteen `get_final_message()` aanroepen: die doet
-            # intern precies dit, maar dan zonder dat wij ertussen kunnen kijken. Zo breekt een
-            # call die over de deadline heen loopt af binnen één event in plaats van pas als
-            # het model klaar is, en dát maakt van `TIJDSBUDGET` een plafond in plaats van een
-            # controle tussen de calls door. De `with` sluit de verbinding bij het gooien.
-            for _gebeurtenis in stroom:
-                _bewaak_tijd(f"tijdens een call naar {tool_name}")
-            resp = stroom.get_final_message()
+        resp = _stream_bericht(client, model=model, max_tokens=budget, system=system,
+                               messages=messages, tools=tools, extra=extra, wat=tool_name)
         tool_input = _extract_tool_input(resp, tool_name)
         if tool_input is not None:
             return tool_input
@@ -1848,6 +1901,68 @@ def _mislukte_training(b: RewriteBriefing, fout: BaseException,
                          spec_versie=spec_versie())
 
 
+def _pogingen_op(b: RewriteBriefing, laatste_beoordeeld: dict | None, laatste_schrijver: dict,
+                 rondes: list[dict], toegepast: list[str], titels: list[str],
+                 groepen: list[dict]) -> RewriteResult:
+    """Alle schrijverspogingen op, zonder dat de laatste ronde een oordeel haalde.
+
+    De oude versie gaf hier alleen `document` en `judgment` mee en verder een vaste reden van
+    35 tekens. Dat is duurder dan het lijkt: `writer_out` bleef leeg (en juist dat veld heeft
+    `hergenereer_kopje` nodig), `flags`/`flags_tier` bleven leeg (dus de opmerking bij het
+    Drive-doc was leeg), en `_reden_uit_revisies` werd niet gebruikt terwijl het oordeel er
+    gewoon lag. Batch 2 leverde er twee: 422 kreeg 1280 s en een reviewrij zonder één concreet
+    woord, 482 kreeg 460 s en helemaal niets op schijf.
+
+    Drie trappen, van goed naar slecht. Wat er ligt bepaalt welke:
+
+    1. **een beoordeeld concept uit een eerdere ronde.** De laatste schrijverspoging viel op een
+       code-check, maar een ronde ervoor had de judge er al iets van gevonden. Dat concept gaat
+       naar de mens met het oordeel van de judge erbij -- inhoudelijk het beste dat deze
+       training heeft opgeleverd;
+    2. **alleen een volledige schrijverspoging die HARD viel.** Nooit beoordeeld, dus geen
+       oordeel om bij te zetten, maar wel leesbaar: er komt een document, een markdown en een
+       doc op Drive, en de code-check-fouten staan als flag in de opmerking. Een reviewer kan
+       daar iets mee; met een lege map niet;
+    3. **niets.** Trap 2 vangt élke ronde die een volledige `submit_rewrite` opleverde, dus hier
+       komt alleen een training waarvan de schrijver vier keer op rij een onvolledig tool-antwoord
+       gaf. Dat is een ander soort probleem dan een tekst die de checks niet haalt, en de reden
+       zegt dat ook: hier valt geen kopje te repareren, hier is niets geschreven.
+    """
+    gedeeld_altijd = dict(toegepaste_acties=toegepast, oude_titel=b.titel, rondes=rondes,
+                          modus=b.modus, modus_voorstel=b.modus_voorstel,
+                          spec_versie=spec_versie(), goud_voorbeelden=actieve_goud_voorbeelden())
+    if laatste_beoordeeld:
+        gedeeld = laatste_beoordeeld["gedeeld"]
+        gedeeld["rondes"] = rondes          # ook de ronde(s) ná dit concept horen in het spoor
+        reden = (f"De laatste schrijverspoging haalde de code-check niet; dit is het concept van "
+                 f"ronde {laatste_beoordeeld['ronde']}.\n{laatste_beoordeeld['reden']}")
+        return RewriteResult(b.training_id, laatste_beoordeeld["titel"], HUMAN_QUEUE,
+                             reden=reden, thin=b.thin, **gedeeld)
+
+    if laatste_schrijver:
+        issues, hard = laatste_schrijver["issues"], laatste_schrijver["hard"]
+        # De HARD-issues gaan mee de flag-kolom in, en altijd in de tier `hoog`: `TIER_PER_CODE`
+        # is gemaakt om FLAGS te sorteren, dus een code die daar op `mechanisch` staat zou een
+        # harde fout uit de kolom houden die er juist om vraagt. Zelfde richting als op het
+        # `overnemen`-pad, waar HARD-issues ook gewoon in de kolom belanden.
+        tiers = checks.per_tier([i for i in issues if i.severity != checks.HARD])
+        tiers[checks.TIER_HOOG] = ([r for lijst in checks.per_tier(hard).values() for r in lijst]
+                                   + tiers[checks.TIER_HOOG])
+        reden = ("Geen concept dat de code-check haalt, na max pogingen. Dit is de laatste "
+                 f"poging (ronde {laatste_schrijver['ronde']}); deze fouten staan er nog in:\n"
+                 + "\n".join(f"- {i}" for i in hard))
+        return RewriteResult(
+            b.training_id, laatste_schrijver["titel"], HUMAN_QUEUE, reden=reden, thin=b.thin,
+            document=assemble_document(laatste_schrijver["writer_out"], b, titels, groepen),
+            flags=[str(i) for i in hard] + [str(i) for i in checks.flags(issues)],
+            flags_tier=tiers, writer_out=laatste_schrijver["writer_out"], **gedeeld_altijd)
+
+    return RewriteResult(b.training_id, b.nieuwe_titel, HUMAN_QUEUE, thin=b.thin,
+                         reden=f"geen valide concept na max pogingen: alle {len(rondes)} pogingen "
+                               f"leverden een onvolledige submit_rewrite, er is geen tekst",
+                         **gedeeld_altijd)
+
+
 def rewrite_one(client, b: RewriteBriefing, catalog: list[dict],
                 boom: dict | None = None) -> RewriteResult:
     """Schrijver -> code-check -> judge -> revisie of route, binnen één tijdsbudget.
@@ -1885,13 +2000,30 @@ def _schrijf_en_beoordeel(client, b: RewriteBriefing, catalog: list[dict],
     base_user = build_writer_user(b)
 
     notes: list[str] = []
-    document: dict = {}
-    last_judgment: dict = {}
+    # Alle HARD-boodschappen die deze training ooit heeft gekregen, en dat is nodig omdat een
+    # revisie hier geen reparatie is maar een HERGENERATIE: `_call_tool` begint elke poging met
+    # een schone `messages`, dus de schrijver ziet zijn vorige concept niet en leidt elke
+    # eerdere correctie opnieuw af. Training 422 loste "professional(s)" in ronde 1 op in de
+    # Modules en zette het in ronde 4 terug in de Inleiding -- de laatste ronde, dus dat kostte
+    # het hele concept. Alleen HARD-checks: die zijn regels en blijven gelden. De notities van
+    # de judge niet, want die zijn positioneel ("module 4 en 5 overlappen") en slaan nergens
+    # meer op zodra de schrijver opnieuw begint.
+    hard_gezien: list[str] = []
+    laatste_schrijver: dict = {}     # laatste volledige submit_rewrite, ook als die HARD viel
+    laatste_beoordeeld: dict | None = None   # laatste concept dat de judge echt heeft gezien
     # Eén regel per schrijverspoging, ook de rondes die de judge nooit haalden. Zie
     # `RewriteResult.rondes`: dit is het spoor waarop `MAX_REVISIONS` wordt bijgesteld.
     rondes: list[dict] = []
     for attempt in range(MAX_REVISIONS + 1):
-        user_text = base_user if not notes else base_user + "\n\n---\nHERSTEL:\n" + "\n".join(notes)
+        user_text = base_user
+        # De staande regels vóór de HERSTEL-lijst, zodat de klacht van deze ronde het laatste
+        # is wat de schrijver leest. Wat al in `notes` staat komt hier niet nog eens langs.
+        eerder = [m for m in hard_gezien if m not in notes]
+        if eerder:
+            user_text += ("\n\n---\nEERDER AL GECORRIGEERD in deze training, laat het niet "
+                          "terugkomen (ook niet in een ander kopje):\n" + "\n".join(eerder))
+        if notes:
+            user_text += "\n\n---\nHERSTEL:\n" + "\n".join(notes)
         writer_out = _call_tool(client, writer_system, user_text, [SUBMIT_REWRITE], "submit_rewrite")
         if not rewrite_input_complete(writer_out):
             notes = ["De submit_rewrite-output was onvolledig; lever alle verplichte kopjes."]
@@ -1903,9 +2035,17 @@ def _schrijf_en_beoordeel(client, b: RewriteBriefing, catalog: list[dict],
             build_check_input(writer_out, titels, titel, groepen), ctx)
         hard = checks.hard_fails(issues)
         if hard:
-            notes = ["Los deze code-check fouten op:"] + [str(i) for i in hard]
+            boodschappen = [str(i) for i in hard]
+            notes = ["Los deze code-check fouten op:"] + boodschappen
+            hard_gezien += [m for m in boodschappen if m not in hard_gezien]
+            # Bewaren ook al valt hij: de output is compleet (`rewrite_input_complete`) en
+            # daarmee genoeg om er beneden een leesbaar concept van te maken. Zonder dit hield
+            # 482 vier rondes lang niets over: writer_out {}, document {}, geen markdown, geen
+            # doc op Drive, en een human-queue-rij waar een reviewer niets mee kan.
+            laatste_schrijver = {"writer_out": writer_out, "titel": titel, "issues": issues,
+                                 "hard": hard, "ronde": attempt + 1}
             rondes.append({"ronde": attempt + 1, "uitkomst": "code-check",
-                           "notities": [str(i) for i in hard]})
+                           "notities": boodschappen})
             continue
 
         document = assemble_document(writer_out, b, titels, groepen)
@@ -1913,7 +2053,6 @@ def _schrijf_en_beoordeel(client, b: RewriteBriefing, catalog: list[dict],
         flags_tier = checks.per_tier(checks.flags(issues))
 
         judgment = judge_document(client, b, document)
-        last_judgment = judgment
         verdict = judgment.get("verdict", HUMAN_QUEUE)
         rondes.append({"ronde": attempt + 1, "uitkomst": verdict,
                        "notities": [str(n) for n in judgment.get("revisie_notities") or []]})
@@ -1925,20 +2064,19 @@ def _schrijf_en_beoordeel(client, b: RewriteBriefing, catalog: list[dict],
             return RewriteResult(b.training_id, titel, APPROVED, reden="",
                                  thin=b.thin or judgment.get("feitgetrouw", {}).get("thin", False),
                                  **gedeeld)
+        # Vasthouden vóór de `continue`: valt de LAATSTE ronde straks op een code-check, dan is
+        # dit het beste dat deze training heeft opgeleverd en gaat het alsnog naar de mens.
+        laatste_beoordeeld = {"ronde": attempt + 1, "titel": titel, "gedeeld": dict(gedeeld),
+                              "reden": judgment.get("human_reden") or _reden_uit_revisies(judgment)}
         if verdict == NEEDS_REVISION and attempt < MAX_REVISIONS:
             notes = ["Judge-revisie:"] + list(judgment.get("revisie_notities", []))
             continue
         # human-queue of revisies op -> mens
-        reden = judgment.get("human_reden") or _reden_uit_revisies(judgment)
-        return RewriteResult(b.training_id, titel, HUMAN_QUEUE, reden=reden,
+        return RewriteResult(b.training_id, titel, HUMAN_QUEUE, reden=laatste_beoordeeld["reden"],
                              thin=b.thin, **gedeeld)
 
-    return RewriteResult(b.training_id, b.nieuwe_titel, HUMAN_QUEUE,
-                         reden="geen valide concept na max pogingen",
-                         document=document, judgment=last_judgment, thin=b.thin,
-                         toegepaste_acties=toegepast, oude_titel=b.titel, rondes=rondes,
-                         modus=b.modus, modus_voorstel=b.modus_voorstel,
-                         spec_versie=spec_versie(), goud_voorbeelden=actieve_goud_voorbeelden())
+    return _pogingen_op(b, laatste_beoordeeld, laatste_schrijver, rondes, toegepast,
+                        titels, groepen)
 
 
 # ---------------------------------------------------------------------------

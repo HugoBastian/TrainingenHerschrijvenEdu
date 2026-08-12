@@ -24,7 +24,7 @@ een rij in `herschreven.xlsx`.
 ## Commando's
 
 ```bash
-python test_rewrite.py                      # 307 offline tests, geen API-key nodig
+python test_rewrite.py                      # 318 offline tests, geen API-key nodig
 python -c "import test_rewrite as t; t.test_em_dash_is_hard_in_elk_schrijversveld()"   # één test
 python bouw_goud_v2.py                      # terugval-few-shot; nodig na een verse checkout
 
@@ -92,6 +92,26 @@ Vervolgstappen komen uit een aparte retrieval-call) laat de lus zinloos rondgaan
 `_all_text_fields()` levert uitsluitend schrijverstekst op: vaste sjabloonteksten komen daar
 nooit langs, en juist daarom mogen de patronen hard vuren. Breid dat niet uit naar het
 samengestelde document; dan flagt elke training zijn eigen boilerplate.
+
+Daar is een derde bij gekomen, en die is duurder: **een HARD-check moet te repareren zijn.**
+`check_doelen` eiste `first[0].isupper()`, en dat is ook False voor een cijfer. Training 482
+(Vectorworks 2D/3D) verbruikte er zijn vier rondes aan -- elke ronde HARD op een ander doel
+(3, 2, 3, 4) -- want de bron noemt "2D tekenen" en "3D volumes maken" als de onderwerpen zelf.
+Een doel dat met "3D-" begint krijgt geen hoofdletter, dus de lus was per constructie niet te
+winnen en de training hield niets over. `_kleine_letter_voorop` laat sindsdien twee vormen door
+(eerste teken geen letter; een hoofdletter verderop in hetzelfde woord). Zie je in `rondes`
+dezelfde code met een wisselende positie, kijk dan eerst of de schrijver de fout überhaupt kán
+oplossen.
+
+En een vierde, uit dezelfde batch: **een revisie is hier een hergeneratie, geen reparatie.**
+`_call_tool` begint elke poging met een schone `messages`, dus de schrijver ziet zijn vorige
+concept niet en leidt elke eerdere correctie opnieuw af. `notes` werd bovendien elke ronde
+vervángen. Training 422 loste "professional(s)" in ronde 1 op in de Modules en zette het in
+ronde 4 terug in de Inleiding -- de laatste ronde, dus het kostte het hele concept na 1280 s.
+De HARD-boodschappen staan nu in `hard_gezien` en gaan elke ronde mee als een apart blok vóór
+HERSTEL. Alleen HARD: judge-notities zijn positioneel ("module 4 en 5 overlappen") en slaan
+nergens meer op zodra de schrijver opnieuw begint. Dat is meteen de reden om notities die naar
+de schrijver gaan niet op positie te formuleren.
 
 ### De tier: HARD/FLAG zegt wie het oplost, de tier zegt wie het leest
 
@@ -372,6 +392,17 @@ max revisies" -- 37 tekens over precies de trainingen waar tweemaal herschrijven
 `judgment.revisie_notities`, die concreet en per kopje zijn. Het oordeel stond al die tijd in
 `<id>.json`; alleen `reden` pikte het niet op.
 
+Batch 2 liet zien dat er nóg een uitgang was die dat niet deed: valt de **laatste** ronde op een
+code-check, dan loopt de lus eruit en niet door een `return`. Die terugval gaf alleen `document`
+en `judgment` mee plus de vaste zin "geen valide concept na max pogingen" -- geen `writer_out`
+(en juist dat veld heeft `hergenereer_kopje` nodig), geen flags (dus een lege opmerking bij het
+Drive-doc) en geen `_reden_uit_revisies` terwijl het oordeel er lag. `_pogingen_op` doet dat nu
+in drie trappen: het laatste beoordeelde concept met het oordeel van de judge; anders de laatste
+volledige schrijverspoging alsnog samengesteld, met de harde fouten als flag in de tier `hoog`;
+en pas als élke poging een onvolledige `submit_rewrite` gaf is er echt niets, en zegt de reden
+dat ook. Zet nieuwe velden op alle drie of op geen: dit was één plek die achterliep bij de
+`return` twintig regels hoger.
+
 De upload hangt aan het eind van `rewrite_file` in een `try/except`: de artefacten en het sheet
 staan dan al op schijf, dus een kapot token kost hoogstens de upload en nooit een batch die net
 een uur aan API-calls heeft gekost. Authenticeren gebeurt wél vooraf, vóór `make_client()`, om
@@ -406,10 +437,18 @@ training 47 draaide 81 minuten voordat hij alsnog op een ReadTimeout sneuvelde.
   importrichting blijft eenrichtingsverkeer, en een timeout die bij ons hoort heeft daar niets
   te zoeken. De naam blijft `make_client`, zodat notebook en CLI vanzelf de ingestelde client
   krijgen;
-- **`TIJDSBUDGET` (25 min) is het enige echte plafond.** `_call_tool` loopt de stream-events
-  daarom zélf langs in plaats van `get_final_message()` aan te roepen: zo breekt een call af
-  binnen één event na de deadline in plaats van pas als het model klaar is. Een controle tussen
-  de calls door zou niets binden -- één call kan langer duren dan het hele budget.
+- **`TIJDSBUDGET` (25 min) is het enige echte plafond.** `_stream_bericht` loopt de
+  stream-events daarom zélf langs in plaats van `get_final_message()` aan te roepen: zo breekt
+  een call af binnen één event na de deadline in plaats van pas als het model klaar is. Een
+  controle tussen de calls door zou niets binden -- één call kan langer duren dan het hele
+  budget. Gemeten maximum over batch 2: 1280,5 s bij een training die vier rondes deed, dus
+  85% van het budget. p50 is 301 s, p90 547 s;
+- **`NETWERK_HERKANSINGEN` (1) is de herkansing die `MAX_RETRIES` niet geeft.** Die zit op de
+  SDK en dekt alleen het openen van de request; een `ReadTimeout` midden in een stream komt kaal
+  naar boven. Training 369 sneuvelde er na 381 s op -- normale duur, nog 1119 s budget over,
+  maar `_call_tool` had er niets tegenover te zetten en de hele training was weg. De herkansing
+  weegt licht omdat er aan onze kant niets is gebeurd: geen document, geen bestand, alleen
+  tokens. `_bewaak_tijd` staat vóór elke poging, dus dicht bij de deadline herkanst hij niet.
 
 De deadline staat als modulevariabele achter `tijdsbudget()` en niet als parameter. `_call_tool`
 wordt langs vijf paden bereikt (schrijver, judge, vervolgstappen, modus, actualisering) en
