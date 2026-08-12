@@ -1361,6 +1361,86 @@ def test_besluiten_sheet_ververst_de_eigen_trainingen():
         assert df["actie"].iloc[0] == "refresh: herzien"
 
 
+class _TelClient:
+    """Client die elke annotatie op `mits` zet en bijhoudt hoe vaak hij is aangeroepen.
+
+    De classificatie zelf testen we niet (dat is de LLM-laag); wat hier telt is het *aantal*
+    calls, en dat is deterministisch.
+    """
+
+    def __init__(self):
+        self.calls = 0
+        self.messages = self
+
+    def create(self, **kw):
+        self.calls += 1
+        nummers = re.findall(r"^\s*(\d+)\.", kw["messages"][0]["content"], re.M)
+        return _StubResp([_StubBlok("submit_besluiten", {"besluiten": [
+            {"nr": int(nr), "besluit": "mits", "confidence": "high"} for nr in nummers]})])
+
+
+def test_besluiten_classificeert_een_ongewijzigde_regel_niet_opnieuw():
+    """Een tweede ronde over hetzelfde sheet kost geen calls; een nieuwe batch alleen zichzelf.
+
+    Dat was de dure kant van "idempotent": het sheet groeit per batch aan, dus draai je het
+    opnieuw om er tien trainingen bij te zetten, dan gingen de honderd die er al in stonden
+    net zo hard mee langs het model -- inclusief de regels die de reviewer al op `handmatig`
+    had gezet en waarvan het verse label meteen weer werd weggegooid.
+    """
+    import pandas as pd
+    with tempfile.TemporaryDirectory() as d:
+        besluiten_pad = os.path.join(d, "besluiten.xlsx")
+        scored = os.path.join(d, "batch.xlsx")
+        vrij = ["1 alleen als het over governance gaat"]   # geen fastpath: dit kost een call
+        _scored_df(training_id=[1], titel=["Training A"], actie_besluit=vrij
+                   ).to_excel(scored, index=False)
+
+        client = _TelClient()
+        bes.write_besluiten_sheet(scored, besluiten_pad, client=client, verbose=False)
+        assert client.calls == 1, "de eerste ronde hoort te classificeren"
+
+        bes.write_besluiten_sheet(scored, besluiten_pad, client=client, verbose=False)
+        assert client.calls == 1, "dezelfde actie en dezelfde annotatie zijn al beoordeeld"
+        df = pd.read_excel(besluiten_pad)
+        assert list(df["besluit"]) == ["mits"] and list(df["bron"]) == ["llm"]
+
+        # de training erbij is wel nieuw, de eerste blijft overgeslagen
+        _scored_df(training_id=[1, 2], titel=["Training A", "Training B"],
+                   actualiteit_actie=["1. refresh: eerste"] * 2, actie_besluit=vrij * 2
+                   ).to_excel(scored, index=False)
+        bes.write_besluiten_sheet(scored, besluiten_pad, client=client, verbose=False)
+        assert client.calls == 2, "alleen de nieuwe training hoort een call te kosten"
+
+
+def test_besluiten_beoordeelt_opnieuw_zodra_een_tekst_verschuift():
+    """Het hergebruik hangt aan de teksten, niet aan (training_id, nr).
+
+    Beide teksten staan in de prompt, dus beide kunnen het label kantelen. En `opnieuw=True`
+    haalt alles alsnog op -- de uitgang na een wijziging in `CLASSIFY_SYSTEM`, waar aan de
+    teksten juist niets verschuift.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        besluiten_pad = os.path.join(d, "besluiten.xlsx")
+        scored = os.path.join(d, "batch.xlsx")
+        vrij = ["1 alleen als het over governance gaat"]
+        _scored_df(training_id=[1], titel=["Training A"], actie_besluit=vrij
+                   ).to_excel(scored, index=False)
+
+        client = _TelClient()
+        bes.write_besluiten_sheet(scored, besluiten_pad, client=client, verbose=False)
+
+        # de scorer heeft de actie herschreven; de annotatie van de reviewer sloeg op de oude
+        _scored_df(training_id=[1], titel=["Training A"],
+                   actualiteit_actie=["1. refresh: herzien"], actie_besluit=vrij
+                   ).to_excel(scored, index=False)
+        bes.write_besluiten_sheet(scored, besluiten_pad, client=client, verbose=False)
+        assert client.calls == 2, "een herschreven actie hoort opnieuw beoordeeld te worden"
+
+        bes.write_besluiten_sheet(scored, besluiten_pad, client=client, verbose=False,
+                                  opnieuw=True)
+        assert client.calls == 3, "opnieuw=True hoort het hergebruik uit te zetten"
+
+
 def test_parse_acties_nummert_de_scorerlijst():
     acties = bes.parse_acties("1. refresh: eerste\n2. refresh: tweede\n3. refresh: derde")
     assert acties == {1: "refresh: eerste", 2: "refresh: tweede", 3: "refresh: derde"}
@@ -2394,6 +2474,111 @@ def test_modus_voorstellen_draait_door_als_elk_id_joint():
         assert uitkomst["modus_voorstel"].iloc[0] in rw.MODI
         assert uitkomst["modules_nb_voorstel"].iloc[0] == sjabloon.MODULES_NB_DEFAULT
         assert "content is leeg" not in str(uitkomst["modus_reden"].iloc[0])
+
+
+def _bron_met_ids(pad: str, *ids: int) -> None:
+    import pandas as pd
+    pd.DataFrame([{"id": i, "name": f"Training {i}",
+                   "content": json.dumps(_content(), ensure_ascii=False)} for i in ids]
+                 ).to_excel(pad, index=False)
+
+
+def _scored_met_ids(pad: str, *ids: int) -> None:
+    n = len(ids)
+    _scored_df(id=list(ids), name=[f"Training {i}" for i in ids],
+               actualiteit_actie=[""] * n, actie_besluit=[""] * n).to_excel(pad, index=False)
+
+
+def test_modus_voorstellen_neemt_over_wat_al_in_het_uitsheet_staat():
+    """Een tweede ronde kost alleen de nieuwe rijen, en wist het oordeel van de reviewer niet.
+
+    Twee dingen tegelijk, want ze komen uit hetzelfde gat: deze stap leest het RUWE sheet en
+    schrijft een tweede bestand, dus zonder terugkoppeling betaalt elke ronde opnieuw voor
+    alles wat er al stond -- en `modus_reviewer` bestaat alleen in dat tweede bestand en werd
+    hier leeg opnieuw aangemaakt.
+
+    `make_client` valt hier om: een call is geen dubbele uitgave maar een fout.
+    """
+    import pandas as pd
+
+    def _valt_om():
+        raise AssertionError("er ging alsnog een call uit")
+
+    with tempfile.TemporaryDirectory() as d:
+        bron_pad, scored_pad = os.path.join(d, "bron.xlsx"), os.path.join(d, "prio.xlsx")
+        uit_pad = os.path.join(d, "met_modus.xlsx")
+        _bron_met_ids(bron_pad, 42)
+        _scored_met_ids(scored_pad, 42)
+        rw.modus_voorstellen(scored_pad, bron_pad, uit_pad, met_llm=False, verbose=False)
+
+        # de reviewer werkt in het uitvoersheet: een voorstel dat de deterministische scan
+        # nooit oplevert (`overnemen` komt alleen van het model), plus zijn eigen oordeel
+        eerste = pd.read_excel(uit_pad)
+        eerste["modus_voorstel"] = ["overnemen"]
+        eerste["modus_reviewer"] = ["stijl"]
+        eerste.to_excel(uit_pad, index=False)
+
+        origineel, rw.make_client = rw.make_client, _valt_om
+        try:
+            tweede = rw.modus_voorstellen(scored_pad, bron_pad, uit_pad, verbose=False)
+        finally:
+            rw.make_client = origineel
+
+    assert tweede["modus_voorstel"].iloc[0] == "overnemen"
+    assert tweede["modus_reviewer"].iloc[0] == "stijl", "het oordeel van de reviewer is gewist"
+
+
+def test_modus_voorstellen_waarschuwt_over_een_uitsheet_van_een_andere_batch():
+    """Het uitvoersheet is de wachtrij, dus 1-op-1 met de invoer -- en dat kost de vorige batch.
+
+    Anders dan `besluiten.xlsx`, dat op id wordt opgezocht en de rijen van andere trainingen
+    bewaart, mag hier niets in staan wat niet in deze batch zit. Draai je 3b met een ander
+    scoresheet, dan verdwijnt de vorige inhoud inclusief `modus_reviewer`; stil is dat de
+    duurste variant.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        bron_pad, scored_pad = os.path.join(d, "bron.xlsx"), os.path.join(d, "prio.xlsx")
+        uit_pad = os.path.join(d, "met_modus.xlsx")
+        _bron_met_ids(bron_pad, 42, 43)
+        _scored_met_ids(scored_pad, 42)
+        rw.modus_voorstellen(scored_pad, bron_pad, uit_pad, met_llm=False, verbose=False)
+
+        _scored_met_ids(scored_pad, 43)   # andere batch, zelfde uitvoernaam
+        melding = io.StringIO()
+        with contextlib.redirect_stderr(melding):
+            rw.modus_voorstellen(scored_pad, bron_pad, uit_pad, met_llm=False, verbose=False)
+
+    tekst = melding.getvalue()
+    assert "1 trainingen" in tekst and "eigen uitvoernaam" in tekst, tekst
+
+
+def test_modus_opnieuw_raakt_alleen_de_opgegeven_trainingen():
+    """`opnieuw=[id]` bepaalt die training opnieuw; de rest blijft staan, de reviewer ook."""
+    import pandas as pd
+    with tempfile.TemporaryDirectory() as d:
+        bron_pad, scored_pad = os.path.join(d, "bron.xlsx"), os.path.join(d, "prio.xlsx")
+        uit_pad = os.path.join(d, "met_modus.xlsx")
+        _bron_met_ids(bron_pad, 42, 43)
+        _scored_met_ids(scored_pad, 42, 43)
+        rw.modus_voorstellen(scored_pad, bron_pad, uit_pad, met_llm=False, verbose=False)
+
+        eerste = pd.read_excel(uit_pad)
+        eerste["modus_voorstel"] = ["overnemen", "overnemen"]
+        eerste["modus_reviewer"] = ["stijl", ""]
+        eerste.to_excel(uit_pad, index=False)
+
+        tweede = rw.modus_voorstellen(scored_pad, bron_pad, uit_pad, met_llm=False,
+                                      verbose=False, opnieuw=[42]).set_index("training_id")
+        derde = rw.modus_voorstellen(scored_pad, bron_pad, uit_pad, met_llm=False,
+                                     verbose=False, opnieuw=True).set_index("training_id")
+
+    assert tweede.loc[42, "modus_voorstel"] != "overnemen", "42 is niet opnieuw bepaald"
+    assert tweede.loc[43, "modus_voorstel"] == "overnemen", "43 stond er niet in de lijst"
+    assert derde.loc[43, "modus_voorstel"] != "overnemen", "opnieuw=True sloeg 43 over"
+    # een verse bepaling is geen reden om het oordeel van de reviewer weg te gooien: dat gaat
+    # over de training, niet over de ronde -- ook niet bij opnieuw=True
+    assert tweede.loc[42, "modus_reviewer"] == "stijl"
+    assert derde.loc[42, "modus_reviewer"] == "stijl"
 
 
 def test_schat_modus_valt_terug_op_de_ondergrens_zonder_client():

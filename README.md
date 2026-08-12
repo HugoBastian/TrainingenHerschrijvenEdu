@@ -37,7 +37,7 @@ het model.
 | `drive_upload.py` | De herschreven trainingen als opgemaakte Google Docs naar een map in Google Drive. |
 | `rewrite_trainings.py` | Hybride schrijver + orchestratie + I/O. |
 | `herschrijven.ipynb` | Notebook om de pijplijn stap voor stap te draaien en te inspecteren. |
-| `test_rewrite.py` | 307 offline tests (geen API-key nodig). |
+| `test_rewrite.py` | 323 offline tests (geen API-key nodig). |
 
 ## Setup
 
@@ -138,6 +138,14 @@ Open daarna `besluiten.xlsx` en kijk **alleen de regels met `bron=llm`** na. Cor
 klopt en zet `bron` op `handmatig` — die worden bij hergenereren nooit overschreven. Vanaf dat
 punt is er geen interpretatie meer, alleen data.
 
+**Hergenereren kost alleen de nieuwe regels.** Het sheet groeit per batch aan, dus een tweede
+run over hetzelfde bestand liep vroeger de hele stapel opnieuw langs het model — inclusief de
+regels die de reviewer al op `handmatig` had gezet en waarvan het verse label meteen weer werd
+weggegooid. Een regel houdt nu zijn label zolang de actie én de annotatie letterlijk hetzelfde
+blijven; verschuift een van de twee, dan sloeg het oordeel op een andere tekst en wordt hij
+opnieuw beoordeeld. Na een wijziging in `CLASSIFY_SYSTEM` of de fastpath verschuift er aan die
+teksten juist níéts — dan is `write_besluiten_sheet(..., opnieuw=True)` de uitgang.
+
 Twee dingen die het model bewust onderscheidt, en die je dus moet controleren:
 
 - `geen specifieke frameworks benoemen` → **mits** (een voorwaarde, geen afwijzing);
@@ -188,6 +196,21 @@ aan. Jij kijkt het voorstel na en vult `modus_reviewer` waar je het er niet
 mee eens bent; leeg laten betekent "voorstel is goed". Zie **De mate van aanpassing** hieronder
 voor wat de vier niveaus betekenen. `--geen-llm` slaat de modelcall over en laat alleen de
 deterministische ondergrens staan — bruikbaar als kalibratie, niet als voorstel.
+
+**Wat al in het uit-sheet staat wordt overgenomen**, inclusief de `modus_reviewer` en
+`modules_nb_reviewer` die jij daarin hebt ingevuld: deze stap leest het ruwe scoresheet en
+schrijft een tweede bestand, en dat ruwe sheet groeit per batch aan. Zonder die terugkoppeling
+kostte een tweede ronde net zoveel calls als de eerste en werd jouw oordeel bovendien
+overschreven met een lege cel — die kolommen bestaan alleen in het uit-sheet. In de uitvoer is
+`.` overgenomen en `>` vers bepaald. `--modus-opnieuw 5 47` bepaalt losse trainingen opnieuw
+(bijvoorbeeld na een bijgewerkte brontekst), `--modus-opnieuw` zonder id's alles — dat laatste
+is wat je nodig hebt na een wijziging in `scan_vorm()` of de modus-prompt.
+
+Eén grens die `besluiten.xlsx` niet heeft: **het uit-sheet is 1-op-1 met het scoresheet**, want
+het is verderop de wachtrij. Draai je deze stap met een ander scoresheet naar dezelfde
+uitvoernaam, dan verdwijnen de rijen van de vorige batch uit het bestand — inclusief hun
+`modus_reviewer` — en levert het hergebruik niets meer op. De stap waarschuwt daarvoor naar
+stderr; geef elke batch een eigen uitvoernaam, of laat het scoresheet aangroeien.
 
 Deze stap komt ná de scoor-review, dus zijn kolommen belanden nooit in de gedeelde sheet; ze
 worden achteraan het scoresheet geschreven, buiten het blok dat je plakt. Vrije aanwijzingen
@@ -945,7 +968,7 @@ roept hem aan met `waarschuw=False`: dat is de stap die die kolommen juist máá
 ```bash
 python bouw_goud_v2.py     # terugval-few-shot opbouwen; `herschreven/` is gitignored, dus dit
                            # hoort bij een verse checkout. Geen API-key nodig.
-python test_rewrite.py     # 307 offline checks, geen API-key nodig
+python test_rewrite.py     # 323 offline checks, geen API-key nodig
 ```
 
 Getest wordt de deterministische laag: de code-check, de structurele splitsing van

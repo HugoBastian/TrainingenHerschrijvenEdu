@@ -24,7 +24,7 @@ een rij in `herschreven.xlsx`.
 ## Commando's
 
 ```bash
-python test_rewrite.py                      # 318 offline tests, geen API-key nodig
+python test_rewrite.py                      # 323 offline tests, geen API-key nodig
 python -c "import test_rewrite as t; t.test_em_dash_is_hard_in_elk_schrijversveld()"   # één test
 python bouw_goud_v2.py                      # terugval-few-shot; nodig na een verse checkout
 
@@ -32,6 +32,8 @@ python bouw_goud_v2.py                      # terugval-few-shot; nodig na een ve
 python rewrite_trainings.py --scored SHEET.xlsx --source BRON.xlsx --besluiten besluiten.xlsx
 python rewrite_trainings.py --toon-wachtrij --scored SHEET.xlsx   # wie draait er? geen calls
 python rewrite_trainings.py --scan-modus UIT.xlsx --scored SHEET.xlsx --source BRON.xlsx
+python rewrite_trainings.py --scan-modus UIT.xlsx --modus-opnieuw 5 47 \
+  --scored SHEET.xlsx --source BRON.xlsx   # UIT.xlsx wordt hergebruikt; deze twee niet
 python rewrite_trainings.py --goud --source BRON.xlsx --out-dir herschreven
 
 # artefacten in trainingen/batch 3/, en die submap als Google Docs naar een Drive-map
@@ -179,6 +181,44 @@ scorer-veld dat letterlijk in de prompt belandt, dus het enige dat een reviewer 
 van naleest. Bewust géén tweede kolom zoals bij `kern`/`kern_reviewer`: de versiegeschiedenis van
 de sheet is de terugval. De oude aparte kolom `guidance_reviewer` ontstond pas in sectie 3b en
 kwam daardoor nooit bij het reviewteam; hij wordt nog gelezen maar niet meer aangemaakt.
+
+### De twee voorbereidende stappen hergebruiken hun eigen uitvoer
+
+Sectie 3 (`write_besluiten_sheet`) en sectie 3b (`modus_voorstellen`) lezen allebei het ruwe
+scoresheet en schrijven een tweede bestand. Dat ruwe sheet **groeit per batch aan**, en dat is de
+val: het notebook draait deze twee cellen bij elke batch opnieuw, dus tot augustus 2026 betaalde
+elke ronde opnieuw voor alle rijen die er al in stonden. Bij 3b was dat één Haiku-call per
+training over het hele sheet; bij 3 één per training met vrije tekst, inclusief de regels die de
+reviewer al op `handmatig` had gezet en waarvan het verse label meteen weer werd weggegooid.
+
+Beide nemen nu over wat er in hun uitvoerbestand staat, maar de sleutel verschilt bewust:
+
+- **3b op `training_id`** (`_eerdere_modus`). De invoer is de brontekst, en die verandert
+  buiten ons om; er is dus geen tekst waarop je een sleutel kunt bouwen die iets bewijst. Vandaar
+  `opnieuw=True` / `opnieuw=[id, ...]` als expliciete uitgang, en `--modus-opnieuw` op de CLI;
+- **3 op de teksten** (`_zelfde_tekst`): actie én annotatie moeten letterlijk gelijk zijn. Allebei
+  staan ze in `_classify_user`, dus allebei kunnen ze het label kantelen. Dat houdt de belofte
+  overeind die er altijd al stond -- een gewijzigde actietekst wordt netjes bijgewerkt -- terwijl
+  `opnieuw=True` het geval dekt waarin de *prompt* verschoof en de teksten niet.
+
+Het hergebruik van 3b heeft een grens die de besluitenlaag niet heeft: **het uitvoersheet is
+1-op-1 met het invoersheet**, want het is verderop de wachtrij. Er mag dus geen training in
+staan die niet in deze batch zit, en dat is precies waarom `_rijen_van_andere_trainingen`
+(besluiten.xlsx, opgezocht op id) hier geen tegenhanger heeft. Werk je met één gedownload
+bestand per batch en met dezelfde uitvoernaam, dan overschrijft batch 2 de modus én de
+`modus_reviewer` van batch 1 en levert het hergebruik niets op. `modus_voorstellen` waarschuwt
+daarom naar stderr zodra het uit-sheet id's bevat die niet in het scoresheet staan; het antwoord
+is een eigen uitvoernaam per batch, of één scoresheet dat aangroeit.
+
+Er zat een tweede, stillere fout in dezelfde plooi: `modus_reviewer` en `modules_nb_reviewer`
+bestaan alléén in het uitvoersheet (het notebook laat je ze daar invullen), en 3b maakte ze bij
+elke ronde leeg opnieuw aan. Ze komen nu terug uit dat sheet, maar alleen waar de invoer leeg is.
+`kern_reviewer` en `rewrite_guidance` doen daar bewust niet aan mee: die horen in de gedeelde
+sheet thuis, en terughalen zou een cel die daar net leeggemaakt is weer opvullen.
+
+`modus_voorstellen` maakt zijn client daarom lazy: een ronde waarin niets nieuws staat doet geen
+enkele call en hoort dus ook niet op een ontbrekende API-key te stranden. De poort staat nu bij
+de eerste training die wél een call nodig heeft, en noemt die training bij naam.
 
 ### De prompt is vaak het probleem
 

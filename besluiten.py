@@ -553,11 +553,22 @@ def check_alignment(scored_path: str, verbose: bool = True) -> list[str]:
     return fouten
 
 
-def build_besluiten(scored_path: str, client=None, verbose: bool = True) -> list[Besluit]:
-    """Bouwt alle besluit-records. Roept de LLM alleen aan voor vrije-tekst annotaties."""
+def build_besluiten(scored_path: str, client=None, verbose: bool = True,
+                    eerder: dict[tuple[Any, int], Besluit] | None = None) -> list[Besluit]:
+    """Bouwt alle besluit-records. Roept de LLM alleen aan voor vrije-tekst annotaties.
+
+    `eerder` is de oogst van een vorige ronde (`_eerdere_besluiten`): staat er voor deze
+    (training_id, nr) een label bij een ONGEWIJZIGDE actie én annotatie, dan blijft dat staan
+    en gaat de regel niet nog een keer langs het model. Anders classificeert een tweede run
+    over hetzelfde scoresheet alles opnieuw -- inclusief de regels waar de reviewer al
+    `handmatig` van heeft gemaakt en waarvan `write_besluiten_sheet` het verse label meteen
+    weer weggooit. Verandert een van de twee teksten wel, dan telt het oordeel niet meer en
+    valt de regel gewoon terug op een verse call.
+    """
     df = _load_scored(scored_path)
+    eerder = eerder or {}
     records: list[Besluit] = []
-    n_llm = 0
+    n_llm = n_hergebruikt = 0
 
     for _, rij in df.iterrows():
         tid = rij["training_id"]
@@ -580,15 +591,22 @@ def build_besluiten(scored_path: str, client=None, verbose: bool = True) -> list
         except BesluitFout as e:
             raise BesluitFout(f"training_id {tid} ({titel}): {e}") from e
 
-        # fastpath eerst; alleen echte vrije tekst kost een oordeel
+        # fastpath eerst, dan het oordeel van een vorige ronde; alleen wat daarna overblijft
+        # is echte vrije tekst en kost een call
         labels: dict[int, tuple[str, str, str]] = {}   # nr -> (besluit, bron, confidence)
         te_doen: list[tuple[int, str, str]] = []
         for nr, actie, ann in gekoppeld:
             label = regel_label(ann)
             if label is not None:
                 labels[nr] = (label, BRON_REGEL, "")
-            else:
-                te_doen.append((nr, actie, ann))
+                continue
+            vorig = eerder.get((tid, nr))
+            if (vorig is not None and vorig.besluit in BESLUITEN
+                    and _zelfde_tekst(vorig, actie, ann)):
+                labels[nr] = (vorig.besluit, vorig.bron, vorig.confidence)
+                n_hergebruikt += 1
+                continue
+            te_doen.append((nr, actie, ann))
 
         if te_doen:
             if client is None:
@@ -612,29 +630,57 @@ def build_besluiten(scored_path: str, client=None, verbose: bool = True) -> list
             print(f"[{tid}] {titel[:40]:40} {samenvatting}{hoe}")
 
     if verbose:
-        print(f"\n{len(records)} besluiten, waarvan {n_llm} geclassificeerd door het model")
+        hergebruik = f", {n_hergebruikt} overgenomen uit de vorige ronde" if n_hergebruikt else ""
+        print(f"\n{len(records)} besluiten, waarvan {n_llm} geclassificeerd door het "
+              f"model{hergebruik}")
     return records
 
 
-def _bestaande_handmatig(out_path: str) -> dict[tuple[Any, int], Besluit]:
-    """Handmatig gezette labels uit een eerder sheet -- die overschrijven we nooit."""
+def _zelfde_tekst(vorig: Besluit, actie: str, ann: str) -> bool:
+    """Slaat het eerdere oordeel nog op deze regel?
+
+    Beide teksten tellen: `_classify_user` zet de actie én de annotatie in de prompt, dus een
+    herschreven actie kan het label kantelen terwijl de aantekening van de reviewer letterlijk
+    hetzelfde bleef. Vergelijken op `strip()`, want een rondje door Excel kan witruimte
+    toevoegen -- en bij twijfel valt de regel terug op een verse call, nooit op een stil
+    verouderd label.
+    """
+    return (str(vorig.actie).strip() == str(actie).strip()
+            and str(vorig.besluit_ruw).strip() == str(ann).strip())
+
+
+def _eerdere_besluiten(out_path: str) -> dict[tuple[Any, int], Besluit]:
+    """Alle labels uit een eerder sheet, van het model én van een mens.
+
+    Twee gebruikers met een verschillende reikwijdte: `write_besluiten_sheet` neemt hieruit
+    alleen de `handmatig`-regels over als eindoordeel, `build_besluiten` gebruikt de hele dict
+    om een tweede ronde niet opnieuw te laten classificeren. Een met de hand fout ingetikt
+    label gaat wél mee maar wordt nooit hergebruikt (`build_besluiten` eist daar `in BESLUITEN`
+    bovenop `_zelfde_tekst`): overschrijven met een vers modeloordeel maakt de typefout stil,
+    en `load_besluiten` wijst hem verderop met rij en al aan.
+    """
     import os
     import pandas as pd
     if not os.path.exists(out_path):
         return {}
     df = pd.read_excel(out_path)
     df.columns = [str(c).strip() for c in df.columns]
-    if "bron" not in df.columns:
+    if "bron" not in df.columns or "besluit" not in df.columns:
         return {}
     bewaard: dict[tuple[Any, int], Besluit] = {}
-    for _, r in df[df["bron"] == BRON_HANDMATIG].iterrows():
-        sleutel = (r["training_id"], int(r["nr"]))
+    for _, r in df.iterrows():
+        try:
+            nr = int(r["nr"])
+        except (TypeError, ValueError):
+            continue   # een regel zonder nummer koppelt nergens aan; die telt niet mee
+        besluit = str(r["besluit"]).strip().lower()
+        sleutel = (r["training_id"], nr)
         bewaard[sleutel] = Besluit(
-            r["training_id"], str(r.get("titel", "") or ""), int(r["nr"]),
+            r["training_id"], str(r.get("titel", "") or ""), nr,
             str(r.get("actie", "") or ""), str(r.get("besluit_ruw", "") or ""),
-            str(r["besluit"]).strip(),
+            besluit,
             "" if _leeg(r.get("voorwaarde")) else str(r["voorwaarde"]),
-            BRON_HANDMATIG, "")
+            str(r.get("bron", "") or ""), str(r.get("confidence", "") or ""))
     return bewaard
 
 
@@ -658,16 +704,25 @@ def _rijen_van_andere_trainingen(out_path: str, eigen_ids: set):
 
 
 def write_besluiten_sheet(scored_path: str, out_path: str, client=None,
-                          verbose: bool = True):
+                          verbose: bool = True, opnieuw: bool = False):
     """Genereert besluiten.xlsx. Handmatige correcties uit een bestaand sheet blijven staan.
 
     Trainingen die al in het sheet stonden maar niet in dit scoresheet zitten blijven ook
     staan; de trainingen die er wél in zitten worden vers weggeschreven. Opnieuw draaien op
     hetzelfde scoresheet is dus idempotent en werkt een gewijzigde actietekst netjes bij.
+
+    Dat "idempotent" kostte tot nu toe wél elke keer opnieuw alle calls: een regel waarvan de
+    actie én de annotatie onveranderd zijn, houdt sinds deze ronde zijn label (zie `eerder` in
+    `build_besluiten`). Een tweede run over een sheet waarin alleen de laatste batch nieuw is,
+    classificeert dus alleen die batch. `opnieuw=True` zet het hergebruik uit -- nodig na een
+    wijziging in `CLASSIFY_SYSTEM` of de fastpath, want dan is het oude oordeel geveld met
+    een andere maatstaf en verschuift er niets aan de teksten die het hergebruik bewaakt.
     """
     import pandas as pd
-    handmatig = _bestaande_handmatig(out_path)
-    records = build_besluiten(scored_path, client=client, verbose=verbose)
+    bestaand = _eerdere_besluiten(out_path)
+    handmatig = {k: v for k, v in bestaand.items() if v.bron == BRON_HANDMATIG}
+    records = build_besluiten(scored_path, client=client, verbose=verbose,
+                              eerder=None if opnieuw else bestaand)
 
     samengevoegd = []
     for r in records:

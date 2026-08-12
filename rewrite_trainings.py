@@ -47,7 +47,7 @@ import time
 import traceback
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Iterable
 
 # Deze herschrijf-module hergebruikt de content-ingestie van de scorer
 # (parse_content / build_source_text / extract_days / make_client / read_input) zodat
@@ -2707,8 +2707,66 @@ def schat_modus(client, content_bron: dict, titel: str = "", dagen: int | None =
     return uitkomst
 
 
+# De vijf kolommen die `modus_voorstellen()` zelf vult, plus de twee die de reviewer daarna in
+# datzelfde sheet bijwerkt. Samen zijn ze wat een tweede ronde uit het uitvoersheet terughaalt.
+_MODUS_KOLOMMEN: tuple[str, ...] = ("modus_voorstel", "modus_reden", "modus_ondergrens",
+                                    "modules_nb_voorstel", "modules_nb_reden")
+_MODUS_REVIEWER_KOLOMMEN: tuple[str, ...] = ("modus_reviewer", "modules_nb_reviewer")
+
+
+def _modus_uit_frame(df) -> dict[Any, dict[str, str]]:
+    """{training_id: kolomwaarden} voor de kolommen die deze stap zelf kent."""
+    kolommen = [k for k in _MODUS_KOLOMMEN + _MODUS_REVIEWER_KOLOMMEN if k in df.columns]
+    if "modus_voorstel" not in kolommen:
+        return {}
+    return {rij["training_id"]: {k: _cel(rij[k]) for k in kolommen}
+            for _, rij in df.iterrows()}
+
+
+def _eerdere_modus(out_path: str | None) -> dict[Any, dict[str, str]]:
+    """Hetzelfde, maar uit een eerder weggeschreven modus-sheet.
+
+    Via `_load_scored` en niet via `pd.read_excel`, want de id's moeten precies zo genormaliseerd
+    worden als die van het invoersheet; een `2347` die hier als `2347.0` binnenkomt joint nergens
+    mee en zou het hergebruik stil uitschakelen.
+    """
+    if not out_path or not os.path.exists(out_path):
+        return {}
+    try:
+        eerder = _load_scored(out_path, waarschuw=False)
+    except Exception as e:
+        # Een onleesbaar of geheel ander bestand op deze plek is geen reden om te stoppen: het
+        # wordt hierna toch overschreven. Wel luid melden, want de stille versie hiervan is een
+        # ronde die alles opnieuw langs het model stuurt zonder te zeggen waarom.
+        print(f"LET OP: {out_path} is niet als scoresheet te lezen ({e}).\n"
+              f"  -> elke training wordt opnieuw bepaald.", file=sys.stderr)
+        return {}
+    return _modus_uit_frame(eerder)
+
+
+def _modus_uit_sheet(eerder: dict[str, str]) -> dict:
+    """Een rij uit het vorige sheet terug in de vorm die `schat_modus` oplevert.
+
+    De waarden gaan door dezelfde normalisatie als een modelantwoord: een reviewer kan in het
+    sheet `Format` of een typefout hebben gezet, en die hoort hier net zo te vallen als daar.
+
+    Ontbreekt `modus_ondergrens` (een sheet waarin alleen het voorstel is teruggeplakt), dan is
+    het voorstel zelf de terugval en niet de default `volledig`: anders leest zo'n rij in het
+    notebook als "model wijkt af van de ondergrens" terwijl er niets is om van af te wijken.
+    """
+    voorstel = normaliseer_modus(eerder.get("modus_voorstel"))
+    return {
+        "modus": voorstel,
+        "ondergrens": normaliseer_modus(eerder.get("modus_ondergrens"), default=voorstel),
+        "reden": eerder.get("modus_reden", ""),
+        "modules_nb": normaliseer_modules_nb(eerder.get("modules_nb_voorstel")),
+        "modules_nb_reden": eerder.get("modules_nb_reden", ""),
+    }
+
+
 def modus_voorstellen(scored_path: str, source_path: str, out_path: str | None = None,
-                      met_llm: bool = True, verbose: bool = True):
+                      met_llm: bool = True, verbose: bool = True,
+                      opnieuw: bool | Iterable[Any] = False):
     """Vult `modus_voorstel` en `modus_reden` voor elke training in het scoresheet.
 
     Dit is de stap die de reviewer voorbereidt, net zoals `besluiten.write_besluiten_sheet`
@@ -2716,9 +2774,20 @@ def modus_voorstellen(scored_path: str, source_path: str, out_path: str | None =
     Bestaande waarden in `modus_reviewer` blijven ongemoeid -- die zijn per definitie
     leidend.
 
+    **Een training die al in `out_path` staat gaat niet nog een keer langs het model.** Deze
+    stap leest het ruwe scoresheet en schrijft een tweede bestand, en dat ruwe sheet groeit
+    per batch aan: draai je 3b opnieuw omdat er tien rijen bij zijn gekomen, dan kostten de
+    honderd rijen die er al stonden evenveel calls als de eerste keer -- en verloren en
+    passant hun `modus_reviewer`, want die kolom staat in het uitvoersheet en werd hier
+    leeg opnieuw aangemaakt. `_eerdere_modus` haalt beide terug. `opnieuw=True` bepaalt alles
+    opnieuw (nodig na een wijziging in `scan_vorm` of de modus-prompt), een lijst id's alleen
+    die trainingen -- bijvoorbeeld als de brontekst van één training is bijgewerkt.
+
     Met `met_llm=False` blijft het bij de deterministische ondergrens (geen API-key nodig).
     Dat is bruikbaar als kalibratie, niet als voorstel: de ondergrens stelt nooit
-    `overnemen` voor, dus elke training zou minstens een stijlronde krijgen.
+    `overnemen` voor, dus elke training zou minstens een stijlronde krijgen. Wil je die
+    kalibratie over álle rijen, geef er dan `opnieuw=True` bij; anders blijft staan wat een
+    eerdere ronde mét model heeft bepaald.
 
     Levert daarnaast `modules_nb_voorstel`: welke vaste NB onder kopje Modules komt. Dat
     staat los van de actualiseringen uit de besluitenronde -- zie `sjabloon.MODULES_NB_*`.
@@ -2743,7 +2812,36 @@ def modus_voorstellen(scored_path: str, source_path: str, out_path: str | None =
               "bronrij is er niets te beoordelen en zou elke rij als 'volledig' worden "
               "voorgesteld.")
 
-    client = make_client() if met_llm else None
+    # Alles wat een vorige ronde al bepaald heeft, plus wat de reviewer daarna in dat sheet
+    # invulde. Het uit-sheet wint van het invoersheet: dat is de verste stand van deze stap.
+    # Een invoersheet dat het modus-blok al meebrengt (een blad waarin een vorige ronde is
+    # teruggeplakt) telt dus ook mee.
+    uit_sheet = _eerdere_modus(out_path)
+    bestaand = {**_modus_uit_frame(scored), **uit_sheet}
+
+    # Het uitvoersheet is een 1-op-1 afbeelding van het invoersheet -- het is verderop de
+    # wachtrij, dus er mag geen training in staan die niet in deze batch zit. Gevolg: draai je
+    # 3b met een ander scoresheet, dan verdwijnen de rijen van de vorige batch uit het bestand,
+    # inclusief hun `modus_reviewer`. Dat is de tegenhanger van `_rijen_van_andere_trainingen`
+    # in de besluitenlaag, die ze juist wél bewaart -- besluiten.xlsx wordt op id opgezocht en
+    # is geen wachtrij. Hier kan dat niet, dus hier hoort een waarschuwing.
+    eigen_ids = set(scored["training_id"])
+    verdwijnen = [t for t in uit_sheet if t not in eigen_ids]
+    if verdwijnen:
+        print(f"LET OP: {len(verdwijnen)} trainingen staan wel in "
+              f"{os.path.basename(str(out_path))} maar niet in dit scoresheet.\n"
+              f"  -> dat bestand wordt zo overschreven met alleen deze {len(scored)} rijen; "
+              f"hun modus en `modus_reviewer` gaan daarbij verloren.\n"
+              f"  -> hou je meerdere batches naast elkaar, geef deze dan een eigen "
+              f"uitvoernaam.", file=sys.stderr)
+    # `opnieuw` gaat alleen over het voorstel. De reviewer-kolommen komen hieronder hoe dan ook
+    # terug: een verse bepaling is geen reden om het oordeel van een mens weg te gooien.
+    alles_opnieuw = opnieuw is True
+    forceer = set() if isinstance(opnieuw, bool) else {t for t in opnieuw}
+
+    # De client pas bij de eerste echte call: een ronde waarin elke training al bepaald is
+    # hoort geen API-key nodig te hebben. `make_client()` zou anders meteen struikelen.
+    client = None
 
     if verbose:
         print("Modules-NB: de vaste zin onder kopje Modules. 'voorbehoud-zin' = de variant "
@@ -2753,6 +2851,7 @@ def modus_voorstellen(scored_path: str, source_path: str, out_path: str | None =
 
     voorstellen, redenen, ondergrenzen = [], [], []
     nb_voorstellen, nb_redenen = [], []
+    n_hergebruikt = 0
     for _, srow in scored.iterrows():
         tid = srow["training_id"]
         src_row = src_by_id.get(tid)
@@ -2760,7 +2859,19 @@ def modus_voorstellen(scored_path: str, source_path: str, out_path: str | None =
         naam = str(srow.get("titel") or (src_row[cols["name"]] if src_row is not None else "") or "")
         dagen = bepaal_dagen(content, srow.get("aantal_dagen_bron"))
         verdict = str(srow.get("verdict", "") or "")
-        uitkomst = schat_modus(client, content, sjabloon.nieuwe_titel(naam), dagen, verdict)
+        eerder = {} if (alles_opnieuw or tid in forceer) else bestaand.get(tid, {})
+        if eerder.get("modus_voorstel"):
+            uitkomst = _modus_uit_sheet(eerder)
+            n_hergebruikt += 1
+        else:
+            if met_llm and client is None:
+                if not os.getenv("ANTHROPIC_API_KEY"):
+                    raise RuntimeError(
+                        f"training {tid} heeft nog geen modus en daarvoor is een API-key "
+                        "nodig.\nZet ANTHROPIC_API_KEY, of draai met met_llm=False voor "
+                        "alleen de deterministische ondergrens.")
+                client = make_client()
+            uitkomst = schat_modus(client, content, sjabloon.nieuwe_titel(naam), dagen, verdict)
         voorstellen.append(uitkomst["modus"])
         redenen.append(uitkomst["reden"])
         ondergrenzen.append(uitkomst["ondergrens"])
@@ -2771,7 +2882,11 @@ def modus_voorstellen(scored_path: str, source_path: str, out_path: str | None =
                 f"  (ondergrens {uitkomst['ondergrens']})"
             afwijkende_nb = uitkomst["modules_nb"] != sjabloon.MODULES_NB_DEFAULT
             nb = "  [Modules-NB: voorbehoud-zin]" if afwijkende_nb else ""
-            print(f"  {tid:>6}  {naam[:42]:42} -> {uitkomst['modus']:9}{afwijking}{nb}")
+            # Het teken vooraan is het enige verschil tussen een verse call en een regel uit
+            # het vorige sheet; zonder dat teken leest een ronde die niets deed precies zoals
+            # een ronde die alles opnieuw bepaalde.
+            merk = "." if eerder.get("modus_voorstel") else ">"
+            print(f"{merk} {tid:>6}  {naam[:42]:42} -> {uitkomst['modus']:9}{afwijking}{nb}")
             # De reden meteen eronder: de NB-keuze is de enige uitkomst van deze cel die niet
             # over de tekst gaat maar over het onderwerp, en dat is zonder motivering niet na
             # te lezen.
@@ -2789,8 +2904,22 @@ def modus_voorstellen(scored_path: str, source_path: str, out_path: str | None =
     for kolom in ("modus_reviewer", "modules_nb_reviewer", "rewrite_guidance"):
         if kolom not in scored.columns:
             scored[kolom] = ""
+    # De twee kolommen die het notebook je in het UITVOERsheet laat invullen, terug uit dat
+    # sheet: het ruwe scoresheet kent ze niet, dus zonder dit overschrijft elke tweede ronde
+    # de beslissing van de reviewer met een lege cel. Alleen waar de invoer leeg is -- vult
+    # het reviewteam `modus_reviewer` in de gedeelde sheet in, dan is dát de verse waarde.
+    # `rewrite_guidance` en `kern_reviewer` doen hier niet aan mee: die horen thuis in de
+    # gedeelde sheet, en terughalen zou een cel die daar net leeggemaakt is weer opvullen.
+    for kolom in ("modus_reviewer", "modules_nb_reviewer"):
+        scored[kolom] = [_cel(rij[kolom]) or bestaand.get(rij["training_id"], {}).get(kolom, "")
+                         for _, rij in scored.iterrows()]
 
     if verbose:
+        if n_hergebruikt:
+            print(f"\n{n_hergebruikt}/{len(voorstellen)} overgenomen (`.`, geen call); "
+                  f"{len(voorstellen) - n_hergebruikt} opnieuw bepaald (`>`).\n"
+                  f"Wil je alles opnieuw: opnieuw=True, of opnieuw=[id, ...] voor losse "
+                  f"trainingen.")
         print("\nverdeling voorstel:", dict(Counter(voorstellen)))
         print("verdeling ondergrens:", dict(Counter(ondergrenzen)))
         anders = sum(1 for v, o in zip(voorstellen, ondergrenzen) if v != o)
@@ -3951,6 +4080,11 @@ def main():
                         "reviewer; herschrijft niets")
     p.add_argument("--geen-llm", action="store_true",
                    help="alleen bij --scan-modus: alleen de deterministische ondergrens")
+    # nargs="*": zonder id's geeft argparse een lege lijst (= alles opnieuw), zonder de vlag
+    # `None` (= hergebruiken wat er in het uit-sheet staat)
+    p.add_argument("--modus-opnieuw", nargs="*", type=int, metavar="ID",
+                   help="alleen bij --scan-modus: bepaal deze training_id's opnieuw in plaats "
+                        "van ze over te nemen uit het uit-sheet; zonder id's alle rijen")
     p.add_argument("--batch", metavar="NAAM",
                    help="zet de artefacten in trainingen/NAAM/ in plaats van in trainingen/; "
                         "een Drive-upload neemt dan alleen die submap mee")
@@ -3979,9 +4113,13 @@ def main():
         export_goud_corpus(a.source, a.out_dir)
         return
     if a.scan_modus:
-        if not a.geen_llm and not os.getenv("ANTHROPIC_API_KEY"):
-            raise SystemExit("Zet ANTHROPIC_API_KEY, of gebruik --geen-llm.")
-        modus_voorstellen(a.scored, a.source, a.scan_modus, met_llm=not a.geen_llm)
+        opnieuw = True if a.modus_opnieuw == [] else (a.modus_opnieuw or False)
+        # Geen key-poort meer vóór de scan: staat elke training al in het uit-sheet, dan doet
+        # deze stap geen enkele call, en dan hoort hij ook niet op een key te stranden. De
+        # poort staat nu bij de eerste training die er wél een nodig heeft, in
+        # `modus_voorstellen`, en noemt die training bij naam.
+        modus_voorstellen(a.scored, a.source, a.scan_modus, met_llm=not a.geen_llm,
+                          opnieuw=opnieuw)
         return
     if not os.getenv("ANTHROPIC_API_KEY"):
         raise SystemExit("Zet ANTHROPIC_API_KEY (in een .env-bestand of je omgeving).")
