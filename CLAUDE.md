@@ -525,8 +525,15 @@ beantwoorden: niet wat een training kostte, maar in wat voor moment hij draaide.
   zichtbaar worden -- die backoffen buiten ons zicht;
 - **`fout_soort`** (`netwerk` / `limiet` / `overbelast` / `tijdsbudget` / `overig`) is de sleutel
   waarop je groepeert; `reden` is een zin voor een mens en per uitzondering anders geformuleerd.
-  `_foutsoort` kijkt naar `status_code` en niet naar het klassetype van de SDK: 529
-  (`overloaded_error`) heeft bij Anthropic geen eigen klasse.
+  `_foutsoort` leest ze in deze volgorde: eerst het fouttype van Anthropic
+  (`FOUTSOORT_PER_API_TYPE`), dan `status_code`, dan pas het klassetype. Op de statuscode en niet
+  op de klasse omdat `RateLimitError` en de 5xx-klassen wel eens tussen SDK-versies verschuiven;
+  op het **type** vóór de statuscode omdat die twee midden in een stream uit elkaar lopen. Een
+  serverfout die als `error`-EVENT in een lopende stream binnenkomt draagt namelijk de status van
+  die stream: de SDK doet `_make_status_error(f"{body}", response=self.response)` en dat is de
+  200 waarmee de stream werd geopend. Training 2560 (Terraform Automation, batch 5) kreeg
+  daardoor `overig` voor een `api_error` en dus geen afkoeling. De statuscode hoort bij het
+  transport, het type bij de fout.
 
 **`verloop.jsonl` naast `herschreven.xlsx` is append-only, en dat is de kern.** Eén regel per
 training per run, per training weggeschreven en niet aan het eind van de lus. `<id>.json` en de
@@ -569,6 +576,14 @@ training 47 draaide 81 minuten voordat hij alsnog op een ReadTimeout sneuvelde.
   maar `_call_tool` had er niets tegenover te zetten en de hele training was weg. De herkansing
   weegt licht omdat er aan onze kant niets is gebeurd: geen document, geen bestand, alleen
   tokens. `_bewaak_tijd` staat vóór elke poging, dus dicht bij de deadline herkanst hij niet.
+  De naam zegt netwerk, maar het criterium is breder en staat in `_mag_herkansen`: **alles wat
+  de SDK-retry per constructie mist.** Dat zijn er twee. Een dode lijn is er één; de andere is
+  een levende lijn die een serverfout aflevert, want ook dan heeft `MAX_RETRIES` niets te
+  retryen -- de stream-response was 200. Training 2560 kostte zo 22 s en een hele training op
+  één `api_error`, zonder één poging. `HERKANSBARE_API_TYPEN` is bewust níet gelijk aan de
+  `STORINGSSOORTEN` hierboven: `rate_limit_error` telt wél als storing (hij hoort bij het
+  moment) maar wordt niet herkanst, want een directe tweede poging is precies wat een limiet
+  niet wil.
 
 Daar is er een vierde bij gekomen, en die staat niet in een call maar ertussen: **`AFKOELING_START`
 (60 s, verdubbelend tot `AFKOELING_MAX` = 8 min) is er tegen fouten die niet bij één training

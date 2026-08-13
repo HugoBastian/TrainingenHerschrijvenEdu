@@ -130,12 +130,17 @@ MAX_RETRIES = 4                    # 2 was de default, en training 5 sneuvelde e
                                    # `overloaded_error`; deze retries backoffen en falen snel
 TIJDSBUDGET = 25 * 60              # seconden per training
 # En dit is de herkansing die `MAX_RETRIES` NIET geeft: die zit op de SDK en dekt alleen het
-# openen van de request, terwijl een dode lijn zich juist middenin een stream aandient. Training
+# openen van de request, terwijl deze fouten zich juist middenin een stream aandienen. Training
 # 369 (Data Warehouse Concept) sneuvelde na 381 s op een kale `httpx.ReadTimeout` -- normale
 # duur (p50 is 301 s, p90 547 s) en nog 1119 s budget over, maar `_call_tool` had er niets
 # tegenover te zetten en de hele training was weg. Eén herkansing kost hoogstens één call
 # opnieuw; `_bewaak_tijd` staat ervoor, dus `TIJDSBUDGET` blijft het plafond.
-NETWERK_HERKANSINGEN = 1           # extra pogingen bij een lijn die MIDDEN in een stream wegvalt
+#
+# De naam zegt netwerk, maar het gaat om alles wat de SDK-retry per constructie mist, en dat is
+# sinds training 2560 méér dan een dode lijn: een serverfout die als `error`-EVENT in een
+# lopende stream binnenkomt draagt de status 200 van die stream, dus ook daar heeft `MAX_RETRIES`
+# niets te retryen. `_mag_herkansen` is de scheidsrechter.
+NETWERK_HERKANSINGEN = 1           # extra pogingen bij een fout die MIDDEN in een stream valt
 
 # Afkoeling tussen twee trainingen, na een fout die naar een storing ruikt. Hier stond niets:
 # `rewrite_file` begint de volgende training milliseconden na de vorige, dus een storing die
@@ -1708,9 +1713,26 @@ FOUT_OVERIG = "overig"             # alles wat aan onze kant misging
 # lost niets op zolang de lijn ligt, en de volgende training treft dezelfde lijn.
 STORINGSSOORTEN = (FOUT_NETWERK, FOUT_LIMIET, FOUT_OVERBELAST)
 
+# Het fouttype van Anthropic (`body["error"]["type"]`), en waarom dat vóór de statuscode gaat:
+# een `error`-EVENT midden in een stream draagt de status van de STREAM. De SDK doet daar
+# `_make_status_error(f"{body}", response=self.response)`, en die response is de 200 waarmee de
+# stream werd geopend -- de fout zelf heeft geen eigen status. Training 2560 (Terraform
+# Automation) kreeg daardoor `overig` voor een `api_error` en dus geen afkoeling, terwijl dat de
+# zuiverste vorm is van een fout die bij het moment hoort en niet bij die training.
+FOUTSOORT_PER_API_TYPE = {
+    "rate_limit_error": FOUT_LIMIET,
+    "overloaded_error": FOUT_OVERBELAST,
+    "api_error": FOUT_OVERBELAST,
+    "timeout_error": FOUT_NETWERK,     # de server gaf het op, niet de lijn -- zelfde gevolg
+}
+
 
 def _foutsoort(fout: BaseException) -> str:
     """De uitzondering terug naar één van de vijf soorten hierboven.
+
+    Eerst het fouttype van Anthropic (zie hierboven), dan pas `status_code`, en pas daarna het
+    klassetype. Die volgorde is de les van 2560: de status hoort bij het transport en het type
+    bij de fout, en midden in een stream lopen die twee uit elkaar.
 
     Op `status_code` en niet op het klassetype van de SDK: `RateLimitError` en de 5xx-klassen
     verschuiven wel eens tussen versies, een statuscode niet. 529 (`overloaded_error`) heeft
@@ -1719,6 +1741,9 @@ def _foutsoort(fout: BaseException) -> str:
     """
     if isinstance(fout, TijdOverschreden):
         return FOUT_TIJDSBUDGET
+    soort = FOUTSOORT_PER_API_TYPE.get(getattr(fout, "type", None))
+    if soort:
+        return soort
     code = getattr(fout, "status_code", None)
     if code == 429:
         return FOUT_LIMIET
@@ -1727,6 +1752,39 @@ def _foutsoort(fout: BaseException) -> str:
     if isinstance(fout, _netwerkfouten()):
         return FOUT_NETWERK
     return FOUT_OVERIG
+
+
+# Welke serverfouten mogen opnieuw? Bewust NIET dezelfde verzameling als hierboven, en het
+# verschil zit op `rate_limit_error`: die classificeren we wél als storing (hij hoort bij het
+# moment) maar herkansen we niet, want een directe tweede poging in hetzelfde venster is
+# precies wat een limiet niet wil. De rest verandert wél van antwoord bij een tweede poging;
+# `invalid_request_error` en `authentication_error` staan er om dezelfde reden niet in.
+HERKANSBARE_API_TYPEN = ("api_error", "overloaded_error", "timeout_error")
+
+
+def _herkansbare_fouten() -> tuple[type[BaseException], ...]:
+    """Wat `_stream_bericht` überhaupt vangt; `_mag_herkansen` beslist daarna."""
+    import anthropic
+    return _netwerkfouten() + (anthropic.APIStatusError,)
+
+
+def _mag_herkansen(fout: BaseException) -> bool:
+    """Verandert een tweede poging hier iets aan?
+
+    Twee families, en ze delen precies één eigenschap: de retry-laag van de SDK ziet ze per
+    constructie niet. Die zit op het openen van de request, en allebei dienen ze zich pas aan
+    als de stream al loopt.
+
+    - **een dode lijn** (`_netwerkfouten`): er kwam niets meer over. Training 369 sneuvelde er
+      na 381 s op, met nog 1119 s budget over;
+    - **een levende lijn die een serverfout aflevert.** Training 2560 kreeg na 22 s een
+      `api_error` als event in de stream. De stream-response was 200, dus `MAX_RETRIES` (4)
+      had niets te retryen en `_netwerkfouten` herkende het niet: één 500 en de hele training
+      weg, zonder één poging.
+    """
+    if isinstance(fout, _netwerkfouten()):
+        return True
+    return getattr(fout, "type", None) in HERKANSBARE_API_TYPEN
 
 
 def _stream_bericht(client, *, model: str, max_tokens: int, system, messages: list[dict],
@@ -1757,7 +1815,11 @@ def _stream_bericht(client, *, model: str, max_tokens: int, system, messages: li
                 bericht = stroom.get_final_message()
             _spoor.tel_call(time.monotonic() - begonnen)
             return bericht
-        except _netwerkfouten() as fout:
+        except _herkansbare_fouten() as fout:
+            # Een `invalid_request_error` of een 401 gaat hier meteen door: die geeft bij een
+            # tweede poging hetzelfde antwoord, en dan is herkansen alleen maar tijd.
+            if not _mag_herkansen(fout):
+                raise
             # De stilte wordt geteld vóór de `raise`, dus ook de poging die het opgeeft komt
             # in het spoor. Anders telt uitgerekend de training die eraan sneuvelde er nul.
             _spoor.tel_stilte(time.monotonic() - begonnen)

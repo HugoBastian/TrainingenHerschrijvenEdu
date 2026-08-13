@@ -3968,6 +3968,21 @@ def test_een_stilte_die_wordt_herkanst_komt_toch_in_het_spoor():
     assert spoor.stiltes == rw.NETWERK_HERKANSINGEN + 1 and spoor.calls == 0
 
 
+def _stream_fout(type_: str, status: int = 200):
+    """Een `error`-EVENT midden in een stream, precies zoals de SDK hem opwerpt.
+
+    `_streaming.py` doet `_make_status_error(f"{body}", response=self.response)`, en die
+    response is de 200 waarmee de stream werd geopend: de statuscode hoort bij het transport,
+    het type bij de fout. Die twee lopen hier uit elkaar, en dat is het hele geval.
+    """
+    import anthropic
+    import httpx
+    body = {"type": "error", "error": {"type": type_, "message": "Internal server error"}}
+    resp = httpx.Response(status, request=httpx.Request(
+        "POST", "https://api.anthropic.com/v1/messages"))
+    return anthropic.APIStatusError(f"{body}", response=resp, body=body)
+
+
 def test_de_soort_van_een_fout_scheidt_de_storing_van_de_rest():
     """`reden` is een zin voor een mens en per uitzondering anders; hierop kun je groeperen."""
     import httpx
@@ -3985,6 +4000,64 @@ def test_de_soort_van_een_fout_scheidt_de_storing_van_de_rest():
     assert rw._foutsoort(_Status(529)) == rw.FOUT_OVERBELAST
     assert rw._foutsoort(_Status(400)) == rw.FOUT_OVERIG
     assert rw._foutsoort(ValueError("Streaming is required")) == rw.FOUT_OVERIG
+
+
+def test_een_serverfout_in_een_lopende_stream_is_geen_fout_aan_onze_kant():
+    """Training 2560 (Terraform Automation), Batch 5: `api_error` na 22 s, hele training weg.
+
+    De statuscode was 200 -- die hoort bij de stream en niet bij de fout -- dus `_foutsoort`
+    las `overig`, `_is_storing` zei nee en er kwam geen afkoeling, terwijl een `api_error` de
+    zuiverste vorm is van een fout die bij het moment hoort. Het echte type staat in
+    `body["error"]["type"]`, en dat zet de SDK op `APIStatusError.type`.
+    """
+    assert rw._foutsoort(_stream_fout("api_error")) == rw.FOUT_OVERBELAST
+    assert rw._foutsoort(_stream_fout("overloaded_error")) == rw.FOUT_OVERBELAST
+    assert rw._foutsoort(_stream_fout("rate_limit_error")) == rw.FOUT_LIMIET
+    assert rw._foutsoort(_stream_fout("timeout_error")) == rw.FOUT_NETWERK
+    # en daarmee koelt de batch er ook op af
+    res = rw.RewriteResult(2560, "Training Terraform Automation", "error",
+                           fout_soort=rw._foutsoort(_stream_fout("api_error")))
+    assert rw._is_storing(res)
+    # een verkeerd geformuleerde request hoort daar juist NIET bij: die is van ons
+    assert rw._foutsoort(_stream_fout("invalid_request_error", status=400)) == rw.FOUT_OVERIG
+
+
+def test_een_serverfout_in_een_stream_krijgt_dezelfde_herkansing_als_een_dode_lijn():
+    """Beide families delen precies één eigenschap: de SDK-retry ziet ze per constructie niet.
+
+    Bij 2560 had `MAX_RETRIES` (4) niets te retryen -- de stream-response was 200 -- en
+    `_netwerkfouten` herkende de fout niet. Eén `api_error` kostte zo 22 s en de hele training,
+    zonder één poging.
+    """
+    import anthropic
+    pogingen = []
+
+    def stream(**_kw):
+        pogingen.append(1)
+        if len(pogingen) == 1:
+            raise _stream_fout("api_error")
+        return _StubStroom(_StubResp([_StubBlok("submit_x", {"klaar": True})]))
+
+    spoor = rw.begin_spoor()
+    uitkomst = rw._call_tool(SimpleNamespace(messages=SimpleNamespace(stream=stream)),
+                             "sys", "user", [{"name": "submit_x"}], "submit_x", thinking=None)
+    assert uitkomst == {"klaar": True} and len(pogingen) == 2
+    assert spoor.stiltes == 1, "een serverfout hoort net zo goed in het spoor als een dode lijn"
+
+    # en wat niet herkansbaar is kost precies één poging: een tweede levert hetzelfde antwoord
+    vergeefs = []
+
+    def altijd_fout(**_kw):
+        vergeefs.append(1)
+        raise _stream_fout("invalid_request_error", status=400)
+
+    try:
+        rw._call_tool(SimpleNamespace(messages=SimpleNamespace(stream=altijd_fout)),
+                      "sys", "user", [{"name": "submit_x"}], "submit_x", thinking=None)
+        raise AssertionError("had de APIStatusError moeten doorlaten")
+    except anthropic.APIStatusError:
+        pass
+    assert vergeefs == [1], vergeefs
 
 
 def test_een_verstreken_budget_telt_alleen_als_storing_met_stiltes_erin():
