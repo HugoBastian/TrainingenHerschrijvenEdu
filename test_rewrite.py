@@ -3852,6 +3852,261 @@ def test_een_verstreken_tijdsbudget_kost_die_ene_training_en_niet_de_batch():
         assert q.loc[11, "geselecteerd"] and not q.loc[10, "geselecteerd"]
 
 
+def _batch_situatie(d, ids):
+    """Scoresheet + bron + leeg besluiten-sheet: het minimum waarop `rewrite_file` draait."""
+    import pandas as pd
+    scored, uit_dir = _wachtrij_situatie(d, list(ids))
+    bron = os.path.join(d, "bron.xlsx")
+    pd.DataFrame([{"id": t, "name": f"Training {t}",
+                   "content": json.dumps(_content(), ensure_ascii=False)}
+                  for t in ids]).to_excel(bron, index=False)
+    besluiten = os.path.join(d, "besluiten.xlsx")     # geen acties, dus geen rijen
+    pd.DataFrame(columns=["training_id", "nr", "actie", "besluit"]).to_excel(
+        besluiten, index=False)
+    return scored, bron, besluiten, uit_dir
+
+
+def _draai_batch(scored, bron, besluiten, uit_dir, hoe, meldingen=None):
+    """Eén `rewrite_file` met `rewrite_one` vervangen door `hoe`; geen client, geen netwerk.
+
+    Met `meldingen` (een StringIO) draait hij verbose en vangt hij stderr op: dat is waar de
+    afkoeling zich meldt.
+    """
+    echte_client, echte_rewrite = rw.make_client, rw.rewrite_one
+    rw.make_client, rw.rewrite_one = (lambda: None), hoe
+    try:
+        if meldingen is None:
+            return rw.rewrite_file(scored, bron, uit_dir, besluiten_path=besluiten,
+                                   verbose=False)
+        with contextlib.redirect_stderr(meldingen), contextlib.redirect_stdout(io.StringIO()):
+            return rw.rewrite_file(scored, bron, uit_dir, besluiten_path=besluiten,
+                                   verbose=True)
+    finally:
+        rw.make_client, rw.rewrite_one = echte_client, echte_rewrite
+
+
+def _lukt(client, b, catalog, boom=None):
+    return rw.RewriteResult(b.training_id, b.nieuwe_titel, rw.APPROVED, modus=b.modus)
+
+
+def test_een_stilte_die_wordt_herkanst_komt_toch_in_het_spoor():
+    """De 198 geslaagde trainingen zijn het bewijsmateriaal, niet de 3 gesneuvelde.
+
+    Een training die een stilte opving en tóch slaagde was niet te onderscheiden van een die
+    schoon doorliep. Daarmee viel over het moment waarop een run draaide niets te meten:
+    fouten zijn te zeldzaam om op te toetsen, bijna-fouten niet.
+    """
+    import httpx
+    pogingen = []
+
+    def stream(**_kw):
+        pogingen.append(1)
+        if len(pogingen) == 1:
+            raise httpx.ReadTimeout("The read operation timed out")
+        return _StubStroom(_StubResp([_StubBlok("submit_x", {"klaar": True})]))
+
+    spoor = rw.begin_spoor()
+    rw._call_tool(SimpleNamespace(messages=SimpleNamespace(stream=stream)),
+                  "sys", "user", [{"name": "submit_x"}], "submit_x", thinking=None)
+    assert (spoor.stiltes, spoor.calls) == (1, 1), spoor
+    assert spoor.als_dict()["stiltes"] == 1
+
+    # en de poging die het opgeeft telt óók: anders staat er nul bij uitgerekend de training
+    # die eraan sneuvelde
+    def altijd_weg(**_kw):
+        raise httpx.ReadTimeout("The read operation timed out")
+
+    spoor = rw.begin_spoor()
+    try:
+        rw._call_tool(SimpleNamespace(messages=SimpleNamespace(stream=altijd_weg)),
+                      "sys", "user", [{"name": "submit_x"}], "submit_x", thinking=None)
+    except httpx.ReadTimeout:
+        pass
+    assert spoor.stiltes == rw.NETWERK_HERKANSINGEN + 1 and spoor.calls == 0
+
+
+def test_de_soort_van_een_fout_scheidt_de_storing_van_de_rest():
+    """`reden` is een zin voor een mens en per uitzondering anders; hierop kun je groeperen."""
+    import httpx
+
+    class _Status(Exception):
+        def __init__(self, code):
+            super().__init__(f"status {code}")
+            self.status_code = code
+
+    assert rw._foutsoort(httpx.ReadTimeout("weg")) == rw.FOUT_NETWERK
+    assert rw._foutsoort(rw.TijdOverschreden("op")) == rw.FOUT_TIJDSBUDGET
+    assert rw._foutsoort(_Status(429)) == rw.FOUT_LIMIET
+    # 529 (overloaded_error) heeft bij Anthropic geen eigen klasse; op de statuscode valt hij
+    # vanzelf goed, en dat is de fout waar MAX_RETRIES in batch 1 van 2 naar 4 voor ging
+    assert rw._foutsoort(_Status(529)) == rw.FOUT_OVERBELAST
+    assert rw._foutsoort(_Status(400)) == rw.FOUT_OVERIG
+    assert rw._foutsoort(ValueError("Streaming is required")) == rw.FOUT_OVERIG
+
+
+def test_een_verstreken_budget_telt_alleen_als_storing_met_stiltes_erin():
+    """Training 2483 deed 1571 s waar zijn buren 164 s en 202 s deden: dat is niet traag maar
+    wachtend. Zonder stiltes in het spoor is het wél een trage training, en dan helpt de
+    afkoeling niets."""
+    def _fout(soort, stiltes):
+        return rw.RewriteResult(1, "T", "error", fout_soort=soort,
+                                storingen={"stiltes": stiltes})
+
+    assert rw._is_storing(_fout(rw.FOUT_TIJDSBUDGET, 3))
+    assert not rw._is_storing(_fout(rw.FOUT_TIJDSBUDGET, 0))
+    assert rw._is_storing(_fout(rw.FOUT_NETWERK, 0))
+    assert not rw._is_storing(_fout(rw.FOUT_OVERIG, 9))
+    assert not rw._is_storing(rw.RewriteResult(1, "T", rw.APPROVED))
+
+
+def test_de_afkoeling_verdubbelt_en_valt_terug_na_een_training_die_wel_liep():
+    storing = rw.RewriteResult(1, "T", "error", fout_soort=rw.FOUT_NETWERK)
+    a = rw.Afkoeling(verbose=False)
+    a.na(storing)
+    assert a.seconden == rw.AFKOELING_START
+    a.na(storing)
+    assert a.seconden == rw.AFKOELING_START * 2
+    a.na(rw.RewriteResult(2, "T", rw.APPROVED))
+    assert (a.seconden, a.opeenvolgend) == (0.0, 0), "één training die liep zet de teller terug"
+    for _ in range(12):
+        a.na(storing)
+    assert a.seconden == rw.AFKOELING_MAX
+
+
+def test_wachten_gebeurt_een_keer_per_training_en_nooit_na_de_laatste():
+    """`wacht()` staat vóór de training en niet erna, anders wacht de batch achter zijn
+    laatste training aan. Twee keer aanroepen mag dus niet twee keer slapen."""
+    origineel = rw.AFKOELING_START
+    rw.AFKOELING_START = 0.05
+    try:
+        a = rw.Afkoeling(verbose=False)
+        a.na(rw.RewriteResult(1, "T", "error", fout_soort=rw.FOUT_NETWERK))
+        begin = time.monotonic()
+        a.wacht()
+        a.wacht()
+        assert 0.04 <= time.monotonic() - begin < 0.5
+    finally:
+        rw.AFKOELING_START = origineel
+
+
+def test_de_batch_koelt_af_na_een_storing_en_niet_na_een_gewone_fout():
+    """Zonder pauze begint de volgende training milliseconden na de vorige, dus midden in
+    hetzelfde venster. 2410 (909,5 s) en 2412 (429,4 s) sneuvelden allebei op een ReadTimeout
+    en bij allebei viel óók de directe herkansing om: die storing leefde langer dan één call.
+    """
+    import httpx
+    origineel = rw.AFKOELING_START
+    rw.AFKOELING_START = 0.05         # dat `wacht()` ook echt slaapt staat in de test hierboven
+    try:
+        for fout, koelt_af in ((httpx.ReadTimeout("weg"), True),
+                               (ValueError("aan onze kant"), False)):
+            meldingen = io.StringIO()
+            with tempfile.TemporaryDirectory() as d:
+                scored, bron, besluiten, uit_dir = _batch_situatie(d, [10, 11, 12])
+
+                def valt_om_bij_11(client, b, catalog, boom=None, _f=fout):
+                    if b.training_id == 11:
+                        raise _f
+                    return _lukt(client, b, catalog, boom)
+
+                review = _draai_batch(scored, bron, besluiten, uit_dir, valt_om_bij_11,
+                                      meldingen)
+            rijen = review.set_index("training_id")
+            assert rijen.loc[11, "status"] == "error"
+            # de soort staat in het sheet, en dáárop clustert de analyse straks
+            assert rijen.loc[11, "fout_soort"] == (rw.FOUT_NETWERK if koelt_af
+                                                   else rw.FOUT_OVERIG)
+            assert ("afkoelen" in meldingen.getvalue()) is koelt_af, meldingen.getvalue()
+            # 12 draait hoe dan ook door: de afkoeling vertraagt de batch, ze stopt hem niet
+            assert rijen.loc[12, "status"] == rw.APPROVED
+    finally:
+        rw.AFKOELING_START = origineel
+
+
+def test_het_verloop_overleeft_de_herkansing_die_de_error_rij_wist():
+    """Waarom er van vier batches nog 3 error-rijen over waren op 201 trainingen.
+
+    `bouw_wachtrij` draagt een error-rij de volgende run bewust opnieuw aan, en de geslaagde
+    poging overschrijft dan zowel `<id>.json` als de rij in het sheet
+    (`drop_duplicates(keep="last")`). Wat er gebeurd is stond daarna nergens meer, en de vraag
+    of fouten op elkaar volgen was niet meer te stellen. Dit bestand groeit alleen maar aan.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        scored, bron, besluiten, uit_dir = _batch_situatie(d, [10, 11, 12])
+
+        def valt_om_bij_11(client, b, catalog, boom=None):
+            if b.training_id == 11:
+                raise ValueError("Streaming is required for operations")
+            return _lukt(client, b, catalog, boom)
+
+        _draai_batch(scored, bron, besluiten, uit_dir, valt_om_bij_11)
+        review = _draai_batch(scored, bron, besluiten, uit_dir, _lukt)
+
+        # het sheet kent 11 alleen nog als geslaagd
+        assert review.set_index("training_id").loc[11, "status"] == rw.APPROVED
+        regels = [json.loads(r) for r in
+                  open(os.path.join(uit_dir, rw.VERLOOP_LOG), encoding="utf-8")]
+
+    # run 1 drie trainingen, run 2 alleen de gestrande: de eerste twee zijn al klaar
+    assert [r["training_id"] for r in regels] == [10, 11, 12, 11], regels
+    assert [r["positie"] for r in regels] == [1, 2, 3, 1]
+    assert [r["status"] for r in regels] == [rw.APPROVED, "error", rw.APPROVED, rw.APPROVED]
+    assert regels[1]["fout_soort"] == rw.FOUT_OVERIG and "ValueError" in regels[1]["reden"]
+    # en elke regel weet wanneer hij draaide, want het sheet staat niet in runvolgorde
+    assert all(r["gestart_op"] and r["run"] for r in regels)
+
+
+def test_lees_verloop_zet_de_buurman_ernaast_en_kent_de_runs_uit_elkaar():
+    """`na_storing` is de definitie van clustering, en die hoort niet per analyse opnieuw
+    geschreven te worden. Hij kijkt binnen één run: de laatste training van run 1 is niet de
+    buurman van de eerste van run 2, ook al staan ze op opeenvolgende regels."""
+    import httpx
+    with tempfile.TemporaryDirectory() as d:
+        assert rw.lees_verloop(d).empty, "zonder log een leeg frame, geen fout"
+        scored, bron, besluiten, uit_dir = _batch_situatie(d, [10, 11, 12])
+
+        def lijn_weg_bij_12(client, b, catalog, boom=None):
+            if b.training_id == 12:
+                raise httpx.ReadTimeout("weg")
+            return _lukt(client, b, catalog, boom)
+
+        origineel = rw.AFKOELING_START
+        rw.AFKOELING_START = 0.01
+        try:
+            _draai_batch(scored, bron, besluiten, uit_dir, lijn_weg_bij_12)   # 12 sneuvelt
+            _draai_batch(scored, bron, besluiten, uit_dir, _lukt)             # 12 opnieuw
+        finally:
+            rw.AFKOELING_START = origineel
+        v = rw.lees_verloop(uit_dir)
+
+    assert list(v["training_id"]) == [10, 11, 12, 12]
+    assert list(v["storing"]) == [False, False, True, False]
+    # de storing sloot run 1 af, dus niemand had hem als buurman -- ook 12 uit run 2 niet
+    assert list(v["na_storing"]) == [False, False, False, False], v[["run", "na_storing"]]
+
+
+def test_de_reviewrij_en_de_json_dragen_het_moment_en_het_storingsspoor():
+    """Ook bij een training die het haalde: juist die rijen zeggen iets over het moment."""
+    def _met_een_stilte(client, b, catalog, boom=None):
+        # zoals `_stream_bericht` het spoor vult bij een dode lijn die wél herkanst wordt
+        rw.huidig_spoor().tel_stilte(1.5)
+        rw.huidig_spoor().tel_call(3.0)
+        return _lukt(client, b, catalog, boom)
+
+    with tempfile.TemporaryDirectory() as d:
+        scored, bron, besluiten, uit_dir = _batch_situatie(d, [10])
+        review = _draai_batch(scored, bron, besluiten, uit_dir, _met_een_stilte)
+        artefact = json.load(open(rw.zoek_artefact(uit_dir, 10), encoding="utf-8"))
+
+    rij = review.set_index("training_id").loc[10]
+    assert rij["status"] == rw.APPROVED and rij["n_stiltes"] == 1
+    assert rij["stilte_seconden"] == 1.5 and rij["gestart_op"]
+    assert rij["fout_soort"] == "", "een geslaagde training heeft geen foutsoort"
+    assert artefact["storingen"] == {"calls": 1, "call_seconden": 3.0, "traagste_call": 3.0,
+                                     "stiltes": 1, "stilte_seconden": 1.5}
+    assert artefact["gestart_op"] == rij["gestart_op"]
+
+
 def test_start_voorbij_het_einde_waarschuwt_in_plaats_van_stil_niets_te_doen():
     """Een run die 0 trainingen draait zonder één regel uitvoer leest als een geslaagde run."""
     with tempfile.TemporaryDirectory() as d:

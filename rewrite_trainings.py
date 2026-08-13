@@ -46,6 +46,7 @@ import sys
 import time
 import traceback
 from contextlib import contextmanager
+from datetime import datetime
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
@@ -135,6 +136,21 @@ TIJDSBUDGET = 25 * 60              # seconden per training
 # tegenover te zetten en de hele training was weg. Eén herkansing kost hoogstens één call
 # opnieuw; `_bewaak_tijd` staat ervoor, dus `TIJDSBUDGET` blijft het plafond.
 NETWERK_HERKANSINGEN = 1           # extra pogingen bij een lijn die MIDDEN in een stream wegvalt
+
+# Afkoeling tussen twee trainingen, na een fout die naar een storing ruikt. Hier stond niets:
+# `rewrite_file` begint de volgende training milliseconden na de vorige, dus een storing die
+# minuten duurt neemt ze allemaal mee. Dat is de vorm die batch 4 liet zien -- 2410 (909,5 s)
+# en 2412 (429,4 s) sneuvelden allebei op een ReadTimeout, en bij allebei viel óók de directe
+# herkansing van `_stream_bericht` om. Die storingen leven dus aantoonbaar langer dan één
+# volledige call, en dan is de volgende training de volgende die omvalt.
+#
+# 60 s om te beginnen: dat is 20% van een mediane training (301 s) en verwaarloosbaar tegen de
+# 429 tot 1571 s die een mislukte training kost. Verdubbelen per opeenvolgende storing -- een
+# afkoeling die niet hielp is het bewijs dat de storing langer duurt dan gedacht -- en terug op
+# nul zodra er weer één training slaagt. Het plafond staat op 8 minuten: bij vier storingen op
+# rij is de batch toch verloren, en dan is wachten goedkoper dan trainingen verbranden.
+AFKOELING_START = 60.0             # na de eerste storing
+AFKOELING_MAX = 480.0              # plafond na verdubbelen
 
 # Taxonomie-bonus bij de shortlist. Keyword-overlap en boomburen falen op verschillende
 # manieren -- LDAP vindt via keywords "Active Directory" (raak) maar via de boom 5G en
@@ -1588,6 +1604,72 @@ def _bewaak_tijd(wat: str = "") -> None:
                            + (f" {wat}" if wat else ""))
 
 
+# ---------------------------------------------------------------------------
+# 7b. HET STORINGSSPOOR -- waar de tijd van een training heen ging
+# ---------------------------------------------------------------------------
+#
+# `seconden` en `rondes` zeggen wat een training kostte, niet waaraan. Een training die vier
+# stiltes van `LEES_TIMEOUT` opving en tóch slaagde is in het sheet niet te onderscheiden van
+# een die schoon doorliep, en juist daar zit het signaal: over vier batches staan er nog 3
+# error-rijen tegen 198 geslaagde trainingen, en van die 198 weten we niets. Zonder deze
+# telling is "clusteren de fouten?" per constructie niet te beantwoorden -- de fouten zijn te
+# zeldzaam, de bijna-fouten niet.
+
+@dataclass
+class Storingsspoor:
+    """Wat één training aan modelcalls deed, en wat daarvan verloren ging.
+
+    `stiltes` telt élke gevangen netwerkfout, ook die waarna de herkansing wél lukte. Dat is
+    het hele punt: een geslaagde training met drie stiltes zegt evenveel over het moment als
+    een mislukte, en er zijn er veel meer van.
+
+    `traagste_call` is de enige plek waar de retries van de SDK zichtbaar worden. Die zitten
+    op `MAX_RETRIES` en backoffen buiten ons zicht; een call die 900 s duurde terwijl de
+    mediaan onder de minuut ligt, is er vier keer opnieuw gestuurd.
+    """
+    calls: int = 0                    # geslaagde modelcalls
+    call_seconden: float = 0.0        # tijd in geslaagde calls
+    traagste_call: float = 0.0
+    stiltes: int = 0                  # gevangen netwerkfouten, geslaagd herkanst of niet
+    stilte_seconden: float = 0.0      # tijd in pogingen die niets opleverden
+
+    def tel_call(self, duur: float) -> None:
+        self.calls += 1
+        self.call_seconden = round(self.call_seconden + duur, 1)
+        self.traagste_call = round(max(self.traagste_call, duur), 1)
+
+    def tel_stilte(self, duur: float) -> None:
+        self.stiltes += 1
+        self.stilte_seconden = round(self.stilte_seconden + duur, 1)
+
+    def als_dict(self) -> dict:
+        return {"calls": self.calls, "call_seconden": self.call_seconden,
+                "traagste_call": self.traagste_call, "stiltes": self.stiltes,
+                "stilte_seconden": self.stilte_seconden}
+
+
+_spoor = Storingsspoor()
+
+
+def begin_spoor() -> Storingsspoor:
+    """Start het spoor van één training; geeft het lopende spoor terug.
+
+    Modulevariabele om dezelfde reden als `_deadline`: `_stream_bericht` wordt langs vijf
+    paden bereikt en vanuit twee lussen, en een parameter zou bij elk van hen vergeten kunnen
+    worden. Bewust géén contextmanager zoals `tijdsbudget`, en dat verschil is functioneel: de
+    batchlus leest het spoor uit ná de training, óók (juist) als die omviel. Een manager die
+    bij het verlaten opruimt zou precies het geval wissen waarvoor dit bestaat.
+    """
+    global _spoor
+    _spoor = Storingsspoor()
+    return _spoor
+
+
+def huidig_spoor() -> Storingsspoor:
+    """Het spoor van de training die nu draait, of van de laatste die draaide."""
+    return _spoor
+
+
 def _extract_tool_input(response, tool_name: str) -> dict | None:
     for block in response.content:
         if getattr(block, "type", None) == "tool_use" and block.name == tool_name:
@@ -1614,6 +1696,39 @@ def _netwerkfouten() -> tuple[type[BaseException], ...]:
             anthropic.APIConnectionError)
 
 
+# Waarop clusteren fouten? `reden` is een zin voor een mens en per uitzondering anders
+# geformuleerd; hierop kun je groeperen.
+FOUT_NETWERK = "netwerk"           # dode lijn, timeout, verbinding weg
+FOUT_LIMIET = "limiet"             # 429: te veel tokens of requests in het venster
+FOUT_OVERBELAST = "overbelast"     # 5xx, waaronder 529 overloaded_error
+FOUT_TIJDSBUDGET = "tijdsbudget"   # `TIJDSBUDGET` verstreken
+FOUT_OVERIG = "overig"             # alles wat aan onze kant misging
+# De drie soorten die bij het MOMENT horen en niet bij deze training. Alleen deze horen te
+# clusteren, en alleen deze verdienen een afkoeling: opnieuw beginnen met dezelfde training
+# lost niets op zolang de lijn ligt, en de volgende training treft dezelfde lijn.
+STORINGSSOORTEN = (FOUT_NETWERK, FOUT_LIMIET, FOUT_OVERBELAST)
+
+
+def _foutsoort(fout: BaseException) -> str:
+    """De uitzondering terug naar één van de vijf soorten hierboven.
+
+    Op `status_code` en niet op het klassetype van de SDK: `RateLimitError` en de 5xx-klassen
+    verschuiven wel eens tussen versies, een statuscode niet. 529 (`overloaded_error`) heeft
+    bij Anthropic geen eigen klasse en valt zo vanzelf onder `overbelast` -- dat is precies de
+    fout waar `MAX_RETRIES` in batch 1 van 2 naar 4 ging.
+    """
+    if isinstance(fout, TijdOverschreden):
+        return FOUT_TIJDSBUDGET
+    code = getattr(fout, "status_code", None)
+    if code == 429:
+        return FOUT_LIMIET
+    if isinstance(code, int) and code >= 500:
+        return FOUT_OVERBELAST
+    if isinstance(fout, _netwerkfouten()):
+        return FOUT_NETWERK
+    return FOUT_OVERIG
+
+
 def _stream_bericht(client, *, model: str, max_tokens: int, system, messages: list[dict],
                     tools: list[dict], extra: dict, wat: str):
     """Eén streamende modelcall, met `NETWERK_HERKANSINGEN` erbij als de lijn wegvalt.
@@ -1631,6 +1746,7 @@ def _stream_bericht(client, *, model: str, max_tokens: int, system, messages: li
     """
     for poging in range(NETWERK_HERKANSINGEN + 1):
         _bewaak_tijd(f"vóór een call naar {wat}")
+        begonnen = time.monotonic()
         try:
             with client.messages.stream(
                 model=model, max_tokens=max_tokens, system=system,
@@ -1638,8 +1754,13 @@ def _stream_bericht(client, *, model: str, max_tokens: int, system, messages: li
             ) as stroom:
                 for _gebeurtenis in stroom:
                     _bewaak_tijd(f"tijdens een call naar {wat}")
-                return stroom.get_final_message()
+                bericht = stroom.get_final_message()
+            _spoor.tel_call(time.monotonic() - begonnen)
+            return bericht
         except _netwerkfouten() as fout:
+            # De stilte wordt geteld vóór de `raise`, dus ook de poging die het opgeeft komt
+            # in het spoor. Anders telt uitgerekend de training die eraan sneuvelde er nul.
+            _spoor.tel_stilte(time.monotonic() - begonnen)
             # Op is op: de aanroeper maakt er via `_mislukte_training` een `error`-rij van, en
             # `bouw_wachtrij` plant die de volgende run gewoon opnieuw in.
             if poging == NETWERK_HERKANSINGEN:
@@ -1830,6 +1951,14 @@ class RewriteResult:
     # Wandkloktijd van deze training. Meetkolom, geen reviewwerk: `TIJDSBUDGET` staat op een
     # schatting zolang niemand weet hoe lang een training normaal duurt.
     seconden: float = 0.0
+    # Wannéér draaide deze training, en waar ging de tijd heen? Zonder `gestart_op` is de
+    # volgorde van een run achteraf alleen nog uit de mtimes van de artefacten te
+    # reconstrueren, en die verschuiven zodra een training opnieuw draait -- precies de
+    # trainingen waar het om gaat. `fout_soort` (alleen bij `error`) is de sleutel waarop je
+    # groepeert, `storingen` het spoor uit `Storingsspoor.als_dict()`.
+    gestart_op: str = ""
+    fout_soort: str = ""
+    storingen: dict = field(default_factory=dict)
 
 
 def bepaal_vervolgstappen(client, b: RewriteBriefing, catalog: list[dict],
@@ -1898,7 +2027,7 @@ def _mislukte_training(b: RewriteBriefing, fout: BaseException,
     return RewriteResult(b.training_id, b.nieuwe_titel, "error",
                          reden=reden[:200], thin=b.thin, oude_titel=b.titel,
                          modus=b.modus, modus_voorstel=b.modus_voorstel,
-                         spec_versie=spec_versie())
+                         spec_versie=spec_versie(), fout_soort=_foutsoort(fout))
 
 
 def _pogingen_op(b: RewriteBriefing, laatste_beoordeeld: dict | None, laatste_schrijver: dict,
@@ -1963,6 +2092,31 @@ def _pogingen_op(b: RewriteBriefing, laatste_beoordeeld: dict | None, laatste_sc
                          **gedeeld_altijd)
 
 
+def _begin_meting() -> tuple[str, float]:
+    """Wandkloktijd + monotone start van één training, en een schoon storingsspoor.
+
+    Twee klokken, want ze beantwoorden verschillende vragen: `datetime` zegt wannéér (en dus
+    of twee fouten bij elkaar in de tijd liggen), `monotonic` hoe lang (en die verspringt niet
+    bij een zomertijd of een NTP-correctie midden in een batch van drie uur).
+    """
+    begin_spoor()
+    return datetime.now().isoformat(timespec="seconds"), time.monotonic()
+
+
+def _stempel_meting(res: RewriteResult, gestart_op: str, start: float) -> RewriteResult:
+    """De drie meetvelden op één resultaat, langs elk pad hetzelfde.
+
+    Eén functie in plaats van drie keer dezelfde toekenning, om dezelfde reden als
+    `build_check_ctx`: `rewrite_one`, de overnemen-lus en de herschrijflus stempelen alle drie,
+    en drie kopieën is meteen de plek waar er eentje achterloopt. Precies wat er bij
+    `_pogingen_op` gebeurde, waar één uitgang `writer_out` en de flags niet meekreeg.
+    """
+    res.gestart_op = gestart_op
+    res.seconden = round(time.monotonic() - start, 1)
+    res.storingen = huidig_spoor().als_dict()
+    return res
+
+
 def rewrite_one(client, b: RewriteBriefing, catalog: list[dict],
                 boom: dict | None = None) -> RewriteResult:
     """Schrijver -> code-check -> judge -> revisie of route, binnen één tijdsbudget.
@@ -1972,13 +2126,12 @@ def rewrite_one(client, b: RewriteBriefing, catalog: list[dict],
     `TijdOverschreden` en is dat voor de aanroeper een gewone fout -- één `error`-rij, en de
     volgende training gaat gewoon door.
     """
-    start = time.monotonic()
+    gestart_op, start = _begin_meting()
     with tijdsbudget():
         res = _schrijf_en_beoordeel(client, b, catalog, boom)
     # De batch meet zelf opnieuw (daar telt ook een mislukte training mee, en die levert geen
     # resultaat op om het getal in te zetten); dit is voor de losse aanroepen.
-    res.seconden = round(time.monotonic() - start, 1)
-    return res
+    return _stempel_meting(res, gestart_op, start)
 
 
 def _schrijf_en_beoordeel(client, b: RewriteBriefing, catalog: list[dict],
@@ -3237,6 +3390,15 @@ def _review_rij(res: RewriteResult, content: dict, content_bron: dict | None = N
         # en `n_rondes` laat zien hoeveel schrijverspogingen een training kostte.
         "n_rondes": len(res.rondes),
         "seconden": res.seconden,
+        # Idem, en om deze vier draait de vraag of fouten clusteren. `gestart_op` maakt de
+        # rijen vergelijkbaar in de tijd (het sheet zelf staat niet in runvolgorde:
+        # `drop_duplicates(keep="last")` zet een opnieuw gedraaide training achteraan), en
+        # `n_stiltes` staat óók bij een geslaagde training -- dat zijn de 198 rijen die nu
+        # niets zeggen over het moment waarop ze draaiden.
+        "gestart_op": res.gestart_op,
+        "fout_soort": res.fout_soort,
+        "n_stiltes": res.storingen.get("stiltes", 0),
+        "stilte_seconden": res.storingen.get("stilte_seconden", 0.0),
     }
     plat = uit.content_naar_platte_tekst(content, res.titel) if content else {}
     for kopje in sjabloon.KOPJES:
@@ -3567,6 +3729,11 @@ def schrijf_training_artefacten(json_dir: str, tid: Any, res: RewriteResult,
         # is wat de vraag "helpt een revisie erbij?" beantwoordt. `seconden` hoort in datzelfde
         # rijtje: het is de meting waarop `TIJDSBUDGET` wordt bijgesteld.
         "rondes": res.rondes, "seconden": res.seconden,
+        # En hetzelfde rijtje voor de vraag daarnaast: draaide deze training in een goed of
+        # in een slecht moment? `storingen` telt ook de stiltes die de training overleefde,
+        # dus dit veld zegt óók iets bij een `approved`.
+        "gestart_op": res.gestart_op, "fout_soort": res.fout_soort,
+        "storingen": res.storingen,
     }, f, ensure_ascii=False, indent=2, default=_json_default))
 
     md_pad = os.path.join(json_dir, f"{tid}.md")
@@ -3591,6 +3758,130 @@ def bewaar_training(out_dir: str, res: RewriteResult, content_bron: dict | None 
     content_uit = uit.document_to_content(res.document, content_bron or {}) if res.document else {}
     return schrijf_training_artefacten(artefact_dir(out_dir, batch),
                                        res.training_id, res, content_uit)
+
+
+VERLOOP_LOG = "verloop.jsonl"
+
+
+def _log_verloop(out_dir: str, run_id: str, positie: int, res: RewriteResult,
+                 batch: str | None = None, verbose: bool = True) -> None:
+    """Eén regel per training per run, append-only: de enige plek die een herkansing niet wist.
+
+    `<id>.json` en de reviewrij worden allebei overschreven zodra een gestrande training de
+    volgende run alsnog slaagt -- `bouw_wachtrij` draagt error-rijen bewust opnieuw aan en
+    `drop_duplicates(..., keep="last")` doet de rest. Gemeten gevolg: van vier batches stonden
+    er nog 3 error-rijen op 201 trainingen, en de volgorde waarin ze draaiden was alleen nog
+    uit de mtimes van de artefacten te reconstrueren. De vraag "volgt een fout op een fout?"
+    was daarmee niet meer te stellen, en dat is een bewaarkeuze en geen toeval.
+
+    `positie` is de plek in DEZE run, en dat is precies het getal dat het sheet niet heeft:
+    daar staat een opnieuw gedraaide training achteraan in plaats van waar hij liep.
+
+    Per training weggeschreven en niet aan het eind van de lus, om dezelfde reden waarom een
+    uitzondering per training wordt opgevangen: `herschreven.xlsx` verschijnt pas ná de lus,
+    dus een run die halverwege afbreekt laat anders niets achter -- en juist een run die
+    afbreekt is er een waarvan je het verloop wilt terugzien.
+
+    Een mislukte regel is geen mislukte training, net als een mislukte opmerking bij het
+    Drive-doc: de tekst staat er, dit is een meting ernaast.
+    """
+    regel = {"run": run_id, "positie": positie, "gestart_op": res.gestart_op,
+             "training_id": res.training_id, "batch": str(batch or ""),
+             "status": res.status, "fout_soort": res.fout_soort,
+             "modus": res.modus, "seconden": res.seconden, "n_rondes": len(res.rondes),
+             "reden": " ".join(str(res.reden or "").split())[:200],
+             **(res.storingen or {})}
+    try:
+        with open(os.path.join(out_dir, VERLOOP_LOG), "a", encoding="utf-8") as f:
+            f.write(json.dumps(regel, ensure_ascii=False, default=_json_default) + "\n")
+    except OSError as e:
+        if verbose:
+            print(f"  (verloop van {res.training_id} niet gelogd: {type(e).__name__}: {e})",
+                  file=sys.stderr)
+
+
+def _storing_uit(status: str, fout_soort: str, stiltes: Any) -> bool:
+    """Hoort deze fout bij het moment of bij deze training? Alleen de eerste koelt af.
+
+    Een `TijdOverschreden` telt mee zodra er stiltes in het spoor staan: dan is het budget niet
+    opgegaan aan werk maar aan wachten, en dat is dezelfde storing in een andere jas. Training
+    2483 verbrandde zo 1571 s terwijl zijn buren 164 s en 202 s deden. Zonder stiltes is het
+    juist géén storing maar een trage training, en dan helpt wachten niets.
+
+    Op de drie losse waarden en niet op een `RewriteResult`, zodat `lees_verloop` dezelfde
+    definitie gebruikt als de afkoeling. Anders meet de analyse iets anders dan de batch deed,
+    en dat is precies het soort verschil dat je nooit terugvindt.
+    """
+    if status != "error":
+        return False
+    if fout_soort in STORINGSSOORTEN:
+        return True
+    return fout_soort == FOUT_TIJDSBUDGET and bool(stiltes)
+
+
+def _is_storing(res: RewriteResult) -> bool:
+    return _storing_uit(res.status, res.fout_soort, (res.storingen or {}).get("stiltes"))
+
+
+def lees_verloop(out_dir: str):
+    """Het verloop van alle runs als DataFrame, met de kolom waar de vraag om draait.
+
+    Inlezen is één regel pandas; wat deze functie toevoegt is `na_storing`: viel de VORIGE
+    training in dezelfde run op een storing? Dat is de definitie van clustering, en die hoort
+    één keer in code te staan en niet in een wegwerpscript naast elke analyse. Daarmee is de
+    vraag een `groupby`:
+
+        v = lees_verloop("herschreven")
+        v.groupby("na_storing")["storing"].mean()
+
+    Staat er in de tweede rij een hoger percentage dan in de eerste, dan volgen fouten op
+    fouten. `stiltes` doet in dezelfde tabel mee, en dat is het gevoeligere getal: storingen
+    zijn zeldzaam (3 op 201 over vier batches), opgevangen stiltes niet.
+    """
+    import pandas as pd
+    pad = os.path.join(out_dir, VERLOOP_LOG)
+    if not os.path.exists(pad) or not os.path.getsize(pad):
+        return pd.DataFrame()
+    df = pd.read_json(pad, lines=True)
+    # Sorteren op (run, positie) en niet op de regelvolgorde: het bestand is append-only, dus
+    # een run die na een afgebroken run opnieuw begint staat erachter maar hoort apart.
+    df = df.sort_values(["run", "positie"]).reset_index(drop=True)
+    df["storing"] = [_storing_uit(s, f, n) for s, f, n
+                     in zip(df["status"], df["fout_soort"].fillna(""), df["stiltes"])]
+    # `fill_value` en geen `fillna` erachter: de eerste training van een run heeft geen
+    # voorganger, en fillna op een object-kolom is bij pandas een downcast met een waarschuwing.
+    df["na_storing"] = df.groupby("run")["storing"].shift(1, fill_value=False).astype(bool)
+    return df
+
+
+@dataclass
+class Afkoeling:
+    """Pauze vóór de volgende training, zolang de vorige op een storing sneuvelde.
+
+    Vóór en niet ná, en dat scheelt: zo wacht de batch nooit achter zijn laatste training aan.
+
+    De teller loopt op `opeenvolgend` en niet op de wachttijd zelf, zodat `wacht()` idempotent
+    is: hij slaapt één keer per training, ook als de lus hem twee keer zou aanroepen.
+    """
+    verbose: bool = True
+    opeenvolgend: int = 0             # storingen op rij; terug op 0 na een training die liep
+    seconden: float = 0.0             # wat de volgende training moet wachten
+
+    def na(self, res: RewriteResult) -> None:
+        if not _is_storing(res):
+            self.opeenvolgend, self.seconden = 0, 0.0
+            return
+        self.opeenvolgend += 1
+        self.seconden = min(AFKOELING_START * 2 ** (self.opeenvolgend - 1), AFKOELING_MAX)
+
+    def wacht(self) -> None:
+        if not self.seconden:
+            return
+        wachttijd, self.seconden = self.seconden, 0.0
+        if self.verbose:
+            print(f"  ({self.opeenvolgend}e storing op rij; {wachttijd:g} s afkoelen voor "
+                  f"de volgende training)", file=sys.stderr)
+        time.sleep(wachttijd)
 
 
 def _werk_xlsx_rij_bij(out_path: str, res: RewriteResult, content_uit: dict, verbose=True,
@@ -3885,6 +4176,9 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
     - trainingen/[<batch>/]<id>.json   lossless: document + CMS-content + oordeel
     - trainingen/[<batch>/]<id>.md     het leesbare document (kopstructuur van het template)
     - herschreven.xlsx                 tabblad `cms` (id/name/content) + tabblad `review`
+    - verloop.jsonl                    append-only, één regel per training per run; de eerste
+                                       drie worden overschreven zodra een training opnieuw
+                                       draait, deze niet (zie `_log_verloop`)
 
     `batch` zet de artefacten in een eigen submap. Dat is wat een Drive-map per batch mogelijk
     maakt: zonder die scheiding is er op schijf niets wat batch 1 van batch 2 onderscheidt, en
@@ -3953,6 +4247,17 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
     client = make_client() if len(scored_sel) or len(overnemen) else None
 
     cms_records, review_records = [], []
+    # Eén run-id en één afkoeling over beide lussen heen: het `overnemen`-spoor doet ook calls
+    # zodra er een goedgekeurde actualisering ligt, dus een storing daar hoort de herschrijflus
+    # net zo goed te vertragen. `positie` telt over beide lussen door, want dat is de volgorde
+    # waarin het netwerk ze zag.
+    # Tot op de milliseconde, en dat is geen overdaad: op secondeprecisie krijgen twee runs die
+    # binnen dezelfde seconde starten hetzelfde id, en dan lijkt de tweede run een vervolg van
+    # de eerste. `lees_verloop` sorteert op (run, positie) en zet dan de verkeerde buren naast
+    # elkaar -- precies de fout die de analyse zou maken.
+    run_id = datetime.now().strftime("%Y%m%dT%H%M%S%f")[:-3]
+    afkoeling = Afkoeling(verbose)
+    positie = 0
 
     # 1. de trainingen die al aan het format voldoen (modus `overnemen`). Zonder goedgekeurde
     #    actualiseringen kost dit pad geen enkele API-call.
@@ -3967,25 +4272,26 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
         naam = str(scored_dict.get("titel") or src_row[cols["name"]] or "")
         content_bron = parse_content(src_row[cols["content"]])
         b = build_briefing(scored_dict, content_bron, naam, per_training.get(tid, []))
-        start = time.monotonic()
+        afkoeling.wacht()
+        gestart_op, start = _begin_meting()
         try:
             res, content_uit = neem_over(b, client)
         except Exception as e:
             # Ook dit spoor doet API-calls zodra er een goedgekeurde actualisering ligt,
             # dus het kan op dezelfde manier omvallen als lus 2 hieronder.
             res, content_uit = _mislukte_training(b, e, verbose), {}
-            res.seconden = round(time.monotonic() - start, 1)
-            schrijf_training_artefacten(json_dir, tid, res, content_uit)
-            review_records.append(_review_rij(res, content_uit, content_bron))
-            continue
-        res.seconden = round(time.monotonic() - start, 1)
+        _stempel_meting(res, gestart_op, start)
+        positie += 1
         # Ook dit spoor legt zijn artefact vast. Tot deze ronde deed het dat niet, en dan
         # bestaat een overgenomen training nergens op schijf: niet te inspecteren in sectie 7
         # en niet te uploaden naar Drive, terwijl een reviewer hem net zo goed moet lezen.
         schrijf_training_artefacten(json_dir, tid, res, content_uit)
-        cms_records.append({"id": tid, "name": res.titel,
-                            "content": json.dumps(content_uit, ensure_ascii=False, default=_json_default)})
+        _log_verloop(out_dir, run_id, positie, res, batch, verbose)
+        if res.status != "error":
+            cms_records.append({"id": tid, "name": res.titel,
+                                "content": json.dumps(content_uit, ensure_ascii=False, default=_json_default)})
         review_records.append(_review_rij(res, content_uit, content_bron))
+        afkoeling.na(res)
     if verbose and len(overnemen):
         print(f"{len(overnemen)} trainingen op modus 'overnemen' doorgezet")
 
@@ -3997,8 +4303,13 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
         src_row = src_by_id.get(tid)
         content_bron = parse_content(src_row[cols["content"]]) if src_row is not None else {}
 
+        afkoeling.wacht()
         if scored_dict.get("ok") is False:
-            res = RewriteResult(tid, naam, "error", reden="scoring mislukt")
+            # Geen call gedaan en niets te meten: dit is een gat in het scoresheet en niet
+            # iets dat het netwerk raakt. `overig` dus, zodat het nooit voor een storing
+            # wordt aangezien en de batch er niet op gaat wachten.
+            res = RewriteResult(tid, naam, "error", reden="scoring mislukt",
+                                fout_soort=FOUT_OVERIG)
         else:
             if src_row is None and verbose:
                 print(f"  (geen bron gevonden voor id {tid}; alleen scorer-feiten)")
@@ -4009,17 +4320,21 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
             # het juiste antwoord. Binnen de vangst staat alleen wat het netwerk raakt.
             b = build_briefing(scored_dict, content_bron, naam, per_training.get(tid, []))
             # Buiten de vangst gemeten, want juist de training die omvalt -- op het tijdsbudget
-            # of op wat dan ook -- is degene waarvan je de duur wilt terugzien.
-            start = time.monotonic()
+            # of op wat dan ook -- is degene waarvan je de duur en het storingsspoor wilt
+            # terugzien. `_begin_meting` zet het spoor op nul; `rewrite_one` doet dat nog eens
+            # voor zijn eigen aanroepers, en dat is dezelfde meting.
+            gestart_op, start = _begin_meting()
             try:
                 res = rewrite_one(client, b, catalog, boom)
             except Exception as e:
                 res = _mislukte_training(b, e, verbose)
-            res.seconden = round(time.monotonic() - start, 1)
+            _stempel_meting(res, gestart_op, start)
 
         content_uit = uit.document_to_content(res.document, content_bron) if res.document else {}
 
+        positie += 1
         schrijf_training_artefacten(json_dir, tid, res, content_uit)
+        _log_verloop(out_dir, run_id, positie, res, batch, verbose)
 
         if res.status == APPROVED and content_uit:
             cms_records.append({"id": tid, "name": res.titel,
@@ -4032,6 +4347,7 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
                   f"{tid:>6} {naam[:40]:40} "
                   f"[{res.modus:9}] -> {res.status}"
                   + (f" ({res.reden})" if res.reden else ""))
+        afkoeling.na(res)
 
     cms = pd.DataFrame.from_records(cms_records)
     review = pd.DataFrame.from_records(review_records)

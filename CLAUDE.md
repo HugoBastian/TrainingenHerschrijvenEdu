@@ -489,6 +489,37 @@ schrijver). Zonder dat spoor was over batch 1 niet meer na te gaan waarom vijf t
 revisielimiet strandden. `seconden` staat ook in het review-tabblad, naast `n_rondes`, en is het
 getal waarop `TIJDSBUDGET` hoort te worden bijgesteld -- dat staat nu op een schatting.
 
+En sinds augustus 2026 `gestart_op`, `fout_soort` en `storingen`, die samen een andere vraag
+beantwoorden: niet wat een training kostte, maar in wat voor moment hij draaide.
+
+- **`storingen` komt uit `Storingsspoor`** (`begin_spoor()` / `huidig_spoor()`, gevuld door
+  `_stream_bericht`) en telt calls, callseconden, de traagste call en de **stiltes**: elke
+  gevangen netwerkfout, ook die waarna de herkansing wél lukte. Dat laatste is het hele punt.
+  Een training die drie stiltes opving en toch slaagde was niet te onderscheiden van een die
+  schoon doorliep, en daarmee zei het corpus niets over het moment: over vier batches staan er
+  3 error-rijen tegen 198 geslaagde trainingen. De fouten zijn te zeldzaam om op te toetsen, de
+  bijna-fouten niet. `traagste_call` is meteen de enige plek waar de retries van `MAX_RETRIES`
+  zichtbaar worden -- die backoffen buiten ons zicht;
+- **`fout_soort`** (`netwerk` / `limiet` / `overbelast` / `tijdsbudget` / `overig`) is de sleutel
+  waarop je groepeert; `reden` is een zin voor een mens en per uitzondering anders geformuleerd.
+  `_foutsoort` kijkt naar `status_code` en niet naar het klassetype van de SDK: 529
+  (`overloaded_error`) heeft bij Anthropic geen eigen klasse.
+
+**`verloop.jsonl` naast `herschreven.xlsx` is append-only, en dat is de kern.** Eén regel per
+training per run, per training weggeschreven en niet aan het eind van de lus. `<id>.json` en de
+reviewrij worden allebei overschreven zodra een gestrande training de volgende run alsnog
+slaagt -- `bouw_wachtrij` draagt error-rijen bewust opnieuw aan en `drop_duplicates(keep="last")`
+doet de rest. Gevolg: van vier batches waren er nog 3 error-rijen over, stond er nergens een
+tijdstip, en was de runvolgorde alleen nog uit de mtimes van de artefacten te reconstrueren --
+die verschuiven juist bij de trainingen waar het om gaat. De kolom `positie` staat er daarom bij:
+in het sheet staat een opnieuw gedraaide training achteraan in plaats van waar hij liep.
+
+`lees_verloop(out_dir)` leest het terug met de kolom `na_storing` erbij (viel de vorige training
+in **dezelfde** run op een storing?). Die definitie hoort één keer in code te staan en niet in
+een wegwerpscript naast elke analyse; `_storing_uit` is dezelfde functie die de afkoeling
+gebruikt, zodat de meting niet iets anders telt dan de batch deed. Daarmee is de vraag een
+`groupby("na_storing")["storing"].mean()`.
+
 ### De tijdgrenzen: één stiltelimiet en één plafond
 
 De SDK-defaults (600 s, 2 retries) lezen als een grens per call maar zijn dat niet. Bij
@@ -515,6 +546,26 @@ training 47 draaide 81 minuten voordat hij alsnog op een ReadTimeout sneuvelde.
   maar `_call_tool` had er niets tegenover te zetten en de hele training was weg. De herkansing
   weegt licht omdat er aan onze kant niets is gebeurd: geen document, geen bestand, alleen
   tokens. `_bewaak_tijd` staat vóór elke poging, dus dicht bij de deadline herkanst hij niet.
+
+Daar is er een vierde bij gekomen, en die staat niet in een call maar ertussen: **`AFKOELING_START`
+(60 s, verdubbelend tot `AFKOELING_MAX` = 8 min) is er tegen fouten die niet bij één training
+horen.** `rewrite_file` begon de volgende training milliseconden na de vorige, dus een storing
+die minuten duurt nam ze allemaal mee. Batch 4 liet zien dat die storingen zo lang leven: 2410
+(909,5 s) en 2412 (429,4 s) sneuvelden allebei op een ReadTimeout, en bij allebei viel óók de
+directe herkansing van `_stream_bericht` om -- die fout leefde dus aantoonbaar langer dan één
+volledige call. Drie dingen om te weten:
+
+- **`Afkoeling.wacht()` staat vóór de training en niet erna**, anders wacht de batch achter zijn
+  laatste training aan. De teller loopt op `opeenvolgend`, zodat `wacht()` één keer slaapt per
+  training en de verdubbeling toch klopt. Eén training die wél liep zet hem terug op nul;
+- **`_is_storing` bepaalt wie afkoelt, en een `TijdOverschreden` telt alleen mee mét stiltes in
+  het spoor.** Dan is het budget niet opgegaan aan werk maar aan wachten -- training 2483
+  verbrandde 1571 s terwijl zijn buren 164 s en 202 s deden. Zonder stiltes is het een trage
+  training en helpt wachten niets;
+- **de afkoeling vertraagt de batch, ze stopt hem niet.** Een storingsvenster kost nog steeds
+  trainingen; wat 60 s koopt is dat de volgende poging buiten het venster valt. Blijkt uit
+  `verloop.jsonl` dat er ook ná de afkoeling nog reeksen staan, dan is het antwoord het
+  requeuen van een netwerkfout achteraan in de wachtrij en niet een langere pauze.
 
 De deadline staat als modulevariabele achter `tijdsbudget()` en niet als parameter. `_call_tool`
 wordt langs vijf paden bereikt (schrijver, judge, vervolgstappen, modus, actualisering) en
