@@ -353,6 +353,29 @@ detail: `bouw_wachtrij` slaat over wat al in `herschreven.xlsx` staat, dus een t
 run 1 wel werd geschreven maar niet geüpload, komt in run 2 niet meer langs en zou nooit op
 Drive belanden. Om dezelfde reden draait de upload ook door als de wachtrij leeg is.
 
+### Het sublabel zit in de docnaam, en verandert buiten de code om
+
+Een deel van de catalogus wordt onder een sublabel aangeboden; die docs heten
+`{id} - SA | {titel} (automatisch herschreven)`, de rest houdt de naam zonder voorvoegsel. De 49
+id's staan in `sa_products.json` (een uitdraai uit het CMS) en niet in code, om dezelfde reden
+als de few-shot in `goud_v2/selectie.json`. Uit dat bestand komen **alleen de id's**: de titel
+die erin staat is de oude uit het CMS en de herschrijver bepaalt de nieuwe. `SUBLABEL_IDS` wordt
+bij import gevuld, dus na een wijziging is een verse import (kernelherstart) nodig; ontbreekt het
+bestand, dan meldt `sublabel_ids()` dat naar stderr in plaats van stil alle labels te laten
+vallen -- dat zie je anders pas in de Drive-lijst, en dan staan de docs er al.
+
+Twee dingen die daaruit volgen:
+
+- **een doc dat er al staat maar nog zonder label heet, wordt hernoemd**, ook op het
+  `overslaan`-pad. Dat pad beschermt de *inhoud* (een reviewer verliest zijn ankers zodra de
+  tekst eronder wordt vervangen); `files.update` met alleen een naam raakt de tekst niet. Bij het
+  invoeren van het label stonden er 12 SA-trainingen in Batch 1 t/m 4 onder hun oude naam;
+- **`zonder_sublabel` vergelijkt de twee namen kaal**, zodat alleen het label een hernoeming
+  oplevert en een gewijzigde titel niet. Een nieuwe titel hoort bij nieuwe inhoud, en juist die
+  wordt hier overgeslagen: hernoemen zou dan een naam op een doc zetten die de tekst erin niet
+  heeft. Daarom bewaart het manifest de naam die **op Drive** staat en niet de naam die de code
+  zou kiezen -- anders wist een volgende run niet meer dat er iets te hernoemen viel.
+
 ### Batches zijn submappen, en dat is wat de Drive-mappen scheidt
 
 `herschreven/trainingen/<batch>/<id>.json`. Zonder die scheiding is er op schijf niets wat

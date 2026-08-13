@@ -4252,6 +4252,127 @@ def test_docnaam_klapt_witruimte_in_de_titel_in():
         "27 - Training SQL Basis (automatisch herschreven)"
 
 
+@contextlib.contextmanager
+def _sublabel(ids):
+    """De sublabellijst tijdelijk vervangen, zodat de tests niet aan `sa_products.json` hangen.
+
+    Dat bestand komt uit het CMS en verandert buiten de code om; een test die een id uit die
+    uitdraai vastlegt, valt om zodra het reviewteam er een training uit haalt.
+    """
+    oud = drive.SUBLABEL_IDS
+    drive.SUBLABEL_IDS = frozenset(str(i) for i in ids)
+    try:
+        yield
+    finally:
+        drive.SUBLABEL_IDS = oud
+
+
+def test_docnaam_zet_het_sublabel_voor_de_titel():
+    with _sublabel([173]):
+        assert drive.docnaam(173, "Training Commercieel Schrijven") == \
+            "173 - SA | Training Commercieel Schrijven (automatisch herschreven)"
+        assert drive.docnaam(174, "Training Commercieel Schrijven") == \
+            "174 - Training Commercieel Schrijven (automatisch herschreven)"
+
+
+def test_docnaam_gebruikt_de_titel_van_de_herschrijver_en_niet_die_uit_het_cms():
+    """`sa_products.json` levert alleen de id's; de titel komt uit het artefact."""
+    with _sublabel([231]):
+        assert drive.docnaam(231, "Training Sociale Media: Van Doel naar Resultaat") == \
+            ("231 - SA | Training Sociale Media: Van Doel naar Resultaat "
+             "(automatisch herschreven)")
+
+
+def test_sublabel_ids_leest_de_uitdraai_uit_het_cms():
+    with tempfile.TemporaryDirectory() as d:
+        pad = os.path.join(d, "sa.json")
+        with open(pad, "w", encoding="utf-8") as f:
+            json.dump({"173": {"product_id": 173, "titel": "Training Commercieel Schrijven"},
+                       "2406": {"product_id": 2406, "titel": "Opleiding Customer Journey "}}, f)
+        assert drive.sublabel_ids(pad) == frozenset({"173", "2406"})
+
+
+def test_sublabel_ids_meldt_een_ontbrekend_bestand_in_plaats_van_stil_te_vallen():
+    """Stil geen labels zie je pas in de Drive-lijst, en dan staan de docs er al."""
+    uitvoer = io.StringIO()
+    with contextlib.redirect_stderr(uitvoer):
+        assert drive.sublabel_ids("/bestaat/niet/sa.json") == frozenset()
+    assert "SA" in uitvoer.getvalue()
+
+
+def test_het_sublabelbestand_van_dit_project_levert_id_s():
+    """De uitdraai hoort naast de code te staan; zonder bestand krijgt geen enkel doc een label."""
+    assert len(drive.SUBLABEL_IDS) > 0, "sa_products.json ontbreekt of is leeg"
+
+
+def test_upload_hernoemt_een_doc_dat_nog_zonder_sublabel_heet():
+    """De 12 SA-trainingen van batch 1 t/m 3 stonden er al onder hun oude naam."""
+    service = _fake_drive()
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 173, titel="Training Commercieel Schrijven")
+        with _sublabel([]):     # de upload van toen, nog zonder sublabel
+            drive.upload_naar_drive(d, "batch 1", service=service, root_id="root", verbose=False)
+        with _sublabel([173]):
+            res = drive.upload_naar_drive(d, "batch 1", service=service, root_id="root",
+                                          verbose=False)
+            manifest = drive.lees_manifest(d)
+    naam = "173 - SA | Training Commercieel Schrijven (automatisch herschreven)"
+    assert res["hernoemd"] == [173] and res["overgeslagen"] == [173]
+    assert [c["body"] for c in service.vervangen] == [{"name": naam}]
+    # geen tweede doc, en het manifest weet daarna hoe het doc heet
+    assert len([c for c in service.gemaakt if c["body"]["mimeType"] == drive.DOC_MIME]) == 1
+    assert manifest["docs"]["173"]["naam"] == naam
+
+
+def test_upload_hernoemt_niet_bij_een_gewijzigde_titel():
+    """Een nieuwe titel hoort bij nieuwe inhoud, en die zet `overslaan` juist niet in het doc."""
+    service = _fake_drive()
+    with tempfile.TemporaryDirectory() as d, _sublabel([173]):
+        _artefact(d, 173, titel="Training Commercieel Schrijven")
+        drive.upload_naar_drive(d, "batch 1", service=service, root_id="root", verbose=False)
+        _artefact(d, 173, titel="Training Zakelijk Schrijven")
+        res = drive.upload_naar_drive(d, "batch 1", service=service, root_id="root",
+                                      verbose=False)
+    assert res["hernoemd"] == [] and not service.vervangen
+
+
+def test_upload_vindt_het_doc_van_voor_het_sublabel_op_zijn_oude_naam():
+    """Zonder deze tweede zoektocht levert een weggegooid manifest een tweede doc op."""
+    oud = "173 - Training Commercieel Schrijven (automatisch herschreven)"
+    service = _fake_drive(bestaand=[{"id": "d9", "name": oud, "webViewLink": "https://docs/d9"}])
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 173, titel="Training Commercieel Schrijven")
+        with _sublabel([173]):
+            res = drive.upload_naar_drive(d, "batch 1", service=service, root_id="root",
+                                          verbose=False)
+    assert res["hernoemd"] == [173] and res["urls"][173] == "https://docs/d9"
+    assert not [c for c in service.gemaakt if c["body"]["mimeType"] == drive.DOC_MIME]
+
+
+def test_een_mislukte_hernoeming_kost_het_doc_niet():
+    """Het doc staat er en is bruikbaar; alleen de naam klopt nog niet."""
+    service = _fake_drive()
+
+    def _stuk(**_):
+        raise _DriveFout("403 op de hernoeming")
+
+    with tempfile.TemporaryDirectory() as d:
+        _artefact(d, 173, titel="Training Commercieel Schrijven")
+        with _sublabel([]):     # de upload van toen, nog zonder sublabel
+            drive.upload_naar_drive(d, "batch 1", service=service, root_id="root", verbose=False)
+        service.files().update = _stuk
+        uitvoer = io.StringIO()
+        with contextlib.redirect_stdout(uitvoer), _sublabel([173]):
+            res = drive.upload_naar_drive(d, "batch 1", service=service, root_id="root",
+                                          verbose=False)
+            manifest = drive.lees_manifest(d)
+    assert res["mislukt"] == [] and res["overgeslagen"] == [173] and res["hernoemd"] == []
+    assert "hernoemen mislukt" in uitvoer.getvalue()
+    # het manifest houdt de naam vast die op Drive staat, zodat de volgende run het opnieuw doet
+    assert manifest["docs"]["173"]["naam"] == \
+        "173 - Training Commercieel Schrijven (automatisch herschreven)"
+
+
 def test_upload_zet_de_conversie_mimetype_op_google_docs():
     """Doelformaat in de body, bronformaat in de media: dat verschil is de hele conversie."""
     service = _fake_drive()

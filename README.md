@@ -286,6 +286,20 @@ Elk doc heet `{id} - {titel} (automatisch herschreven)`. Drive converteert de HT
 documentoverzicht-zijbalk en de modules houden hun sub-bullets. De links belanden in de kolom
 `drive_url` van het review-tabblad.
 
+**Trainingen van het sublabel krijgen `SA | ` voor de titel**: `{id} - SA | {titel} (automatisch
+herschreven)`. Welke dat zijn staat in `sa_products.json`, een uitdraai uit het CMS met 49 id's;
+alleen die id's tellen, want de titel die daarin staat is de oude en de herschrijver bepaalt de
+nieuwe. Het bestand wordt bij import gelezen (`SUBLABEL_IDS`), dus wie het bijwerkt herstart in
+het notebook de kernel.
+
+Een doc dat er al staat maar nog zonder het label heet, wordt **hernoemd** — ook op het
+`overslaan`-pad, want een `files.update` met alleen een naam raakt de inhoud niet en dus ook de
+opmerkingen en hun ankers niet. Dat gebeurt precies dan: `zonder_sublabel` vergelijkt de twee
+namen kaal, zodat een gewijzigde titel géén hernoeming oplevert. Die hoort bij nieuwe inhoud, en
+die zet `bij_bestaand="overslaan"` juist niet in het doc. Het manifest bewaart daarom de naam die
+op Drive staat en niet de naam die de code zou kiezen: anders wist een volgende run niet meer dat
+er iets te hernoemen viel. Het aantal staat in de teruggave als `hernoemd`.
+
 **Elk doc krijgt een opmerking met de flags en de reden voor de human-queue**, zodat een
 reviewer weet waar hij op moet letten voor hij begint te lezen. Alleen de tier `hoog`, net als
 de kolom `flags_hoog` — alles tonen zou hier hetzelfde doen als de oude verzamelkolom deed. Zet

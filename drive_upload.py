@@ -28,6 +28,7 @@ import glob
 import hashlib
 import json
 import os
+import sys
 
 import rewrite_checks as checks
 import rewrite_output as uit
@@ -53,6 +54,14 @@ TOKEN_DEFAULT = "google_token.json"
 # opmerkingenlijst maar niet de ankers -- de reviewer leest dan commentaar dat nergens meer op
 # slaat. Een verouderd doc is minder erg dan losgeslagen commentaar.
 BIJ_BESTAAND = ("overslaan", "nieuwe_versie", "tweede_doc")
+
+# Het sublabel. Een deel van de trainingen wordt onder een sublabel van het hoofdlabel
+# aangeboden, en dat moet in de Drive-lijst te zien zijn zonder een doc te openen: hun naam
+# krijgt `SA | ` voor de titel, de rest houdt de gewone naam. De 49 id's staan in een
+# databestand en niet in code, om dezelfde reden als de few-shot in `goud_v2/selectie.json`:
+# de lijst komt uit het CMS en verandert buiten deze module om.
+SUBLABEL = "SA"
+SUBLABEL_BESTAND = "sa_products.json"
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -112,14 +121,70 @@ def bouw_service(client_secrets: str | None = None, token_pad: str | None = None
 # Namen, mappen en documenten
 # ---------------------------------------------------------------------------
 
-def docnaam(tid, titel: str) -> str:
-    """`{id} - {titel} (automatisch herschreven)`, in één regel.
+def sublabel_ids(pad: str | None = None) -> frozenset:
+    """De training-id's van het sublabel, als strings, uit `sa_products.json`.
+
+    Het bestand is een uitdraai uit het CMS: `{"173": {"product_id": 173, "titel": ...}, ...}`.
+    Alleen de id's tellen. De titel die erin staat is die van het CMS en niet die van de
+    herschrijver, en de laatste is leidend -- zie `docnaam`.
+
+    Ontbreekt het bestand, dan meldt dit dat en krijgt geen enkel doc een label. Stil terugvallen
+    zou hier het verkeerde zijn: je ziet het pas in de Drive-lijst, en dan staan de docs er al.
+    """
+    pad = pad or os.path.join(_HERE, SUBLABEL_BESTAND)
+    if not os.path.exists(pad):
+        print(f"LET OP: {pad} ontbreekt -> geen enkel doc krijgt het label '{SUBLABEL}'",
+              file=sys.stderr)
+        return frozenset()
+    with open(pad, encoding="utf-8") as f:
+        data = json.load(f)
+    # bij een dict is de sleutel het id (en `product_id` in de waarde dezelfde); de sleutel is
+    # de betrouwbaarste van de twee, want daarop is het bestand uniek
+    ruw = list(data) if isinstance(data, dict) else \
+        [r.get("product_id") if isinstance(r, dict) else r for r in data]
+    return frozenset(str(t).strip() for t in ruw if str(t or "").strip())
+
+
+# Bij import, net als `GOUD_VOORBEELDEN` in `rewrite_trainings.py`: wie het bestand bijwerkt
+# heeft een verse import nodig (in het notebook: de kernel herstarten).
+SUBLABEL_IDS = sublabel_ids()
+
+
+def sublabel_van(tid) -> str:
+    """`SA` voor een training van het sublabel, een lege string voor de rest."""
+    return SUBLABEL if str(tid).strip() in SUBLABEL_IDS else ""
+
+
+def docnaam(tid, titel: str, label: str | None = None) -> str:
+    """`{id} - [{label} | ]{titel} (automatisch herschreven)`, in één regel.
 
     Een regeleinde of tab in de titel maakt een Drive-naam die je in de lijst niet meer kunt
     lezen; Drive accepteert hem wel. Vandaar het inklappen van witruimte.
+
+    De titel is die van het artefact, dus die van de herschrijver: `sa_products.json` levert
+    uitsluitend de id's, want de titel daarin is de oude uit het CMS. `label=None` zoekt het
+    sublabel op; geef `""` mee als je er zeker geen wilt.
     """
     schoon = " ".join(str(titel or "").split())
-    return f"{tid} - {schoon} (automatisch herschreven)"
+    merk = sublabel_van(tid) if label is None else str(label).strip()
+    voorvoegsel = f"{merk} | " if merk else ""
+    return f"{tid} - {voorvoegsel}{schoon} (automatisch herschreven)"
+
+
+def zonder_sublabel(naam: str) -> str:
+    """Dezelfde docnaam zonder het sublabelvoorvoegsel.
+
+    Bestaat om "het label is erbij gekomen" te kunnen onderscheiden van "de titel is veranderd".
+    Alleen het eerste mag een doc hernoemen dat een reviewer misschien al open heeft staan; een
+    nieuwe titel hoort bij nieuwe inhoud, en die zet `bij_bestaand="overslaan"` juist niet.
+    """
+    kop, scheiding, staart = str(naam).partition(" - ")
+    if not scheiding:
+        return naam
+    merk, scheiding2, rest = staart.partition(" | ")
+    if scheiding2 and merk.strip() == SUBLABEL:
+        staart = rest
+    return f"{kop}{scheiding}{staart}"
 
 
 def _q_escape(waarde: str) -> str:
@@ -273,6 +338,18 @@ def zet_comment(service, file_id: str, tekst: str, vervang: bool = False) -> Non
         fileId=file_id, body={"content": tekst}, fields="id").execute(num_retries=5)
 
 
+def hernoem_doc(service, file_id: str, naam: str) -> dict:
+    """Alleen de naam van een bestaand doc, zonder de inhoud aan te raken.
+
+    Dat verschil is waarom dit ook op het `overslaan`-pad mag draaien: een `files.update` met
+    alleen een body raakt de tekst niet, dus de opmerkingen van een reviewer houden hun ankers.
+    Wat `bij_bestaand="overslaan"` beschermt is de inhoud; een doc dat in de Drive-lijst onder
+    de verkeerde naam staat is juist wat hier gerepareerd wordt.
+    """
+    return service.files().update(fileId=file_id, body={"name": naam},
+                                  fields="id,name,webViewLink").execute(num_retries=5)
+
+
 def vervang_doc(service, file_id: str, html: str) -> dict:
     """Nieuwe inhoud in een bestaand doc. Alleen op expliciet verzoek; zie `BIJ_BESTAAND`."""
     from googleapiclient.http import MediaIoBaseUpload
@@ -419,7 +496,11 @@ def upload_naar_drive(out_dir: str, drive_map: str, *, service=None, root_id: st
     zie `comment_tekst` en `zet_comment`. `batch` kiest de submap op schijf; laat je hem weg,
     dan pakt `kies_batch` de submap met dezelfde naam als de Drive-map.
 
-    Geeft {"map_id", "map_url", "urls", "nieuw", "overgeslagen", "mislukt"} terug.
+    Een doc dat er al staat maar onder de verkeerde naam wordt hernoemd, en dat gebeurt ook op
+    het `overslaan`-pad: het sublabel uit `sa_products.json` verandert buiten ons om, en een
+    hernoeming raakt de inhoud niet. Zie `hernoem_doc` en `zonder_sublabel`.
+
+    Geeft {"map_id", "map_url", "urls", "nieuw", "overgeslagen", "hernoemd", "mislukt"} terug.
     """
     if bij_bestaand not in BIJ_BESTAAND:
         raise ValueError(f"bij_bestaand moet een van {BIJ_BESTAAND} zijn, niet {bij_bestaand!r}")
@@ -434,7 +515,7 @@ def upload_naar_drive(out_dir: str, drive_map: str, *, service=None, root_id: st
         if verbose:
             print(f"Geen trainingen met content in {bron}/")
         return {"map_id": "", "map_url": "", "urls": {}, "nieuw": [],
-                "overgeslagen": [], "mislukt": []}
+                "overgeslagen": [], "hernoemd": [], "mislukt": []}
     if verbose:
         print(f"{len(trainingen)} trainingen uit {bron}/ -> Drive-map '{drive_map}'")
 
@@ -448,7 +529,7 @@ def upload_naar_drive(out_dir: str, drive_map: str, *, service=None, root_id: st
     map_ = zorg_voor_map(service, drive_map, root_id)
     manifest["mappen"][drive_map] = map_["id"]
 
-    urls, nieuw, overgeslagen, mislukt = {}, [], [], []
+    urls, nieuw, overgeslagen, hernoemd, mislukt = {}, [], [], [], []
     for n, training in enumerate(trainingen, start=1):
         tid = training["training_id"]
         naam = docnaam(tid, training["titel"])
@@ -462,16 +543,41 @@ def upload_naar_drive(out_dir: str, drive_map: str, *, service=None, root_id: st
             if bekend is None:
                 # terugval als het manifest weg is: anders staat er straks een tweede doc naast
                 gevonden = zoek_op_naam(service, naam, map_["id"], DOC_MIME)
+                if gevonden is None and zonder_sublabel(naam) != naam:
+                    # een doc van vóór het sublabel heet nog zonder voorvoegsel, en op de nieuwe
+                    # naam vindt de zoektocht hem niet; zonder deze tweede poging komt er een
+                    # tweede doc naast te staan in plaats van een hernoeming
+                    gevonden = zoek_op_naam(service, zonder_sublabel(naam), map_["id"], DOC_MIME)
                 if gevonden:
                     bekend = {"file_id": gevonden["id"], "url": gevonden.get("webViewLink", ""),
-                              "naam": naam, "map": drive_map, "sha256": ""}
+                              "naam": gevonden.get("name") or naam, "map": drive_map,
+                              "sha256": ""}
+
+            # `naam` is hoe het doc moet heten, `op_drive` hoe het heet. Die twee lopen uiteen
+            # zodra een training in of uit `sa_products.json` komt, en dan is hernoemen genoeg:
+            # de inhoud blijft staan, dus ook de opmerkingen en hun ankers. Bij een gewijzigde
+            # titel gebeurt er niets -- die hoort bij nieuwe inhoud, en die wordt hier juist
+            # overgeslagen.
+            op_drive = (bekend or {}).get("naam") or naam
+            if bekend and op_drive != naam and zonder_sublabel(op_drive) == zonder_sublabel(naam):
+                try:
+                    hernoem_doc(service, bekend["file_id"], naam)
+                    op_drive = naam
+                    hernoemd.append(tid)
+                    if verbose:
+                        print(f"  {tid}: hernoemd naar '{naam}'")
+                except Exception as fout:   # noqa: BLE001 -- het doc zelf is in orde
+                    print(f"  {tid}: hernoemen mislukt ({type(fout).__name__}: {fout}); "
+                          f"het doc heet nog '{op_drive}'")
 
             if bekend and bij_bestaand == "overslaan":
                 urls[tid] = bekend.get("url", "")
                 overgeslagen.append(tid)
                 # de opgeslagen sha blijft staan: hem hier bijwerken zou de melding hieronder
-                # na één run wegpoetsen, terwijl het doc nog steeds de oude tekst toont
-                manifest["docs"][str(tid)] = {**bekend, "naam": naam, "map": drive_map}
+                # na één run wegpoetsen, terwijl het doc nog steeds de oude tekst toont.
+                # `naam` is de naam die op Drive staat en niet de naam die we zouden kiezen:
+                # anders wist het manifest na één run niet meer dat er iets te hernoemen viel
+                manifest["docs"][str(tid)] = {**bekend, "naam": op_drive, "map": drive_map}
                 if verbose and bekend.get("sha256") and bekend["sha256"] != sha:
                     # stil overslaan zou hier het verkeerde zijn: de tekst is sinds de upload
                     # veranderd, en dat is precies het geval waarin je het doc wilt bijwerken
@@ -482,13 +588,16 @@ def upload_naar_drive(out_dir: str, drive_map: str, *, service=None, root_id: st
             else:
                 vervangt = bool(bekend) and bij_bestaand == "nieuwe_versie"
                 if vervangt:
+                    # `files.update` met media raakt de naam niet aan; die stond hierboven al
+                    # goed of is hierboven hernoemd
                     bestand = vervang_doc(service, bekend["file_id"], html)
                 else:
                     bestand = upload_doc(service, html, naam, map_["id"])
+                    op_drive = naam
                 urls[tid] = bestand.get("webViewLink", "")
                 nieuw.append(tid)
                 manifest["docs"][str(tid)] = {"file_id": bestand["id"], "url": urls[tid],
-                                              "naam": naam, "map": drive_map, "sha256": sha}
+                                              "naam": op_drive, "map": drive_map, "sha256": sha}
                 # Ná het schrijven van de inhoud, nooit ervoor: een opmerking die er al stond
                 # voordat `files.update` de tekst verving is losgeslagen. Faalt dit, dan is dat
                 # geen mislukte upload: het document staat er en is bruikbaar.
@@ -511,7 +620,9 @@ def upload_naar_drive(out_dir: str, drive_map: str, *, service=None, root_id: st
     map_url = map_.get("webViewLink") or f"https://drive.google.com/drive/folders/{map_['id']}"
     if verbose:
         print(f"\nDrive-map '{drive_map}': {len(nieuw)} nieuw, {len(overgeslagen)} al aanwezig"
+              + (f", {len(hernoemd)} hernoemd" if hernoemd else "")
               + (f", {len(mislukt)} mislukt: {mislukt}" if mislukt else "")
               + f"\n{map_url}")
     return {"map_id": map_["id"], "map_url": map_url, "urls": urls,
-            "nieuw": nieuw, "overgeslagen": overgeslagen, "mislukt": mislukt}
+            "nieuw": nieuw, "overgeslagen": overgeslagen, "hernoemd": hernoemd,
+            "mislukt": mislukt}
