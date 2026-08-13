@@ -343,6 +343,11 @@ _SOORTWOORD_RE = re.compile(
     r"\b(?:cursus(?:sen|se)?|opleiding(?:en)?|gebruikerscursus|examencursus|leergang(?:en)?)\b",
     re.I)
 
+# Wie lesgeeft heet een trainer. Elke samenstelling telt mee: gemeten stonden er "docent",
+# "vakdocent" en "VBA-docent". De klasse is `[\w-]` en niet `\w`, want `\w` matcht geen
+# koppelteken -- dezelfde val als bij `check_soortwoorden`.
+_DOCENT_RE = re.compile(r"[\w-]*docent[\w-]*", re.I)
+
 # Doelen staan in de te-infinitief, aansluitend op "Na deze training ben je in staat om:".
 # Twee vormen: aaneengesloten ("te formuleren") en gesplitst ("voor te bereiden"). De meeste
 # infinitieven eindigen op -en; de onregelmatige korte vormen staan er expliciet bij.
@@ -1194,6 +1199,36 @@ def check_soortwoorden(rw: dict) -> list[Issue]:
     return issues
 
 
+def check_docent(rw: dict, ctx: dict | None = None) -> list[Issue]:
+    """Wie lesgeeft heet een trainer, nooit een docent.
+
+    Precies hetzelfde mechanisme als bij `check_soortwoorden`, en daarom net zo hard: de
+    brontekst zegt het 30 keer ("onder begeleiding van je docent", "Tips en trucs van de
+    docent") en de schrijver neemt het ongemerkt over. Over de eerste 201 herschreven
+    trainingen stond het in 24 ervan, 31 keer in totaal en 26 daarvan in de Modules --
+    terwijl "trainer" er 747 keer wél goed staat. De vaste tekst van Aanpak zegt het zelf
+    ook ("Onze trainers zijn, naast trainer, dagelijks werkzaam ...").
+
+    Geen uitzondering voor een training *voor* docenten, want die bestaat hier niet: alle 30
+    bronvermeldingen en alle 31 in onze output bedoelen de trainer, en geen van de 96
+    gescoorde titels bevat "docent", "onderwijs" of "didact". Duikt zo'n training later toch
+    op, dan is dit een onwinbare lus (zie `check_doelen` en training 482) en hoort er een
+    uitzondering bij, geen omweg van de schrijver.
+
+    Bewust zonder `nieuwe_titel`, anders dan bij `check_soortwoorden`: die titel komt uit
+    `bepaal_titel` en niet uit de pen van de schrijver, dus een HARD erop is niet te
+    repareren -- en met nul catalogustitels die het woord bevatten vangt hij ook niets.
+    """
+    issues = []
+    for section, text in _all_text_fields(rw):
+        m = _DOCENT_RE.search(text)
+        if m:
+            issues.append(Issue(section, HARD, "docent",
+                                f"gebruikt '{m.group(0)}'; wie lesgeeft heet bij ons een "
+                                f"trainer."))
+    return issues
+
+
 # ---------------------------------------------------------------------------
 # Actualiseringen: uitgevoerd op het niveau van hun eigen werkwoord?
 # ---------------------------------------------------------------------------
@@ -1327,6 +1362,7 @@ def check_rewrite(rewrite: dict, ctx: dict | None = None) -> list[Issue]:
     issues += check_kortste_omschrijving(rw, ctx)
     issues += check_vervolgstappen(rw, ctx)
     issues += check_soortwoorden(rw)
+    issues += check_docent(rw, ctx)
     issues += check_soortwoord_hoofdletter(rw, ctx)
     issues += check_verboden_woorden(rw, ctx)
     issues += check_lerend_aspect(rw, ctx)

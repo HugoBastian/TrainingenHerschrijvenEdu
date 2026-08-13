@@ -144,6 +144,11 @@ juist ongewijzigd te zijn gebleven.
 staan; alles heet een training. "Examentraining", "Masterclass" en "Workshop" mogen wel. De
 code-check vangt dit al af; kom je het toch tegen, dan is het een fail.
 
+**Trainer.** Wie lesgeeft heet een trainer, nooit een docent, ook niet in een samenstelling
+("vakdocent"). De brontekst gebruikt "docent" vrijwel overal, dus dit is precies het woord dat
+ongemerkt meelift; de vaste tekst van Aanpak spreekt van "onze trainers". Ook hiervoor bestaat
+een code-check; kom je het toch tegen, dan is het een fail.
+
 ---
 
 ## 2. Feitgetrouwheid (grounding)  ⚠️ zwaarste as

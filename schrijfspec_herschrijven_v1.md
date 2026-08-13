@@ -30,6 +30,8 @@ getal los; de marges eromheen zijn er precies voor. Dat geldt níét voor de har
 tekens van de Kortste omschrijving staan vast, want daar zit geen stijlafweging in.
 
 0. **Alles heet een "training".** Nooit "cursus", "opleiding" of "leergang": ook niet als de brontekst die woorden overal gebruikt, en ook niet in de titel. "Examentraining", "Masterclass" en "Workshop" mogen wel. De code levert een titel in de nieuwe stijl aan ("Cursus XML" → "Training XML"); neem die over. [hard]
+
+    **En wie lesgeeft heet een "trainer".** Nooit "docent", en ook niet in een samenstelling ("vakdocent", "VBA-docent"). [hard] Ook hier geldt: de brontekst zegt het overal, maar de vaste tekst van Aanpak zegt "Onze trainers zijn, naast trainer, dagelijks werkzaam op dit expertisegebied" en dat is de term. "Onder begeleiding van de docent werken" wordt "Onder begeleiding van de trainer werken"; "Tips en trucs van de docent" wordt "Tips en trucs van de trainer".
 1. **"je"-vorm, nooit "u".** De bron mag in de u-vorm staan; jij zet alles om naar je/jouw/jij.
 2. **Geen marketingtaal, superlatieven of beloftes.** Geen "de beste", "uniek", "gegarandeerd", "in no-time", "moeiteloos". Dit gaat over superlatieven die **ons** aanprijzen. Een superlatief die een **keuze van de deelnemer** preciezer maakt, is juist gewenst: "het best passende pattern kiezen" zegt scherper wat de deelnemer leert dan "een passend pattern kiezen". De toets is simpel: gaat de overtreffende trap over ons aanbod, dan schrappen; gaat hij over het oordeelsvermogen van de deelnemer, dan houden.
 3. **Actief en concreet.** Actieve werkwoorden; geen vage termen ("realistische werksituaties", "diverse aspecten", "in de wereld van …"). **Vermijd passieve constructies**: maak óf onszelf ("we") óf de klant ("je") het onderwerp. "Er wordt aandacht besteed aan datakwaliteit" haalt de partij weg die de waarde levert; "We nemen jouw datakwaliteitsvraagstukken als uitgangspunt" niet.
@@ -83,6 +85,7 @@ tekens van de Kortste omschrijving staan vast, want daar zit geen stijlafweging 
     | Gebruik | Niet |
     | --- | --- |
     | werksituatie, werkpraktijk | vage abstracties ("realistische situaties") |
+    | trainer | docent, vakdocent (zie §0.0; [hard]) |
     | expertisegebied | vakgebied |
     | dagelijks werkzaam op dit expertisegebied | (alleen) "uit de praktijk" |
     | "Deze training is bedoeld voor …" | "Deze training is voor …" |

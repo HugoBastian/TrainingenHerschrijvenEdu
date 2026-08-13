@@ -613,3 +613,30 @@ zonder enige tekst op schijf.
 >
 > ❌ npm-pakketten te beheren en versies vast te zetten
 > ✅ Pakketten met npm te beheren en versies vast te zetten
+
+---
+
+## 32. Wie lesgeeft is de trainer (schrijfspec §0.0, §0.20)
+
+De hardnekkigste overname uit de brontekst na het soortwoord. Over de eerste 201 herschreven
+trainingen stond "docent" er 31 keer in, verdeeld over 24 trainingen; 26 daarvan in de Modules.
+Ter vergelijking: "trainer" staat er in diezelfde 201 trainingen 747 keer wél goed. De bron doet
+het voor ("Tijdens deze laatste module zal de docent zijn jarenlange ervaring met u delen"), en
+omdat de zin verder klopt glipt het woord mee.
+
+❌ Tips en trucs van de docent
+✅ Tips en trucs van de trainer
+
+❌ Praktische tips en trucs van de docent overnemen
+✅ Praktische tips en trucs van de trainer overnemen
+
+❌ Onder begeleiding van de vakdocent een opzet maken voor je eigen applicatie
+✅ Onder begeleiding van de trainer een opzet maken voor je eigen applicatie
+
+❌ Je werkt onder begeleiding van een ervaren VBA-docent aan een praktijkcase.
+✅ Je werkt onder begeleiding van een ervaren trainer aan een praktijkcase.
+
+> Samenstellingen zijn geen uitweg: "vakdocent" en "VBA-docent" zijn even fout als "docent",
+> en het vak zit al in de zin. De vaste tekst van Aanpak zet de term zelf neer -- "Onze trainers
+> zijn, naast trainer, dagelijks werkzaam op dit expertisegebied" -- dus een tekst die het
+> ernaast anders noemt spreekt zichzelf tegen binnen één training.

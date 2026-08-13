@@ -426,6 +426,49 @@ def test_examentraining_mag_wel():
 
 
 # ---------------------------------------------------------------------------
+# Docent: wie lesgeeft heet een trainer
+# ---------------------------------------------------------------------------
+
+def test_docent_in_module_bullet_is_hardfail():
+    rw = _good_rewrite()
+    rw["modules"]["modules"][0]["bullets"][0] = "Onder begeleiding van de docent werken"
+    assert "docent" in _codes(check_rewrite(rw, _CTX), HARD)
+
+
+def test_docent_in_moduletitel_is_hardfail():
+    # De vorm waarin het het vaakst opdook: een moduletitel uit de brontekst overgenomen.
+    rw = _good_rewrite()
+    rw["modules"]["modules"][0]["titel"] = "Tips en trucs van de docent"
+    assert "docent" in _codes(check_rewrite(rw, _CTX), HARD)
+
+
+def test_docent_in_inleiding_is_hardfail():
+    rw = _good_rewrite()
+    rw["inleiding"] = "Je docent begeleidt je. " + vul(193, "onderwerp", "thema")
+    assert "docent" in _codes(check_rewrite(rw, _CTX), HARD)
+
+
+def test_vakdocent_is_ook_hardfail():
+    rw = _good_rewrite()
+    rw["overzicht"] = "Wil je verder komen met de begeleiding van een vakdocent?"
+    assert "docent" in _codes(check_rewrite(rw, _CTX), HARD)
+
+
+def test_docent_met_koppelteken_is_hardfail():
+    # `\w` matcht geen koppelteken; zonder de expliciete klasse glipt "VBA-docent" erdoor.
+    rw = _good_rewrite()
+    rw["overzicht"] = "Wil je onder begeleiding van een ervaren VBA-docent leren programmeren?"
+    issues = [i for i in check_rewrite(rw, _CTX) if i.code == "docent"]
+    assert issues and "VBA-docent" in issues[0].message
+
+
+def test_trainer_is_geen_docent():
+    rw = _good_rewrite()
+    rw["modules"]["modules"][0]["bullets"][0] = "Onder begeleiding van de trainer werken"
+    assert "docent" not in _codes(check_rewrite(rw, _CTX), HARD)
+
+
+# ---------------------------------------------------------------------------
 # Titelnormalisatie (sjabloon.nieuwe_titel / vervang_soortwoord / vervolgtitel)
 # ---------------------------------------------------------------------------
 
