@@ -3983,6 +3983,82 @@ def _stream_fout(type_: str, status: int = 200):
     return anthropic.APIStatusError(f"{body}", response=resp, body=body)
 
 
+def test_het_spoor_ziet_de_slaap_van_de_machine():
+    """Twee klokken die er allebei al waren; het kostte alleen een aftrekking.
+
+    Batch 8 verloor drie trainingen doordat de Mac om 00:55 in idle sleep ging. Dat was aan
+    `seconden` niet te zien -- `time.monotonic()` staat stil tijdens suspensie -- en er was een
+    uitstapje naar `pmset -g log` voor nodig om het te bewijzen. Nu staat het in het spoor.
+    """
+    spoor = rw.begin_spoor()
+    spoor.wand_start -= 600          # de wandklok liep 600 s door, de monotone stond stil
+    assert 599 <= spoor.geslapen() <= 601, spoor.geslapen()
+    assert spoor.als_dict()["geslapen"] >= 599
+
+    # een klok die vooruit wordt gecorrigeerd mag geen negatieve slaap opleveren
+    vooruit = rw.begin_spoor()
+    vooruit.wand_start += 5
+    assert vooruit.geslapen() == 0.0
+    # en een spoor dat nooit is gestart weet van niets
+    assert rw.Storingsspoor().geslapen() == 0.0
+
+
+def test_de_batch_houdt_de_machine_wakker_en_laat_niets_achter():
+    """`-w <pid>`: het OS laat de assertion los zodra wij eindigen, ook bij een crash.
+
+    De `terminate()` is er voor het notebook, want daar blijft de kernel na de batch gewoon
+    leven en zou de Mac wakker blijven tot je hem afsluit.
+    """
+    import platform
+    import subprocess
+    processen = []
+
+    class _Nep:
+        def __init__(self, argv):
+            self.argv, self.gestopt = argv, False
+
+        def terminate(self):
+            self.gestopt = True
+
+    echt_popen, echt_system = subprocess.Popen, platform.system
+    subprocess.Popen = lambda argv: processen.append(_Nep(argv)) or processen[-1]
+    platform.system = lambda: "Darwin"
+    try:
+        with rw.machine_wakker(verbose=False):
+            assert processen and not processen[0].gestopt
+        # ook als de batch omvalt hoort de assertion los te gaan
+        try:
+            with rw.machine_wakker(verbose=False):
+                raise ValueError("batch valt om")
+        except ValueError:
+            pass
+    finally:
+        subprocess.Popen, platform.system = echt_popen, echt_system
+
+    assert processen[0].argv == ["caffeinate", "-is", "-w", str(os.getpid())], processen[0].argv
+    assert all(p.gestopt for p in processen), "anders blijft de Mac wakker na de batch"
+
+
+def test_een_ontbrekende_caffeinate_kost_geen_batch():
+    """Wakker blijven is een voorzorg, geen voorwaarde: zonder het commando draait de batch."""
+    import platform
+    import subprocess
+
+    def weigert(*_a, **_k):
+        raise OSError("caffeinate: command not found")
+
+    melding = io.StringIO()
+    echt_popen, echt_system = subprocess.Popen, platform.system
+    subprocess.Popen, platform.system = weigert, (lambda: "Darwin")
+    try:
+        with contextlib.redirect_stderr(melding), rw.machine_wakker(verbose=True):
+            gedraaid = True
+    finally:
+        subprocess.Popen, platform.system = echt_popen, echt_system
+    assert gedraaid
+    assert "caffeinate niet gestart" in melding.getvalue(), melding.getvalue()
+
+
 def test_de_soort_van_een_fout_scheidt_de_storing_van_de_rest():
     """`reden` is een zin voor een mens en per uitzondering anders; hierop kun je groeperen."""
     import httpx
@@ -4219,8 +4295,9 @@ def test_de_reviewrij_en_de_json_dragen_het_moment_en_het_storingsspoor():
     assert rij["stilte_seconden"] == 1.5 and rij["gestart_op"]
     assert rij["fout_soort"] == "", "een geslaagde training heeft geen foutsoort"
     assert artefact["storingen"] == {"calls": 1, "call_seconden": 3.0, "traagste_call": 3.0,
-                                     "stiltes": 1, "stilte_seconden": 1.5}
+                                     "stiltes": 1, "stilte_seconden": 1.5, "geslapen": 0.0}
     assert artefact["gestart_op"] == rij["gestart_op"]
+    assert rij["geslapen_s"] == 0.0, "een machine die niet sliep hoort hier nul te geven"
 
 
 def test_start_voorbij_het_einde_waarschuwt_in_plaats_van_stil_niets_te_doen():

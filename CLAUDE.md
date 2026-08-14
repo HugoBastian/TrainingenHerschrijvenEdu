@@ -605,6 +605,30 @@ volledige call. Drie dingen om te weten:
   `verloop.jsonl` dat er ook ná de afkoeling nog reeksen staan, dan is het antwoord het
   requeuen van een netwerkfout achteraan in de wachtrij en niet een langere pauze.
 
+### De vijfde grens zit niet in de code maar in de Mac
+
+`machine_wakker()` wikkelt de hele batch in een `caffeinate -is -w <onze pid>`, en dat is geen
+voorzorg maar een reparatie. Batch 8 (46 trainingen, 00:19 tot 06:15) verloor er drie, en
+`pmset -g log` wees precies één oorzaak aan: de Mac ging om 00:55:39 in idle sleep en cyclede tot
+02:55:40 tussen slaap en DarkWake. **Van de drie trainingen die binnen dat venster liepen
+sneuvelden er drie; van de 41 daarbuiten geen enkele.** 2715 begon zeven seconden voordat de
+machine terugging naar slaap, kreeg één call binnen (6,4 s) en verder niets.
+
+Drie dingen die daaruit volgen:
+
+- **suspensie is niet hetzelfde als traagheid, en de afkoeling repareert hem niet.** Die is
+  gekalibreerd op een hapering aan de API-kant van minuten; dit duurde twee uur. Hij vuurde
+  keurig (60 / 120 / 240 s) en het hielp niets. Geen reden om aan die knop te draaien;
+- **`geslapen` in het storingsspoor meet het, en dat kost twee klokken die er al waren.**
+  `time.monotonic()` staat stil tijdens suspensie en `time.time()` niet, dus hun verschil ís de
+  slaaptijd. Zonder dat veld was er voor deze diagnose een uitstapje naar `pmset -g log` nodig;
+  nu staat het in `verloop.jsonl` en in de kolom `geslapen_s`. Vanaf `SLAAP_MELDGRENS` (60 s)
+  meldt `_stempel_meting` het naar stderr, bewust niet achter `verbose` -- dit is geen
+  voortgang maar een defect in de omgeving, en dan is élke volgende training verdacht;
+- **`seconden` en de wandklok lopen daardoor uit elkaar, en dat is goed.** 2714 meldde
+  "tijdsbudget van 25 minuten verstreken" terwijl er wandklokgewijs 43 minuten voorbij waren:
+  `TIJDSBUDGET` meet werk en geen suspensie. Lees `reden` dus nooit zonder `geslapen` ernaast.
+
 De deadline staat als modulevariabele achter `tijdsbudget()` en niet als parameter. `_call_tool`
 wordt langs vijf paden bereikt (schrijver, judge, vervolgstappen, modus, actualisering) en
 vanuit twee lussen; een parameter zou bij elk van hen vergeten kunnen worden. Zelfde afweging

@@ -157,6 +157,11 @@ NETWERK_HERKANSINGEN = 1           # extra pogingen bij een fout die MIDDEN in e
 AFKOELING_START = 60.0             # na de eerste storing
 AFKOELING_MAX = 480.0              # plafond na verdubbelen
 
+# Vanaf hoeveel geslapen seconden melden we dat de machine eronderuit ging? Zie
+# `Storingsspoor.geslapen`. Een minuut ligt ruim boven de ruis van een NTP-correctie en ruim
+# onder wat een slaapcyclus kost: die van batch 8 duurden 959 tot 2792 s per training.
+SLAAP_MELDGRENS = 60.0
+
 # Taxonomie-bonus bij de shortlist. Keyword-overlap en boomburen falen op verschillende
 # manieren -- LDAP vindt via keywords "Active Directory" (raak) maar via de boom 5G en
 # breedband (mis), XSL andersom. Daarom een unie: de bonus telt bij de IDF-score op, hoog
@@ -1637,6 +1642,9 @@ class Storingsspoor:
     traagste_call: float = 0.0
     stiltes: int = 0                  # gevangen netwerkfouten, geslaagd herkanst of niet
     stilte_seconden: float = 0.0      # tijd in pogingen die niets opleverden
+    # De twee klokken bij de start, gezet door `begin_spoor`; zie `geslapen()`.
+    wand_start: float = 0.0
+    mono_start: float = 0.0
 
     def tel_call(self, duur: float) -> None:
         self.calls += 1
@@ -1647,10 +1655,33 @@ class Storingsspoor:
         self.stiltes += 1
         self.stilte_seconden = round(self.stilte_seconden + duur, 1)
 
+    def geslapen(self) -> float:
+        """Wandkloktijd die de monotone klok niet zag: de machine was weg.
+
+        `time.monotonic()` staat stil tijdens suspensie (macOS `mach_absolute_time`, Linux
+        `CLOCK_MONOTONIC`) en `time.time()` niet, dus hun verschil ís de slaaptijd. Twee klokken
+        die er allebei al waren; het kostte alleen een aftrekking om ze iets te laten zeggen.
+
+        Waarom dat de moeite waard is: de drie fouten van batch 8 waren aan dit getal in één
+        oogopslag te herkennen (959, 2672 en 2792 s), maar met alleen `seconden` in de tabel was
+        er een uitstapje naar `pmset -g log` voor nodig om ze te verklaren. Nu staat het antwoord
+        in `verloop.jsonl`.
+
+        De ondergrens is ruis: een NTP-correctie verschuift `time.time()` ook. Daarom klemt hij
+        op nul en meldt `rewrite_file` pas vanaf `SLAAP_MELDGRENS`.
+        """
+        if not self.mono_start:
+            return 0.0
+        wand = time.time() - self.wand_start
+        mono = time.monotonic() - self.mono_start
+        return max(0.0, round(wand - mono, 1))
+
     def als_dict(self) -> dict:
+        """Het spoor als platte dict. `geslapen` wordt hier berekend, dus roep hem aan als de
+        training klaar is -- `_stempel_meting` is de enige plek die dat doet."""
         return {"calls": self.calls, "call_seconden": self.call_seconden,
                 "traagste_call": self.traagste_call, "stiltes": self.stiltes,
-                "stilte_seconden": self.stilte_seconden}
+                "stilte_seconden": self.stilte_seconden, "geslapen": self.geslapen()}
 
 
 _spoor = Storingsspoor()
@@ -1666,7 +1697,7 @@ def begin_spoor() -> Storingsspoor:
     bij het verlaten opruimt zou precies het geval wissen waarvoor dit bestaat.
     """
     global _spoor
-    _spoor = Storingsspoor()
+    _spoor = Storingsspoor(wand_start=time.time(), mono_start=time.monotonic())
     return _spoor
 
 
@@ -2176,6 +2207,13 @@ def _stempel_meting(res: RewriteResult, gestart_op: str, start: float) -> Rewrit
     res.gestart_op = gestart_op
     res.seconden = round(time.monotonic() - start, 1)
     res.storingen = huidig_spoor().als_dict()
+    # Niet achter `verbose`, en dat is met opzet: dit is geen voortgang maar een defect in de
+    # omgeving. Sliep de machine, dan is élke volgende training verdacht en wil je dat weten
+    # terwijl de batch loopt, niet pas als je achteraf het sheet openslaat. `machine_wakker`
+    # hoort dit te voorkomen; vuurt hij toch, dan is dát het bericht.
+    if res.storingen.get("geslapen", 0.0) >= SLAAP_MELDGRENS:
+        print(f"  (de machine sliep {res.storingen['geslapen']:.0f} s tijdens training "
+              f"{res.training_id}; caffeinate hield hem niet wakker)", file=sys.stderr)
     return res
 
 
@@ -3461,6 +3499,8 @@ def _review_rij(res: RewriteResult, content: dict, content_bron: dict | None = N
         "fout_soort": res.fout_soort,
         "n_stiltes": res.storingen.get("stiltes", 0),
         "stilte_seconden": res.storingen.get("stilte_seconden", 0.0),
+        # De kolom die een mislukte batch in één oogopslag verklaart: sliep de machine eronder?
+        "geslapen_s": res.storingen.get("geslapen", 0.0),
     }
     plat = uit.content_naar_platte_tekst(content, res.titel) if content else {}
     for kopje in sjabloon.KOPJES:
@@ -3916,6 +3956,48 @@ def lees_verloop(out_dir: str):
     return df
 
 
+@contextmanager
+def machine_wakker(verbose: bool = True):
+    """Houdt de machine wakker zolang deze batch draait. Zonder dit slaapt hij eronderuit.
+
+    Batch 8 (14 augustus 2026, 46 trainingen, 00:19 tot 06:15) is het geval waar dit voor
+    bestaat. De Mac ging om 00:55:39 in idle sleep en cyclede tot 02:55:40 tussen slaap en
+    DarkWake. Elke open HTTPS-stream sterft als de machine suspendeert: het proces wordt wakker,
+    vindt een dode socket en wacht `LEES_TIMEOUT` uit -- en soms slaapt de machine daar middenin
+    opnieuw, zodat één stilte 330 s wordt in plaats van 180. Uitkomst: van de drie trainingen die
+    binnen dat venster liepen sneuvelden er drie, van de 41 daarbuiten geen enkele. 2715 begon
+    zeven seconden voordat de machine terugging naar slaap, kreeg precies één call binnen (6,4 s)
+    en verder niets.
+
+    Geen enkele afkoeling repareert dat -- die is gekalibreerd op een hapering aan de API-kant
+    van minuten, en dit duurde twee uur. De machine moet gewoon wakker blijven.
+
+    `caffeinate -w <onze pid>` en niet een assertion die wij zelf vasthouden: dan laat het
+    besturingssysteem hem los zodra dít proces eindigt, ook bij een crash of Ctrl-C. De
+    `terminate()` in de finally is er voor het notebook, want daar blijft de kernel na de batch
+    gewoon leven en zou de Mac anders wakker blijven tot je hem afsluit.
+
+    `-i` (geen idle sleep) is de belangrijke; `-s` werkt alleen op netstroom en kost niets als
+    de machine op accu draait. Buiten macOS gebeurt er niets: geen `caffeinate`, geen fout.
+    """
+    import platform
+    import subprocess
+    proces = None
+    if platform.system() == "Darwin":
+        try:
+            proces = subprocess.Popen(["caffeinate", "-is", "-w", str(os.getpid())])
+        except OSError as fout:
+            if verbose:
+                print(f"  (caffeinate niet gestart: {type(fout).__name__}: {fout}; een batch "
+                      f"die langer duurt dan de slaaptimer kan trainingen verliezen)",
+                      file=sys.stderr)
+    try:
+        yield
+    finally:
+        if proces is not None:
+            proces.terminate()
+
+
 @dataclass
 class Afkoeling:
     """Pauze vóór de volgende training, zolang de vorige op een storing sneuvelde.
@@ -4298,137 +4380,142 @@ def rewrite_file(scored_path: str, source_path: str, out_dir: str, *,
         _upload_na_batch(out_dir, drive_map, drive_service, verbose, batch)
         return bestaand_review if bestaand_review is not None else pd.DataFrame()
 
-    catalog = load_catalog()
-    if verbose and not catalog:
-        print(f"LET OP: {CATALOG_PATH} ontbreekt -> Vervolgstappen-titels leeg/geflagd.")
-    boom = load_tree(catalog)
-    if verbose and catalog and not boom["paden"]:
-        print(f"LET OP: {TREE_PATH} ontbreekt -> vervolgtrainingen alleen op keyword-overlap.")
-    # Ook het overnemen-pad kan een client nodig hebben: goedgekeurde actualiseringen worden
-    # daar sinds deze schaal wél doorgevoerd (zie `neem_over`).
-    client = make_client() if len(scored_sel) or len(overnemen) else None
+    # De machine wakker houden voor de héle batch en niet per training: idle sleep valt
+    # midden in een call en dan is die training al kwijt. Zie `machine_wakker` voor batch 8,
+    # waar drie van de drie trainingen binnen het slaapvenster sneuvelden en nul van de 41
+    # daarbuiten. Staat ná de vroege uitgangen hierboven: die uploaden alleen.
+    with machine_wakker(verbose):
+        catalog = load_catalog()
+        if verbose and not catalog:
+            print(f"LET OP: {CATALOG_PATH} ontbreekt -> Vervolgstappen-titels leeg/geflagd.")
+        boom = load_tree(catalog)
+        if verbose and catalog and not boom["paden"]:
+            print(f"LET OP: {TREE_PATH} ontbreekt -> vervolgtrainingen alleen op keyword-overlap.")
+        # Ook het overnemen-pad kan een client nodig hebben: goedgekeurde actualiseringen worden
+        # daar sinds deze schaal wél doorgevoerd (zie `neem_over`).
+        client = make_client() if len(scored_sel) or len(overnemen) else None
 
-    cms_records, review_records = [], []
-    # Eén run-id en één afkoeling over beide lussen heen: het `overnemen`-spoor doet ook calls
-    # zodra er een goedgekeurde actualisering ligt, dus een storing daar hoort de herschrijflus
-    # net zo goed te vertragen. `positie` telt over beide lussen door, want dat is de volgorde
-    # waarin het netwerk ze zag.
-    # Tot op de milliseconde, en dat is geen overdaad: op secondeprecisie krijgen twee runs die
-    # binnen dezelfde seconde starten hetzelfde id, en dan lijkt de tweede run een vervolg van
-    # de eerste. `lees_verloop` sorteert op (run, positie) en zet dan de verkeerde buren naast
-    # elkaar -- precies de fout die de analyse zou maken.
-    run_id = datetime.now().strftime("%Y%m%dT%H%M%S%f")[:-3]
-    afkoeling = Afkoeling(verbose)
-    positie = 0
+        cms_records, review_records = [], []
+        # Eén run-id en één afkoeling over beide lussen heen: het `overnemen`-spoor doet ook calls
+        # zodra er een goedgekeurde actualisering ligt, dus een storing daar hoort de herschrijflus
+        # net zo goed te vertragen. `positie` telt over beide lussen door, want dat is de volgorde
+        # waarin het netwerk ze zag.
+        # Tot op de milliseconde, en dat is geen overdaad: op secondeprecisie krijgen twee runs die
+        # binnen dezelfde seconde starten hetzelfde id, en dan lijkt de tweede run een vervolg van
+        # de eerste. `lees_verloop` sorteert op (run, positie) en zet dan de verkeerde buren naast
+        # elkaar -- precies de fout die de analyse zou maken.
+        run_id = datetime.now().strftime("%Y%m%dT%H%M%S%f")[:-3]
+        afkoeling = Afkoeling(verbose)
+        positie = 0
 
-    # 1. de trainingen die al aan het format voldoen (modus `overnemen`). Zonder goedgekeurde
-    #    actualiseringen kost dit pad geen enkele API-call.
-    for _, srow in overnemen.iterrows():
-        tid = srow["training_id"]
-        src_row = src_by_id.get(tid)
-        if src_row is None:
-            if verbose:
-                print(f"  (id {tid} staat op modus 'overnemen' maar heeft geen bron; overgeslagen)")
-            continue
-        scored_dict = {k: srow[k] for k in overnemen.columns}
-        naam = str(scored_dict.get("titel") or src_row[cols["name"]] or "")
-        content_bron = parse_content(src_row[cols["content"]])
-        b = build_briefing(scored_dict, content_bron, naam, per_training.get(tid, []))
-        afkoeling.wacht()
-        gestart_op, start = _begin_meting()
-        try:
-            res, content_uit = neem_over(b, client)
-        except Exception as e:
-            # Ook dit spoor doet API-calls zodra er een goedgekeurde actualisering ligt,
-            # dus het kan op dezelfde manier omvallen als lus 2 hieronder.
-            res, content_uit = _mislukte_training(b, e, verbose), {}
-        _stempel_meting(res, gestart_op, start)
-        positie += 1
-        # Ook dit spoor legt zijn artefact vast. Tot deze ronde deed het dat niet, en dan
-        # bestaat een overgenomen training nergens op schijf: niet te inspecteren in sectie 7
-        # en niet te uploaden naar Drive, terwijl een reviewer hem net zo goed moet lezen.
-        schrijf_training_artefacten(json_dir, tid, res, content_uit)
-        _log_verloop(out_dir, run_id, positie, res, batch, verbose)
-        if res.status != "error":
-            cms_records.append({"id": tid, "name": res.titel,
-                                "content": json.dumps(content_uit, ensure_ascii=False, default=_json_default)})
-        review_records.append(_review_rij(res, content_uit, content_bron))
-        afkoeling.na(res)
-    if verbose and len(overnemen):
-        print(f"{len(overnemen)} trainingen op modus 'overnemen' doorgezet")
-
-    # 2. de trainingen die wél herschreven moeten worden (modus stijl/format/volledig)
-    for n, (_, srow) in enumerate(scored_sel.iterrows(), start=1):
-        scored_dict = {k: srow[k] for k in scored_sel.columns}
-        tid = scored_dict.get("training_id")
-        naam = str(scored_dict.get("titel", "") or "")
-        src_row = src_by_id.get(tid)
-        content_bron = parse_content(src_row[cols["content"]]) if src_row is not None else {}
-
-        afkoeling.wacht()
-        if scored_dict.get("ok") is False:
-            # Geen call gedaan en niets te meten: dit is een gat in het scoresheet en niet
-            # iets dat het netwerk raakt. `overig` dus, zodat het nooit voor een storing
-            # wordt aangezien en de batch er niet op gaat wachten.
-            res = RewriteResult(tid, naam, "error", reden="scoring mislukt",
-                                fout_soort=FOUT_OVERIG)
-        else:
-            if src_row is None and verbose:
-                print(f"  (geen bron gevonden voor id {tid}; alleen scorer-feiten)")
-            if not naam and src_row is not None:
-                naam = str(src_row[cols["name"]])
-            # `build_briefing` staat bewust BUITEN de vangst: dat is deterministische
-            # assemblage, dus valt hij om dan valt hij bij elke training om en is stoppen
-            # het juiste antwoord. Binnen de vangst staat alleen wat het netwerk raakt.
+        # 1. de trainingen die al aan het format voldoen (modus `overnemen`). Zonder goedgekeurde
+        #    actualiseringen kost dit pad geen enkele API-call.
+        for _, srow in overnemen.iterrows():
+            tid = srow["training_id"]
+            src_row = src_by_id.get(tid)
+            if src_row is None:
+                if verbose:
+                    print(f"  (id {tid} staat op modus 'overnemen' maar heeft geen bron; overgeslagen)")
+                continue
+            scored_dict = {k: srow[k] for k in overnemen.columns}
+            naam = str(scored_dict.get("titel") or src_row[cols["name"]] or "")
+            content_bron = parse_content(src_row[cols["content"]])
             b = build_briefing(scored_dict, content_bron, naam, per_training.get(tid, []))
-            # Buiten de vangst gemeten, want juist de training die omvalt -- op het tijdsbudget
-            # of op wat dan ook -- is degene waarvan je de duur en het storingsspoor wilt
-            # terugzien. `_begin_meting` zet het spoor op nul; `rewrite_one` doet dat nog eens
-            # voor zijn eigen aanroepers, en dat is dezelfde meting.
+            afkoeling.wacht()
             gestart_op, start = _begin_meting()
             try:
-                res = rewrite_one(client, b, catalog, boom)
+                res, content_uit = neem_over(b, client)
             except Exception as e:
-                res = _mislukte_training(b, e, verbose)
+                # Ook dit spoor doet API-calls zodra er een goedgekeurde actualisering ligt,
+                # dus het kan op dezelfde manier omvallen als lus 2 hieronder.
+                res, content_uit = _mislukte_training(b, e, verbose), {}
             _stempel_meting(res, gestart_op, start)
+            positie += 1
+            # Ook dit spoor legt zijn artefact vast. Tot deze ronde deed het dat niet, en dan
+            # bestaat een overgenomen training nergens op schijf: niet te inspecteren in sectie 7
+            # en niet te uploaden naar Drive, terwijl een reviewer hem net zo goed moet lezen.
+            schrijf_training_artefacten(json_dir, tid, res, content_uit)
+            _log_verloop(out_dir, run_id, positie, res, batch, verbose)
+            if res.status != "error":
+                cms_records.append({"id": tid, "name": res.titel,
+                                    "content": json.dumps(content_uit, ensure_ascii=False, default=_json_default)})
+            review_records.append(_review_rij(res, content_uit, content_bron))
+            afkoeling.na(res)
+        if verbose and len(overnemen):
+            print(f"{len(overnemen)} trainingen op modus 'overnemen' doorgezet")
 
-        content_uit = uit.document_to_content(res.document, content_bron) if res.document else {}
+        # 2. de trainingen die wél herschreven moeten worden (modus stijl/format/volledig)
+        for n, (_, srow) in enumerate(scored_sel.iterrows(), start=1):
+            scored_dict = {k: srow[k] for k in scored_sel.columns}
+            tid = scored_dict.get("training_id")
+            naam = str(scored_dict.get("titel", "") or "")
+            src_row = src_by_id.get(tid)
+            content_bron = parse_content(src_row[cols["content"]]) if src_row is not None else {}
 
-        positie += 1
-        schrijf_training_artefacten(json_dir, tid, res, content_uit)
-        _log_verloop(out_dir, run_id, positie, res, batch, verbose)
+            afkoeling.wacht()
+            if scored_dict.get("ok") is False:
+                # Geen call gedaan en niets te meten: dit is een gat in het scoresheet en niet
+                # iets dat het netwerk raakt. `overig` dus, zodat het nooit voor een storing
+                # wordt aangezien en de batch er niet op gaat wachten.
+                res = RewriteResult(tid, naam, "error", reden="scoring mislukt",
+                                    fout_soort=FOUT_OVERIG)
+            else:
+                if src_row is None and verbose:
+                    print(f"  (geen bron gevonden voor id {tid}; alleen scorer-feiten)")
+                if not naam and src_row is not None:
+                    naam = str(src_row[cols["name"]])
+                # `build_briefing` staat bewust BUITEN de vangst: dat is deterministische
+                # assemblage, dus valt hij om dan valt hij bij elke training om en is stoppen
+                # het juiste antwoord. Binnen de vangst staat alleen wat het netwerk raakt.
+                b = build_briefing(scored_dict, content_bron, naam, per_training.get(tid, []))
+                # Buiten de vangst gemeten, want juist de training die omvalt -- op het tijdsbudget
+                # of op wat dan ook -- is degene waarvan je de duur en het storingsspoor wilt
+                # terugzien. `_begin_meting` zet het spoor op nul; `rewrite_one` doet dat nog eens
+                # voor zijn eigen aanroepers, en dat is dezelfde meting.
+                gestart_op, start = _begin_meting()
+                try:
+                    res = rewrite_one(client, b, catalog, boom)
+                except Exception as e:
+                    res = _mislukte_training(b, e, verbose)
+                _stempel_meting(res, gestart_op, start)
 
-        if res.status == APPROVED and content_uit:
-            cms_records.append({"id": tid, "name": res.titel,
-                                "content": json.dumps(content_uit, ensure_ascii=False, default=_json_default)})
-        review_records.append(_review_rij(res, content_uit, content_bron))
+            content_uit = uit.document_to_content(res.document, content_bron) if res.document else {}
+
+            positie += 1
+            schrijf_training_artefacten(json_dir, tid, res, content_uit)
+            _log_verloop(out_dir, run_id, positie, res, batch, verbose)
+
+            if res.status == APPROVED and content_uit:
+                cms_records.append({"id": tid, "name": res.titel,
+                                    "content": json.dumps(content_uit, ensure_ascii=False, default=_json_default)})
+            review_records.append(_review_rij(res, content_uit, content_bron))
+            if verbose:
+                # id en wachtrijpositie erbij: `[1/1]` alleen zegt niets over wáár in de wachtrij
+                # je zit, en dat is precies wat je wilt kunnen terugvinden in de preview
+                print(f"[{n}/{len(scored_sel)} · wachtrij {wachtrij_van_id.get(tid)}] "
+                      f"{tid:>6} {naam[:40]:40} "
+                      f"[{res.modus:9}] -> {res.status}"
+                      + (f" ({res.reden})" if res.reden else ""))
+            afkoeling.na(res)
+
+        cms = pd.DataFrame.from_records(cms_records)
+        review = pd.DataFrame.from_records(review_records)
+        if bestaand_cms is not None:
+            cms = pd.concat([bestaand_cms, cms], ignore_index=True).drop_duplicates(
+                subset="id", keep="last")
+        if bestaand_review is not None:
+            review = pd.concat([bestaand_review, review], ignore_index=True).drop_duplicates(
+                subset="training_id", keep="last")
+
+        with pd.ExcelWriter(out_path) as writer:
+            cms.to_excel(writer, sheet_name="cms", index=False)
+            review.to_excel(writer, sheet_name="review", index=False)
         if verbose:
-            # id en wachtrijpositie erbij: `[1/1]` alleen zegt niets over wáár in de wachtrij
-            # je zit, en dat is precies wat je wilt kunnen terugvinden in de preview
-            print(f"[{n}/{len(scored_sel)} · wachtrij {wachtrij_van_id.get(tid)}] "
-                  f"{tid:>6} {naam[:40]:40} "
-                  f"[{res.modus:9}] -> {res.status}"
-                  + (f" ({res.reden})" if res.reden else ""))
-        afkoeling.na(res)
+            print(f"\nGeschreven: {out_path} — cms {len(cms)} rijen, review {len(review)} rijen; "
+                  f"JSON + markdown in {json_dir}/")
 
-    cms = pd.DataFrame.from_records(cms_records)
-    review = pd.DataFrame.from_records(review_records)
-    if bestaand_cms is not None:
-        cms = pd.concat([bestaand_cms, cms], ignore_index=True).drop_duplicates(
-            subset="id", keep="last")
-    if bestaand_review is not None:
-        review = pd.concat([bestaand_review, review], ignore_index=True).drop_duplicates(
-            subset="training_id", keep="last")
-
-    with pd.ExcelWriter(out_path) as writer:
-        cms.to_excel(writer, sheet_name="cms", index=False)
-        review.to_excel(writer, sheet_name="review", index=False)
-    if verbose:
-        print(f"\nGeschreven: {out_path} — cms {len(cms)} rijen, review {len(review)} rijen; "
-              f"JSON + markdown in {json_dir}/")
-
-    _upload_na_batch(out_dir, drive_map, drive_service, verbose, batch)
-    return review
+        _upload_na_batch(out_dir, drive_map, drive_service, verbose, batch)
+        return review
 
 
 def main():
